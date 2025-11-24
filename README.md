@@ -1,4 +1,4 @@
-# Parentia — AI Pipeline (Milestone 0)
+# Parentia - AI Pipeline (Milestone 0)
 Petit backend minimal pour tester le pipeline texte → IA → JSON → validation.
 
 ## Installation
