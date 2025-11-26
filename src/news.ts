@@ -1,4 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
+import he from 'he';
 
 const LEMONDE_URL = 'https://www.lemonde.fr/rss/une.xml';
 const FRANCEINFO_URL = 'https://www.francetvinfo.fr/titres.rss';
@@ -37,10 +38,14 @@ function parseRss(xml: string, source: 'Le Monde' | 'France Info'): NewsItem[] {
 
   return rawItems
     .map((item) => {
-      const title = item.title?.toString().trim();
+      const rawTitle = item.title?.toString().trim();
       const link = item.link?.toString().trim();
       const pubDate = item.pubDate?.toString().trim();
-      if (!title || !link || !pubDate) return null;
+      if (!rawTitle || !link || !pubDate) return null;
+
+      const title = he.decode(rawTitle);
+      const rawDescription = item.description?.toString().trim();
+      const description = rawDescription ? he.decode(rawDescription) : null;
 
       const publishedAt = new Date(pubDate).toISOString();
 
@@ -49,7 +54,7 @@ function parseRss(xml: string, source: 'Le Monde' | 'France Info'): NewsItem[] {
         link,
         source,
         publishedAt,
-        summary: item.description?.toString().trim() || null,
+        summary: description,
       } satisfies NewsItem;
     })
     .filter((item): item is NewsItem => item !== null);
