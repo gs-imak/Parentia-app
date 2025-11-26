@@ -1,20 +1,27 @@
 import React, { useState, useEffect } from 'react';
+import { Alert, Platform } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import {
-  View,
+  Box,
   Text,
-  TextInput,
-  StyleSheet,
-  TouchableOpacity,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
+  Input,
+  Button,
+  VStack,
+  HStack,
   ScrollView,
-} from 'react-native';
+  Heading,
+  FormControl,
+  KeyboardAvoidingView,
+  Icon,
+} from 'native-base';
+import { Feather } from '@expo/vector-icons';
 import { getStoredCity, setStoredCity } from '../utils/storage';
 
 export default function ProfileScreen() {
+  const navigation = useNavigation();
   const [city, setCity] = useState('');
   const [saving, setSaving] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
 
   useEffect(() => {
     getStoredCity().then((storedCity) => {
@@ -32,115 +39,96 @@ export default function ProfileScreen() {
     setSaving(true);
     await setStoredCity(trimmed);
     setSaving(false);
+    setJustSaved(true);
 
-    Alert.alert('Succes', 'Ville enregistree. Retournez a l\'accueil pour voir la meteo.');
+    // Auto-navigate to Home after 1.5 seconds
+    setTimeout(() => {
+      setJustSaved(false);
+      navigation.navigate('Home' as never);
+    }, 1500);
   };
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      flex={1}
+      bg="white"
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Profil</Text>
-          <Text style={styles.label}>Ville ou code postal</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Ex : Paris ou 75001"
-            value={city}
-            onChangeText={setCity}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <TouchableOpacity
-            style={[styles.button, saving && styles.buttonDisabled]}
-            onPress={handleSave}
-            disabled={saving}
+      <ScrollView flex={1}>
+        <VStack space={6} px={5} py={5} pb={8}>
+          <Box
+            bg="white"
+            borderRadius={12}
+            p={4}
+            borderWidth={1}
+            borderColor="brand.lightGray"
+            shadow={0}
           >
-            <Text style={styles.buttonText}>Enregistrer</Text>
-          </TouchableOpacity>
-          <Text style={styles.note}>
-            Cette information est utilisée pour les appels météo dans l'écran d'accueil.
-          </Text>
-        </View>
+            <HStack alignItems="center" space={2} mb={3}>
+              <Icon as={Feather} name="map-pin" size={5} color="brand.blueGray" />
+              <Heading fontSize="h2" color="brand.blueGray" fontWeight="600">
+                Profil
+              </Heading>
+            </HStack>
+            <FormControl>
+              <FormControl.Label
+                _text={{ fontSize: 'body', color: 'brand.blueGray', fontWeight: '500' }}
+              >
+                Ville ou code postal
+              </FormControl.Label>
+              <Input
+                placeholder="Ex : Paris ou 75001"
+                value={city}
+                onChangeText={setCity}
+                autoCapitalize="none"
+                autoCorrect={false}
+                mb={3}
+              />
+            </FormControl>
+            <Button
+              onPress={handleSave}
+              isLoading={saving}
+              isDisabled={saving || justSaved}
+              bg={justSaved ? 'brand.green' : 'brand.blue'}
+            >
+              {justSaved ? '✓ Enregistré !' : 'Enregistrer'}
+            </Button>
+            {justSaved ? (
+              <HStack alignItems="center" space={2} mt={3} bg="#E8F5E9" p={3} borderRadius={8}>
+                <Icon as={Feather} name="check-circle" size={5} color="brand.green" />
+                <VStack flex={1}>
+                  <Text fontSize={14} color="brand.green" fontWeight="600">
+                    Ville enregistrée !
+                  </Text>
+                  <Text fontSize={13} color="#2E7D32" fontWeight="400">
+                    Retour à l'accueil pour voir la météo...
+                  </Text>
+                </VStack>
+              </HStack>
+            ) : (
+              <Text fontSize={13} color="brand.mediumGray" fontWeight="400" mt={2}>
+                Cette information est utilisée pour les appels météo dans l'écran d'accueil.
+              </Text>
+            )}
+          </Box>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Profil</Text>
-          <Text style={styles.message}>
-            Autres paramètres du profil seront ajoutés dans les prochains milestones.
-          </Text>
-        </View>
+          <Box
+            bg="white"
+            borderRadius={12}
+            p={4}
+            borderWidth={1}
+            borderColor="brand.lightGray"
+            shadow={0}
+          >
+            <Heading fontSize="h2" mb={3} color="brand.blueGray" fontWeight="600">
+              Profil
+            </Heading>
+            <Text fontSize="body" color="brand.mediumGray" fontWeight="400">
+              Autres paramètres du profil seront ajoutés dans les prochains milestones.
+            </Text>
+          </Box>
+        </VStack>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f7',
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 1,
-  },
-  cardTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 12,
-  },
-  label: {
-    fontSize: 15,
-    color: '#111827',
-    marginBottom: 6,
-  },
-  input: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-    color: '#111827',
-    marginBottom: 12,
-  },
-  button: {
-    backgroundColor: '#111827',
-    borderRadius: 999,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  note: {
-    fontSize: 13,
-    color: '#6b7280',
-    marginTop: 8,
-  },
-  message: {
-    fontSize: 14,
-    color: '#6b7280',
-    lineHeight: 20,
-  },
-});

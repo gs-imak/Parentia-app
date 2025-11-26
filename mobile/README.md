@@ -44,20 +44,30 @@ Cela ouvre une version web de l'app, mais certaines fonctionnalités (AsyncStora
 
 ## Configurer le backend
 
-L'application utilise par défaut `http://localhost:3000` pour le backend (configuré dans `app.json` sous `extra.backendUrl`).
+L'application utilise par défaut `http://localhost:5000` pour le backend (configuré dans `app.json` sous `extra.backendUrl`).
 
-Pour tester avec un backend déployé ou accessible sur un autre réseau (par exemple depuis un émulateur Android) :
+Pour tester avec un backend déployé ou accessible sur un autre réseau (par exemple depuis un émulateur Android ou Expo Go sur iPhone) :
 
 1. Modifiez `app.json`, section `extra.backendUrl` :
    ```json
    "extra": {
-     "backendUrl": "http://192.168.x.x:3000"
+     "backendUrl": "http://192.168.x.x:5000"
    }
    ```
+   Remplacez `192.168.x.x` par l'adresse IP de votre ordinateur.
 2. Relancez l'app :
    ```bash
    npm start
    ```
+
+## Design
+
+L'application utilise un design **Apple-like** avec :
+- **Palette de couleurs** : #2C3E50 (titres), #6E7A84 (texte secondaire), #E9EEF2 (bordures), #3A82F7 (accent)
+- **Typographie** : Inter (400/500/600)
+- **Icônes** : Feather Icons
+- **Composants** : NativeBase + style personnalisé
+- Interface épurée, lumineuse, moderne
 
 ## Fonctionnalités implémentées (Milestone 1)
 

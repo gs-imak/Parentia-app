@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { processPipeline } from './pipeline.js';
@@ -13,8 +14,13 @@ const PORT = process.env.PORT || 5000;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Enable CORS for all routes (allows Expo dev server and mobile app to access APIs)
+app.use(cors());
+
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '..', 'public')));
+
+// Serve React Native web build
+app.use(express.static(path.join(__dirname, '..', 'mobile', 'dist')));
 
 app.post('/parse', async (req, res) => {
   try {
@@ -119,6 +125,11 @@ app.get('/tasks/today', (req, res) => {
       error: 'Impossible de récupérer les tâches pour le moment.',
     });
   }
+});
+
+// Fallback route for client-side routing (React Navigation)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'mobile', 'dist', 'index.html'));
 });
 
 // Error handler middleware (must be after routes or it will not be called)

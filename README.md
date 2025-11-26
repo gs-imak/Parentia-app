@@ -63,27 +63,59 @@ curl -X POST http://localhost:5000/parse \
 
 ---
 
-# Milestone 1 — Écran Home (prototype web) et nouveaux endpoints
+# Milestone 1 — Application Unifiée React Native (Mobile + Web)
 
-Ce dépôt contient également un prototype web de l’écran Home et les endpoints backend nécessaires pour préparer l’application mobile.
+Parentia utilise désormais une **architecture React Native unifiée** avec **NativeBase** pour l'interface utilisateur, permettant de partager le même code entre mobile (iOS/Android) et web.
 
-## Lancer l’écran Home (web)
+## Architecture
 
-1. Installer les dépendances (si ce n’est pas déjà fait) :
+- **Backend** : Node.js/Express (racine du projet) — expose les APIs
+- **Frontend** : React Native dans `mobile/` — fonctionne sur mobile ET web
+- **UI Library** : NativeBase — composants cross-platform avec design moderne
+
+## Lancer l'application
+
+### Option 1 : Mode Production (Web via Backend)
+
+1. Construire le web bundle :
    ```bash
-   npm install
+   cd mobile
+   npx expo export --platform web
+   cd ..
    ```
-2. Démarrer le serveur en développement :
+
+2. Construire et démarrer le backend :
    ```bash
-   npm run dev
+   npm run build
+   npm start
    ```
+
 3. Ouvrir le navigateur sur :
    ```
    http://localhost:5000/
    ```
 
+### Option 2 : Mode Développement (Web)
+
+Pour développer avec hot-reload :
+```bash
+cd mobile
+npm run web
+```
+
+L'app s'ouvre sur `http://localhost:8081` (ou 8082 si le port est occupé).
+
+### Option 3 : Mobile (Expo Go)
+
+```bash
+cd mobile
+npm start
+```
+
+Puis scannez le QR code avec Expo Go (Android) ou l'app Caméra (iOS).
+
 Vous verrez une navigation avec quatre onglets : **Home**, **Tâches**, **Inbox**, **Profil**.
-Seul l’onglet **Home** est pleinement fonctionnel pour ce milestone.
+Seul l'onglet **Home** est pleinement fonctionnel pour ce milestone.
 
 ## Contenu de l’écran Home
 
@@ -132,34 +164,63 @@ Ces endpoints sont pensés pour être réutilisés par une future application mo
 
 ---
 
-# Milestone 1 — Application mobile React Native (Expo)
+# Interface Utilisateur avec NativeBase
 
-Le dossier `mobile/` contient l’application mobile **React Native** développée avec **Expo**, qui consomme les endpoints backend ci-dessus.
+Parentia utilise **NativeBase**, une bibliothèque de composants UI cross-platform qui fonctionne sur React Native et web.
 
-## Installation et lancement
+## Avantages
 
-1. Aller dans le dossier mobile :
-   ```bash
-   cd mobile
-   ```
+- ✅ **Code partagé** : 100% du code UI fonctionne sur mobile ET web
+- ✅ **Design moderne** : Composants prêts à l'emploi avec thème personnalisable
+- ✅ **Performance** : Optimisé pour React Native et react-native-web
+- ✅ **Accessibilité** : Composants accessibles par défaut
 
-2. Installer les dépendances :
+## Thème
+
+Le thème est configuré dans `mobile/App.tsx` avec une palette de gris pour un design épuré :
+- Background : `gray.50` (#f9fafb)
+- Cards : `white` avec ombres légères
+- Texte principal : `gray.900` (#111827)
+- Texte secondaire : `gray.500` (#6b7280)
+
+---
+
+# Installation et Développement
+
+## Prérequis
+
+- Node.js 20+
+- Pour mobile : Android Studio (Android) ou Xcode (iOS, Mac seulement)
+
+## Installation
+
+1. **Backend** :
    ```bash
    npm install
    ```
 
-3. Lancer l’app sur émulateur/simulateur :
+2. **Frontend** :
    ```bash
-   npm start
+   cd mobile
+   npm install
+   cd ..
    ```
-   Puis appuyez sur `a` pour Android ou `i` pour iOS.
 
-4. Pour lancer directement :
-   ```bash
-   npm run android
-   npm run ios      # Mac seulement
-   npm run web      # Version web de l'app
-   ```
+## Développement Mobile
+
+```bash
+cd mobile
+npm start
+```
+
+Puis appuyez sur `a` pour Android, `i` pour iOS, ou `w` pour web.
+
+Ou directement :
+```bash
+npm run android    # Lance sur émulateur Android
+npm run ios        # Lance sur simulateur iOS (Mac seulement)
+npm run web        # Lance sur navigateur web
+```
 
 ## Construire un APK Android
 

@@ -1,13 +1,19 @@
 import React, { useEffect, useState } from 'react';
+import { RefreshControl, Linking } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import {
-  View,
+  Box,
   Text,
   ScrollView,
-  StyleSheet,
-  ActivityIndicator,
-  RefreshControl,
-  Linking,
-} from 'react-native';
+  VStack,
+  HStack,
+  Spinner,
+  Badge,
+  Heading,
+  Pressable,
+  Icon,
+} from 'native-base';
+import { Feather } from '@expo/vector-icons';
 import {
   fetchQuote,
   fetchWeather,
@@ -82,6 +88,13 @@ export default function HomeScreen() {
     loadData();
   }, []);
 
+  // Reload data when screen comes into focus (e.g., after saving city in Profile)
+  useFocusEffect(
+    React.useCallback(() => {
+      loadData();
+    }, [])
+  );
+
   const onRefresh = async () => {
     setRefreshing(true);
     await loadData();
@@ -90,315 +103,262 @@ export default function HomeScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#111827" />
-        <Text style={styles.loadingText}>Chargement de votre accueil...</Text>
-      </View>
+      <Box flex={1} justifyContent="center" alignItems="center" bg="white">
+        <Spinner size="lg" color="brand.blue" />
+        <Text mt={3} fontSize="body" color="brand.mediumGray" fontWeight="400">
+          Chargement de votre accueil...
+        </Text>
+      </Box>
     );
   }
 
   return (
     <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
+      flex={1}
+      bg="white"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
-      {/* Weather block */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Météo & habits</Text>
-        {weatherError ? (
-          <Text style={styles.errorText}>{weatherError}</Text>
-        ) : weather ? (
-          <>
-            <View style={styles.weatherTop}>
-              <View style={styles.weatherMain}>
-                <Text style={styles.weatherTemp}>{Math.round(weather.temperatureC)}°C</Text>
-                <Text style={styles.weatherCity}>{weather.city}</Text>
-              </View>
-              <Text style={styles.weatherIcon}>
-                {weather.isSnowing ? '❄️' : weather.isRaining ? '🌧️' : '☀️'}
-              </Text>
-            </View>
-            <Text style={styles.weatherOutfit}>{weather.outfit}</Text>
-          </>
-        ) : null}
-      </View>
-
-      {/* Quote block */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Pour aujourd'hui</Text>
-        {quoteError ? (
-          <Text style={styles.errorText}>{quoteError}</Text>
-        ) : quote ? (
-          <View style={styles.quoteWrapper}>
-            <Text style={styles.quoteText}>{quote.text}</Text>
-            <Text style={styles.quoteLabel}>
-              {quote.type === 'morning' ? 'Citation du matin' : 'Citation du soir'}
+      <VStack space={6} px={5} py={5} pb={8}>
+        {/* Weather block */}
+        <Box
+          bg="white"
+          borderRadius={12}
+          p={4}
+          borderWidth={1}
+          borderColor="brand.lightGray"
+          shadow={0}
+        >
+          <HStack alignItems="center" space={2} mb={3}>
+            <Icon as={Feather} name="cloud" size={5} color="brand.blueGray" />
+            <Heading fontSize="h2" color="brand.blueGray" fontWeight="600">
+              Météo & habits
+            </Heading>
+          </HStack>
+          {weatherError ? (
+            <Text fontSize="body" color="red.600" fontWeight="400">
+              {weatherError}
             </Text>
-          </View>
-        ) : null}
-      </View>
-
-      {/* Tasks block */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Tâches du jour</Text>
-        {tasksError ? (
-          <Text style={styles.errorText}>{tasksError}</Text>
-        ) : tasks.length === 0 ? (
-          <Text style={styles.mutedText}>
-            Aucune tâche pour aujourd'hui. Ajoutez votre première tâche depuis l'onglet Tâches.
-          </Text>
-        ) : (
-          <View style={styles.tasksList}>
-            {tasks.map((task) => {
-              const deadline = new Date(task.deadline);
-              const formattedDeadline = deadline.toLocaleString('fr-FR', {
-                hour: '2-digit',
-                minute: '2-digit',
-                day: '2-digit',
-                month: '2-digit',
-              });
-
-              let iconStyle = styles.taskIconTodo;
-              if (task.status === 'done') {
-                iconStyle = styles.taskIconDone;
-              } else if (task.status === 'in_progress') {
-                iconStyle = styles.taskIconInProgress;
-              }
-
-              return (
-                <View key={task.id} style={styles.taskItem}>
-                  <View style={[styles.taskIcon, iconStyle]} />
-                  <View style={styles.taskContent}>
-                    <Text style={styles.taskTitle}>{task.title}</Text>
-                    <View style={styles.taskMeta}>
-                      <Text style={styles.taskMetaText}>{formattedDeadline}</Text>
-                      <View style={styles.taskChip}>
-                        <Text style={styles.taskChipText}>{task.category}</Text>
-                      </View>
-                    </View>
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        )}
-      </View>
-
-      {/* News block */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>News du jour</Text>
-        {newsError ? (
-          <Text style={styles.errorText}>{newsError}</Text>
-        ) : news.length === 0 ? (
-          <Text style={styles.mutedText}>Aucune news disponible pour le moment.</Text>
-        ) : (
-          <View style={styles.newsList}>
-            {news.map((item, index) => {
-              const publishedDate = new Date(item.publishedAt);
-              const formattedDate = publishedDate.toLocaleDateString('fr-FR', {
-                hour: '2-digit',
-                minute: '2-digit',
-              });
-
-              return (
-                <View key={index} style={styles.newsItem}>
-                  <Text style={styles.newsTitle}>{item.title}</Text>
-                  <Text style={styles.newsMeta}>
-                    {item.source} · {formattedDate}
+          ) : weather ? (
+            <VStack space={2}>
+              <HStack justifyContent="space-between" alignItems="center">
+                <HStack alignItems="baseline" space={2}>
+                  <Text fontSize={32} fontWeight="600" color="brand.blueGray">
+                    {Math.round(weather.temperatureC)}°C
                   </Text>
-                  <Text style={styles.newsSummary}>
-                    {item.summary || 'Résumé non disponible.'}
+                  <Text fontSize="body" color="brand.mediumGray" fontWeight="500">
+                    {weather.city}
                   </Text>
-                  <Text
-                    style={styles.newsLink}
-                    onPress={() => Linking.openURL(item.link).catch(() => {})}
-                  >
-                    Lire l'article
+                </HStack>
+                <Text fontSize={32}>
+                  {weather.isSnowing ? '❄️' : weather.isRaining ? '🌧️' : '☀️'}
+                </Text>
+              </HStack>
+              <Box mt={3}>
+                <HStack alignItems="center" space={2} mb={2.5}>
+                  <Icon as={Feather} name="shopping-bag" size={4} color="brand.blue" />
+                  <Text fontSize={15} color="brand.blueGray" fontWeight="600">
+                    À prévoir
                   </Text>
-                </View>
-              );
-            })}
-          </View>
-        )}
-      </View>
+                </HStack>
+                <HStack flexWrap="wrap" space={2}>
+                  {weather.outfit.split(/[.,;]+/).filter(s => s.trim()).map((item, idx) => (
+                    <Box
+                      key={idx}
+                      bg="brand.blue"
+                      px={3}
+                      py={2}
+                      borderRadius={20}
+                      mb={2}
+                    >
+                      <Text fontSize={14} color="white" fontWeight="500">
+                        {item.trim()}
+                      </Text>
+                    </Box>
+                  ))}
+                </HStack>
+              </Box>
+            </VStack>
+          ) : null}
+        </Box>
+
+        {/* Quote block */}
+        <Box
+          bg="white"
+          borderRadius={12}
+          p={4}
+          borderWidth={1}
+          borderColor="brand.lightGray"
+          shadow={0}
+        >
+          <HStack alignItems="center" space={2} mb={3}>
+            <Icon as={Feather} name="message-circle" size={5} color="brand.blueGray" />
+            <Heading fontSize="h2" color="brand.blueGray" fontWeight="600">
+              Pour aujourd'hui
+            </Heading>
+          </HStack>
+          {quoteError ? (
+            <Text fontSize="body" color="red.600" fontWeight="400">
+              {quoteError}
+            </Text>
+          ) : quote ? (
+            <Box bg="#F9FAFB" borderRadius={12} p={4}>
+              <Text fontSize="body" lineHeight={24} color="brand.blueGray" textAlign="center" mb={2} fontWeight="400">
+                {quote.text}
+              </Text>
+              <Text fontSize={13} color="brand.mediumGray" textAlign="center" fontWeight="400">
+                {quote.type === 'morning' ? 'Citation du matin' : 'Citation du soir'}
+              </Text>
+            </Box>
+          ) : null}
+        </Box>
+
+        {/* Tasks block */}
+        <Box
+          bg="white"
+          borderRadius={12}
+          p={4}
+          borderWidth={1}
+          borderColor="brand.lightGray"
+          shadow={0}
+        >
+          <HStack alignItems="center" space={2} mb={3}>
+            <Icon as={Feather} name="check-square" size={5} color="brand.blueGray" />
+            <Heading fontSize="h2" color="brand.blueGray" fontWeight="600">
+              Tâches du jour
+            </Heading>
+          </HStack>
+          {tasksError ? (
+            <Text fontSize="body" color="red.600" fontWeight="400">
+              {tasksError}
+            </Text>
+          ) : tasks.length === 0 ? (
+            <Text fontSize="body" color="brand.mediumGray" fontWeight="400">
+              Aucune tâche pour aujourd'hui. Ajoutez votre première tâche depuis l'onglet Tâches.
+            </Text>
+          ) : (
+            <VStack space={3}>
+              {tasks.map((task) => {
+                const deadline = new Date(task.deadline);
+                const formattedDeadline = deadline.toLocaleString('fr-FR', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  day: '2-digit',
+                  month: '2-digit',
+                });
+
+                let statusColor = '#6E7A84'; // brand.mediumGray
+                let isFilled = false;
+                if (task.status === 'done') {
+                  statusColor = '#4CAF50'; // brand.green
+                  isFilled = true;
+                } else if (task.status === 'in_progress') {
+                  statusColor = '#F7A45A'; // brand.orange
+                }
+
+                return (
+                  <HStack key={task.id} alignItems="flex-start" space={3}>
+                    <Box
+                      w={5}
+                      h={5}
+                      borderRadius="full"
+                      borderWidth={2}
+                      borderColor={statusColor}
+                      bg={isFilled ? statusColor : 'transparent'}
+                      mt={0.5}
+                    />
+                    <VStack flex={1}>
+                      <Text fontSize="body" fontWeight="500" color="brand.blueGray" mb={1}>
+                        {task.title}
+                      </Text>
+                      <HStack alignItems="center" space={2}>
+                        <Text fontSize={14} color="brand.mediumGray" fontWeight="400">
+                          {formattedDeadline}
+                        </Text>
+                        <Badge
+                          bg="#EBF5FF"
+                          _text={{ color: 'brand.blue', fontSize: 13, fontWeight: '500' }}
+                          borderRadius="full"
+                          px={2}
+                          py={0.5}
+                        >
+                          {task.category}
+                        </Badge>
+                      </HStack>
+                    </VStack>
+                  </HStack>
+                );
+              })}
+            </VStack>
+          )}
+        </Box>
+
+        {/* News block */}
+        <Box
+          bg="white"
+          borderRadius={12}
+          p={4}
+          borderWidth={1}
+          borderColor="brand.lightGray"
+          shadow={0}
+        >
+          <HStack alignItems="center" space={2} mb={3}>
+            <Icon as={Feather} name="book-open" size={5} color="brand.blueGray" />
+            <Heading fontSize="h2" color="brand.blueGray" fontWeight="600">
+              News du jour
+            </Heading>
+          </HStack>
+          {newsError ? (
+            <Text fontSize="body" color="red.600" fontWeight="400">
+              {newsError}
+            </Text>
+          ) : news.length === 0 ? (
+            <Text fontSize="body" color="brand.mediumGray" fontWeight="400">
+              Aucune news disponible pour le moment.
+            </Text>
+          ) : (
+            <VStack space={4}>
+              {news.map((item, index) => {
+                const publishedDate = new Date(item.publishedAt);
+                const formattedDate = publishedDate.toLocaleDateString('fr-FR', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                });
+
+                return (
+                  <VStack key={index} space={1.5}>
+                    <Text fontSize="body" fontWeight="500" color="brand.blueGray">
+                      {item.title}
+                    </Text>
+                    <Text fontSize={13} color="brand.mediumGray" fontWeight="400">
+                      {item.source} · {formattedDate}
+                    </Text>
+                    <Text fontSize="body" color="brand.mediumGray" fontWeight="400">
+                      {item.summary || 'Résumé non disponible.'}
+                    </Text>
+                    <Pressable onPress={() => Linking.openURL(item.link).catch(() => {})}>
+                      <HStack
+                        alignItems="center"
+                        space={1.5}
+                        bg="#EBF5FF"
+                        px={3}
+                        py={2}
+                        borderRadius={8}
+                        alignSelf="flex-start"
+                        mt={1}
+                      >
+                        <Text fontSize={14} color="brand.blue" fontWeight="500">
+                          Lire l'article
+                        </Text>
+                        <Icon as={Feather} name="external-link" size={4} color="brand.blue" />
+                      </HStack>
+                    </Pressable>
+                  </VStack>
+                );
+              })}
+            </VStack>
+          )}
+        </Box>
+      </VStack>
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f7',
-  },
-  contentContainer: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f7',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 15,
-    color: '#6b7280',
-  },
-  card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 1,
-  },
-  cardTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 10,
-  },
-  mutedText: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  errorText: {
-    fontSize: 14,
-    color: '#b91c1c',
-  },
-
-  // Weather
-  weatherTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  weatherMain: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 8,
-  },
-  weatherTemp: {
-    fontSize: 28,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  weatherCity: {
-    fontSize: 16,
-    color: '#4b5563',
-  },
-  weatherIcon: {
-    fontSize: 28,
-  },
-  weatherOutfit: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-
-  // Quote
-  quoteWrapper: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 12,
-    padding: 12,
-  },
-  quoteText: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: '#111827',
-    textAlign: 'center',
-    marginBottom: 6,
-  },
-  quoteLabel: {
-    fontSize: 13,
-    color: '#6b7280',
-    textAlign: 'center',
-  },
-
-  // Tasks
-  tasksList: {
-    gap: 10,
-  },
-  taskItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-  },
-  taskIcon: {
-    width: 18,
-    height: 18,
-    borderRadius: 999,
-    borderWidth: 2,
-    marginTop: 3,
-  },
-  taskIconTodo: {
-    borderColor: '#9ca3af',
-  },
-  taskIconInProgress: {
-    borderColor: '#f59e0b',
-  },
-  taskIconDone: {
-    borderColor: '#22c55e',
-    backgroundColor: '#22c55e',
-  },
-  taskContent: {
-    flex: 1,
-  },
-  taskTitle: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  taskMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  taskMetaText: {
-    fontSize: 13,
-    color: '#6b7280',
-  },
-  taskChip: {
-    backgroundColor: '#eff6ff',
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  taskChipText: {
-    fontSize: 12,
-    color: '#1d4ed8',
-  },
-
-  // News
-  newsList: {
-    gap: 12,
-  },
-  newsItem: {},
-  newsTitle: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  newsMeta: {
-    fontSize: 13,
-    color: '#6b7280',
-    marginBottom: 4,
-  },
-  newsSummary: {
-    fontSize: 14,
-    color: '#4b5563',
-    marginBottom: 4,
-  },
-  newsLink: {
-    fontSize: 13,
-    color: '#2563eb',
-    textDecorationLine: 'underline',
-  },
-});
