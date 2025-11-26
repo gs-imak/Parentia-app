@@ -1,6 +1,11 @@
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
-const BACKEND_URL = Constants.expoConfig?.extra?.backendUrl || 'http://localhost:3000';
+// For web, use relative URLs (same domain as Railway)
+// For mobile (Expo Go), use the configured backend URL
+const BACKEND_URL = Platform.OS === 'web' 
+  ? '' // Empty string = relative URLs on web
+  : (Constants.expoConfig?.extra?.backendUrl || 'http://localhost:5000');
 
 export interface ApiResponse<T> {
   success: boolean;
