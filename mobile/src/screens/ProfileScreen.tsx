@@ -1,24 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Alert, Platform } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import {
-  Box,
-  Text,
-  Input,
-  Button,
-  VStack,
-  HStack,
-  ScrollView,
-  Heading,
-  FormControl,
-  KeyboardAvoidingView,
-  Icon,
-} from 'native-base';
+import { Alert, Platform, View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, ActivityIndicator, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { getStoredCity, setStoredCity } from '../utils/storage';
 
 export default function ProfileScreen() {
-  const navigation = useNavigation();
   const [city, setCity] = useState('');
   const [saving, setSaving] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
@@ -41,91 +26,168 @@ export default function ProfileScreen() {
     setSaving(false);
     setJustSaved(true);
 
-    // Auto-navigate to Home after 1.5 seconds
     setTimeout(() => {
       setJustSaved(false);
-      navigation.navigate('Home' as never);
     }, 1500);
   };
 
   return (
     <KeyboardAvoidingView
-      w="100%"
-      h="100%"
-      bg="white"
+      style={styles.keyboardView}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView w="100%" h="100%">
-        <VStack space={6} px={5} py={5} pb={8}>
-          <Box
-            bg="white"
-            borderRadius={12}
-            p={4}
-            borderWidth={1}
-            borderColor="brand.lightGray"
-          >
-            <HStack alignItems="center" space={2} mb={3}>
-              <Icon as={Feather} name="map-pin" size={5} color="brand.blueGray" />
-              <Heading fontSize="h2" color="brand.blueGray" fontWeight="600">
-                Profil
-              </Heading>
-            </HStack>
-            <FormControl>
-              <FormControl.Label
-                _text={{ fontSize: 'body', color: 'brand.blueGray', fontWeight: '500' }}
-              >
-                Ville ou code postal
-              </FormControl.Label>
-              <Input
+      <ScrollView style={styles.scrollView}>
+        <View style={styles.container}>
+          <View style={styles.card}>
+            <View style={styles.header}>
+              <Feather name="map-pin" size={20} color="#2C3E50" />
+              <Text style={styles.title}>Profil</Text>
+            </View>
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Ville ou code postal</Text>
+              <TextInput
+                style={styles.input}
                 placeholder="Ex : Paris ou 75001"
                 value={city}
                 onChangeText={setCity}
-                mb={3}
               />
-            </FormControl>
-            <Button
+            </View>
+            <TouchableOpacity
+              style={[styles.button, justSaved && styles.buttonSuccess, (saving || justSaved) && styles.buttonDisabled]}
               onPress={handleSave}
-              isLoading={saving}
-              isDisabled={saving || justSaved}
-              bg={justSaved ? 'brand.green' : 'brand.blue'}
+              disabled={saving || justSaved}
             >
-              {justSaved ? '✓ Enregistré !' : 'Enregistrer'}
-            </Button>
+              {saving ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.buttonText}>{justSaved ? '✓ Enregistré !' : 'Enregistrer'}</Text>
+              )}
+            </TouchableOpacity>
             {justSaved ? (
-              <HStack alignItems="center" space={2} mt={3} bg="#E8F5E9" p={3} borderRadius={8}>
-                <Icon as={Feather} name="check-circle" size={5} color="brand.green" />
-                <VStack w="100%">
-                  <Text fontSize={14} color="brand.green" fontWeight="600">
-                    Ville enregistrée !
-                  </Text>
-                  <Text fontSize={13} color="#2E7D32" fontWeight="400">
-                    Retour à l'accueil pour voir la météo...
-                  </Text>
-                </VStack>
-              </HStack>
+              <View style={styles.successBox}>
+                <Feather name="check-circle" size={20} color="#4CAF50" />
+                <View style={styles.successTextContainer}>
+                  <Text style={styles.successTitle}>Ville enregistrée !</Text>
+              <Text style={styles.successSubtitle}>Retour à l'accueil pour voir la météo...</Text>
+                </View>
+              </View>
             ) : (
-              <Text fontSize={13} color="brand.mediumGray" fontWeight="400" mt={2}>
+              <Text style={styles.hint}>
                 Cette information est utilisée pour les appels météo dans l'écran d'accueil.
               </Text>
             )}
-          </Box>
+          </View>
 
-          <Box
-            bg="white"
-            borderRadius={12}
-            p={4}
-            borderWidth={1}
-            borderColor="brand.lightGray"
-          >
-            <Heading fontSize="h2" mb={3} color="brand.blueGray" fontWeight="600">
-              Profil
-            </Heading>
-            <Text fontSize="body" color="brand.mediumGray" fontWeight="400">
+          <View style={styles.card}>
+            <Text style={styles.title}>Profil</Text>
+            <Text style={styles.text}>
               Autres paramètres du profil seront ajoutés dans les prochains milestones.
             </Text>
-          </Box>
-        </VStack>
+          </View>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
+
+const styles = StyleSheet.create({
+  keyboardView: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  container: {
+    padding: 20,
+    paddingBottom: 32,
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E9EEF2',
+    marginBottom: 24,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  title: {
+    fontSize: 19,
+    color: '#2C3E50',
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  formGroup: {
+    marginBottom: 12,
+  },
+  label: {
+    fontSize: 16,
+    color: '#2C3E50',
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: '#F5F7FA',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E9EEF2',
+    padding: 12,
+    fontSize: 16,
+    height: 44,
+  },
+  button: {
+    backgroundColor: '#3A82F7',
+    borderRadius: 9,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  buttonSuccess: {
+    backgroundColor: '#4CAF50',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  successBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 12,
+  },
+  successTextContainer: {
+    marginLeft: 8,
+    flex: 1,
+  },
+  successTitle: {
+    fontSize: 14,
+    color: '#4CAF50',
+    fontWeight: '600',
+  },
+  successSubtitle: {
+    fontSize: 13,
+    color: '#2E7D32',
+    fontWeight: '400',
+  },
+  hint: {
+    fontSize: 13,
+    color: '#6E7A84',
+    fontWeight: '400',
+    marginTop: 8,
+  },
+  text: {
+    fontSize: 16,
+    color: '#6E7A84',
+    fontWeight: '400',
+  },
+});
