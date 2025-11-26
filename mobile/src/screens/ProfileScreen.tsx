@@ -79,8 +79,6 @@ export default function ProfileScreen() {
                 placeholder="Ex : Paris ou 75001"
                 value={city}
                 onChangeText={setCity}
-                autoCapitalize="none"
-                autoCorrect={false}
                 mb={3}
               />
             </FormControl>
