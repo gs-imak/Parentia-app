@@ -62,7 +62,6 @@ export default function ProfileScreen() {
             p={4}
             borderWidth={1}
             borderColor="brand.lightGray"
-            shadow={0}
           >
             <HStack alignItems="center" space={2} mb={3}>
               <Icon as={Feather} name="map-pin" size={5} color="brand.blueGray" />
@@ -118,7 +117,6 @@ export default function ProfileScreen() {
             p={4}
             borderWidth={1}
             borderColor="brand.lightGray"
-            shadow={0}
           >
             <Heading fontSize="h2" mb={3} color="brand.blueGray" fontWeight="600">
               Profil

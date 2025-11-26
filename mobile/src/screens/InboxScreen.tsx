@@ -11,7 +11,6 @@ export default function InboxScreen() {
         p={4}
         borderWidth={1}
         borderColor="brand.lightGray"
-        shadow={0}
       >
         <HStack alignItems="center" space={2} mb={3}>
           <Icon as={Feather} name="mail" size={5} color="brand.blueGray" />

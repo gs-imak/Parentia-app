@@ -126,7 +126,6 @@ export default function HomeScreen() {
           p={4}
           borderWidth={1}
           borderColor="brand.lightGray"
-          shadow={0}
         >
           <HStack alignItems="center" space={2} mb={3}>
             <Icon as={Feather} name="cloud" size={5} color="brand.blueGray" />
@@ -188,7 +187,6 @@ export default function HomeScreen() {
           p={4}
           borderWidth={1}
           borderColor="brand.lightGray"
-          shadow={0}
         >
           <HStack alignItems="center" space={2} mb={3}>
             <Icon as={Feather} name="message-circle" size={5} color="brand.blueGray" />
@@ -219,7 +217,6 @@ export default function HomeScreen() {
           p={4}
           borderWidth={1}
           borderColor="brand.lightGray"
-          shadow={0}
         >
           <HStack alignItems="center" space={2} mb={3}>
             <Icon as={Feather} name="check-square" size={5} color="brand.blueGray" />
@@ -299,7 +296,6 @@ export default function HomeScreen() {
           p={4}
           borderWidth={1}
           borderColor="brand.lightGray"
-          shadow={0}
         >
           <HStack alignItems="center" space={2} mb={3}>
             <Icon as={Feather} name="book-open" size={5} color="brand.blueGray" />
