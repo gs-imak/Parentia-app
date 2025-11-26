@@ -19,8 +19,8 @@ app.use(cors());
 
 app.use(express.json());
 
-// Serve public web folder
-app.use(express.static(path.join(__dirname, '..', 'public')));
+// Serve React Native web build
+app.use(express.static(path.join(__dirname, '..', 'mobile', 'dist')));
 
 app.post('/parse', async (req, res) => {
   try {
@@ -127,9 +127,9 @@ app.get('/tasks/today', (req, res) => {
   }
 });
 
-// Fallback route for client-side routing (React Navigation)
+// Fallback route for client-side routing
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, '..', 'mobile', 'dist', 'index.html'));
 });
 
 // Error handler middleware (must be after routes or it will not be called)
