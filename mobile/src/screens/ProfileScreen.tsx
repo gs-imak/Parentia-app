@@ -50,11 +50,12 @@ export default function ProfileScreen() {
 
   return (
     <KeyboardAvoidingView
-      flex={1}
+      w="100%"
+      h="100%"
       bg="white"
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView flex={1}>
+      <ScrollView w="100%" h="100%">
         <VStack space={6} px={5} py={5} pb={8}>
           <Box
             bg="white"
@@ -93,7 +94,7 @@ export default function ProfileScreen() {
             {justSaved ? (
               <HStack alignItems="center" space={2} mt={3} bg="#E8F5E9" p={3} borderRadius={8}>
                 <Icon as={Feather} name="check-circle" size={5} color="brand.green" />
-                <VStack flex={1}>
+                <VStack w="100%">
                   <Text fontSize={14} color="brand.green" fontWeight="600">
                     Ville enregistrée !
                   </Text>

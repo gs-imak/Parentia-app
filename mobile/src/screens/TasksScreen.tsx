@@ -4,7 +4,7 @@ import { Feather } from '@expo/vector-icons';
 
 export default function TasksScreen() {
   return (
-    <Box flex={1} bg="white" px={5} py={5}>
+    <Box w="100%" h="100%" bg="white" px={5} py={5}>
       <Box
         bg="white"
         borderRadius={12}

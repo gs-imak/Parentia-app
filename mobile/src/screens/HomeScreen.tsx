@@ -103,7 +103,7 @@ export default function HomeScreen() {
 
   if (loading) {
     return (
-      <Box flex={1} justifyContent="center" alignItems="center" bg="white">
+      <Box w="100%" h="100%" justifyContent="center" alignItems="center" bg="white">
         <Spinner size="lg" color="brand.blue" />
         <Text mt={3} fontSize="body" color="brand.mediumGray" fontWeight="400">
           Chargement de votre accueil...
@@ -114,7 +114,8 @@ export default function HomeScreen() {
 
   return (
     <ScrollView
-      flex={1}
+      w="100%"
+      h="100%"
       bg="white"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
@@ -263,7 +264,7 @@ export default function HomeScreen() {
                       bg={isFilled ? statusColor : 'transparent'}
                       mt={0.5}
                     />
-                    <VStack flex={1}>
+                    <VStack w="100%">
                       <Text fontSize="body" fontWeight="500" color="brand.blueGray" mb={1}>
                         {task.title}
                       </Text>
