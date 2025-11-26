@@ -29,7 +29,7 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "backendUrl": "http://localhost:3000"
+      "backendUrl": "http://localhost:5000"
     }
   }
 }

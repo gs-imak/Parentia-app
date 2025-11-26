@@ -14,20 +14,20 @@ npm run dev
 ```
 
 Le serveur démarre sur :
-`http://localhost:3000`
+`http://localhost:5000`
 
 ## Test rapide — endpoint /parse (Milestone 0)
 
 ### Via PowerShell
 ```powershell
-curl.exe -X POST http://localhost:3000/parse ^
+curl.exe -X POST http://localhost:5000/parse ^
   -H "Content-Type: application/json" ^
   -d "{\"text\": \"Ceci est un test\"}"
 ```
 
 ### Via CMD
 ```bash
-curl -X POST http://localhost:3000/parse \
+curl -X POST http://localhost:5000/parse \
   -H "Content-Type: application/json" \
   -d "{\"text\": \"Ceci est un test\"}"
 ```
@@ -79,7 +79,7 @@ Ce dépôt contient également un prototype web de l’écran Home et les endpoi
    ```
 3. Ouvrir le navigateur sur :
    ```
-   http://localhost:3000/
+   http://localhost:5000/
    ```
 
 Vous verrez une navigation avec quatre onglets : **Home**, **Tâches**, **Inbox**, **Profil**.
