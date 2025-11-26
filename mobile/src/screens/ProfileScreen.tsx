@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Alert, Platform, View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, ActivityIndicator, StyleSheet } from 'react-native';
+import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
 import { getStoredCity, setStoredCity } from '../utils/storage';
 
@@ -7,12 +8,53 @@ export default function ProfileScreen() {
   const [city, setCity] = useState('');
   const [saving, setSaving] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
+  const [loadingLocation, setLoadingLocation] = useState(false);
+  const [locationPermissionAsked, setLocationPermissionAsked] = useState(false);
 
   useEffect(() => {
     getStoredCity().then((storedCity) => {
       if (storedCity) setCity(storedCity);
     });
+    // Don't auto-request location on mount - user will click button
   }, []);
+
+  const handleUseLocation = async () => {
+    setLoadingLocation(true);
+    setLocationPermissionAsked(true);
+
+    try {
+      // Request permission
+      const { status } = await Location.requestForegroundPermissionsAsync();
+
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission refusée',
+          'La géolocalisation a été refusée. Vous pouvez saisir votre ville manuellement ci-dessous.'
+        );
+        setLoadingLocation(false);
+        return;
+      }
+
+      // Get current location
+      const location = await Location.getCurrentPositionAsync({});
+      const { latitude, longitude } = location.coords;
+
+      // Reverse geocode to get city
+      const [address] = await Location.reverseGeocodeAsync({ latitude, longitude });
+      
+      if (address.city || address.postalCode) {
+        const cityName = address.postalCode || address.city || '';
+        setCity(cityName);
+        Alert.alert('Localisation trouvée', `Votre position: ${cityName}`);
+      } else {
+        Alert.alert('Erreur', 'Impossible de déterminer votre ville.');
+      }
+    } catch (error) {
+      Alert.alert('Erreur', 'Impossible d\'obtenir votre position.');
+    }
+
+    setLoadingLocation(false);
+  };
 
   const handleSave = async () => {
     const trimmed = city.trim();
@@ -43,8 +85,26 @@ export default function ProfileScreen() {
               <Feather name="map-pin" size={20} color="#2C3E50" />
               <Text style={styles.title}>Profil</Text>
             </View>
+            {/* Geolocation button */}
+            <TouchableOpacity
+              style={styles.locationButton}
+              onPress={handleUseLocation}
+              disabled={loadingLocation}
+            >
+              {loadingLocation ? (
+                <ActivityIndicator color="#3A82F7" />
+              ) : (
+                <>
+                  <Feather name="navigation" size={20} color="#3A82F7" />
+                  <Text style={styles.locationButtonText}>Utiliser ma position</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <Text style={styles.orText}>ou</Text>
+
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Ville ou code postal</Text>
+              <Text style={styles.label}>Saisir manuellement</Text>
               <TextInput
                 style={styles.input}
                 placeholder="Ex : Paris ou 75001"
@@ -120,6 +180,28 @@ const styles = StyleSheet.create({
     color: '#2C3E50',
     fontWeight: '600',
     marginLeft: 8,
+  },
+  locationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EBF5FF',
+    borderRadius: 9,
+    height: 44,
+    marginBottom: 16,
+    gap: 8,
+  },
+  locationButtonText: {
+    color: '#3A82F7',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  orText: {
+    textAlign: 'center',
+    color: '#6E7A84',
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 16,
   },
   formGroup: {
     marginBottom: 12,

@@ -11,7 +11,7 @@ import {
   type Task,
   type NewsItem,
 } from '../api/client';
-import { getStoredCity } from '../utils/storage';
+import { getStoredCity, getStoredQuote, setStoredQuote } from '../utils/storage';
 
 export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
@@ -35,11 +35,18 @@ export default function HomeScreen() {
     setTasksError(null);
     setNewsError(null);
 
-    try {
-      const q = await fetchQuote();
-      setQuote(q);
-    } catch {
-      setQuoteError('Impossible de charger la citation pour le moment.');
+    // Check for cached quote first
+    const cachedQuote = await getStoredQuote();
+    if (cachedQuote) {
+      setQuote(cachedQuote);
+    } else {
+      try {
+        const q = await fetchQuote();
+        setQuote(q);
+        await setStoredQuote(q);
+      } catch {
+        setQuoteError('Impossible de charger la citation pour le moment.');
+      }
     }
 
     const city = await getStoredCity();
@@ -132,23 +139,16 @@ export default function HomeScreen() {
           ) : null}
         </View>
 
-        {/* Quote block */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Feather name="message-circle" size={20} color="#2C3E50" />
-            <Text style={styles.cardTitle}>Pour aujourd'hui</Text>
-          </View>
-          {quoteError ? (
+        {/* Quote block - Simplified per client request */}
+        {quoteError ? (
+          <View style={styles.card}>
             <Text style={styles.errorText}>{quoteError}</Text>
-          ) : quote ? (
-            <View style={styles.quoteBox}>
-              <Text style={styles.quoteText}>{quote.text}</Text>
-              <Text style={styles.quoteType}>
-                {quote.type === 'morning' ? 'Citation du matin' : 'Citation du soir'}
-              </Text>
-            </View>
-          ) : null}
-        </View>
+          </View>
+        ) : quote ? (
+          <View style={styles.quoteCard}>
+            <Text style={styles.quoteText}>{quote.text}</Text>
+          </View>
+        ) : null}
 
         {/* Tasks block */}
         <View style={styles.card}>
@@ -352,24 +352,21 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '500',
   },
-  quoteBox: {
+  quoteCard: {
     backgroundColor: '#F9FAFB',
     borderRadius: 12,
-    padding: 16,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#E9EEF2',
   },
   quoteText: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 17,
+    lineHeight: 26,
     color: '#2C3E50',
     textAlign: 'center',
-    marginBottom: 8,
     fontWeight: '400',
-  },
-  quoteType: {
-    fontSize: 13,
-    color: '#6E7A84',
-    textAlign: 'center',
-    fontWeight: '400',
+    fontStyle: 'italic',
   },
   taskRow: {
     flexDirection: 'row',
