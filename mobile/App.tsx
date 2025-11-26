@@ -48,11 +48,11 @@ const theme = extendTheme({
     Button: {
       baseStyle: {
         borderRadius: 9,           // 8-10px per client
-        h: '44px',                 // 44px height per client
+        h: 44,                     // 44px height per client
       },
       defaultProps: {
         bg: 'brand.blue',
-        _text: { color: 'white', fontWeight: '600' },
+        _text: { color: 'white', fontWeight: 600 },
         _pressed: { bg: '#2968D8' },
       },
     },
@@ -62,8 +62,8 @@ const theme = extendTheme({
         bg: 'brand.inputBg',
         borderColor: 'brand.lightGray',
         borderWidth: 1,
-        fontSize: 'body',
-        h: '44px',
+        fontSize: 16,
+        h: 44,
       },
       defaultProps: {
         _focus: {
