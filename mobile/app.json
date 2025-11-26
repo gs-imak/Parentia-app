@@ -28,7 +28,7 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "backendUrl": "http://192.168.1.10:5000"
+      "backendUrl": "https://efficiently-hydrocinnamoyl-kasi.ngrok-free.dev"
     }
   }
 }
