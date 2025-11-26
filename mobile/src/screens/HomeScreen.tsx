@@ -58,7 +58,7 @@ export default function HomeScreen() {
         setWeatherError('Impossible de charger la météo pour le moment.');
       }
     } else {
-      setWeatherError('Aucune ville configurée. Ajoutez votre ville dans l'onglet Profil.');
+      setWeatherError('Aucune ville configuree. Ajoutez votre ville dans l\'onglet Profil.');
     }
 
     try {

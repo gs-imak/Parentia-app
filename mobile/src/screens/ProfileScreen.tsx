@@ -33,7 +33,7 @@ export default function ProfileScreen() {
     await setStoredCity(trimmed);
     setSaving(false);
 
-    Alert.alert('Succès', 'Ville enregistrée. Retournez à l'accueil pour voir la météo.');
+    Alert.alert('Succes', 'Ville enregistree. Retournez a l\'accueil pour voir la meteo.');
   };
 
   return (
