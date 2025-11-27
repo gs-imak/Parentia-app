@@ -74,3 +74,7 @@ export async function fetchNews(): Promise<{ items: NewsItem[] }> {
 export async function reverseGeocode(lat: number, lon: number): Promise<{ city: string }> {
   return fetchApi<{ city: string }>(`/geocode/reverse?lat=${lat}&lon=${lon}`);
 }
+
+export async function geolocateByIP(): Promise<{ city: string }> {
+  return fetchApi<{ city: string }>(`/geocode/ip`);
+}

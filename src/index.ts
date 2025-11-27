@@ -176,6 +176,23 @@ app.get('/geocode/reverse', async (req, res) => {
   }
 });
 
+app.get('/geocode/ip', async (req, res) => {
+  try {
+    // Prefer client IP from headers if present (behind Railway proxy)
+    const forwarded = (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim();
+    const url = forwarded ? `https://ipapi.co/${forwarded}/json/` : 'https://ipapi.co/json/';
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`ipapi error: ${response.status}`);
+    }
+    const data = await response.json();
+    const city = data.postal || data.city || '';
+    return res.json({ success: true, data: { city, provider: 'ipapi', raw: data } });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: "Impossible d'obtenir la localisation par IP." });
+  }
+});
+
 // Fallback route for client-side routing
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'mobile', 'dist', 'index.html'));

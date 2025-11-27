@@ -3,7 +3,7 @@ import { Alert, Platform, View, Text, TextInput, TouchableOpacity, ScrollView, K
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
 import { getStoredCity, setStoredCity } from '../utils/storage';
-import { reverseGeocode } from '../api/client';
+import { reverseGeocode, geolocateByIP } from '../api/client';
 
 export default function ProfileScreen() {
   const [city, setCity] = useState('');
@@ -40,6 +40,13 @@ export default function ProfileScreen() {
         }
         console.log('[Geolocation] Requesting position from browser...');
 
+        // If Permissions API is available, proactively check state
+        try {
+          // @ts-ignore Safari may not support permissions API
+          const perm = (navigator as any).permissions?.query ? await (navigator as any).permissions.query({ name: 'geolocation' }) : null;
+          console.log('[Geolocation] Permission state:', perm?.state);
+        } catch {}
+
         navigator.geolocation.getCurrentPosition(
           async (position) => {
             console.log('[Geolocation] Position obtained:', position.coords.latitude, position.coords.longitude);
@@ -65,21 +72,48 @@ export default function ProfileScreen() {
               }
             } catch (error) {
               console.error('[Geolocation] Reverse geocoding error:', error);
-              setLocationError('Impossible de récupérer l\'adresse.');
+              // Fallback to IP-based geolocation
+              try {
+                console.log('[Geolocation] Falling back to IP geolocation...');
+                const byIp = await geolocateByIP();
+                if (byIp.city) {
+                  setCity(byIp.city);
+                  await setStoredCity(byIp.city);
+                  setLocationSuccess(`Position (IP) enregistrée : ${byIp.city}`);
+                  setTimeout(() => setLocationSuccess(null), 4000);
+                } else {
+                  setLocationError('Impossible de déterminer votre ville.');
+                }
+              } catch {
+                setLocationError('Impossible de récupérer l\'adresse.');
+              }
             }
             setLoadingLocation(false);
           },
-          (error) => {
+          async (error) => {
             console.error('[Geolocation] Browser error:', error.code, error.message);
-            let message = 'Impossible d\'obtenir votre position.';
-            if (error.code === error.PERMISSION_DENIED) {
-              message = 'La géolocalisation a été refusée. Vous pouvez saisir votre ville manuellement.';
-            } else if (error.code === error.POSITION_UNAVAILABLE) {
-              message = 'Position non disponible. Vérifiez vos paramètres de localisation.';
-            } else if (error.code === error.TIMEOUT) {
-              message = 'La demande de localisation a expiré. Réessayez.';
+            // Fallback to IP-based when denied/unavailable/timeout
+            try {
+              const byIp = await geolocateByIP();
+              if (byIp.city) {
+                setCity(byIp.city);
+                await setStoredCity(byIp.city);
+                setLocationSuccess(`Position (IP) enregistrée : ${byIp.city}`);
+                setTimeout(() => setLocationSuccess(null), 4000);
+              } else {
+                setLocationError('Impossible de déterminer votre ville.');
+              }
+            } catch {
+              let message = 'Impossible d\'obtenir votre position.';
+              if (error.code === error.PERMISSION_DENIED) {
+                message = 'La géolocalisation a été refusée. Vous pouvez saisir votre ville manuellement.';
+              } else if (error.code === error.POSITION_UNAVAILABLE) {
+                message = 'Position non disponible. Vérifiez vos paramètres de localisation.';
+              } else if (error.code === error.TIMEOUT) {
+                message = 'La demande de localisation a expiré. Réessayez.';
+              }
+              setLocationError(message);
             }
-            setLocationError(message);
             setLoadingLocation(false);
           },
           {
