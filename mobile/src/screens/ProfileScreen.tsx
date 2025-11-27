@@ -63,7 +63,7 @@ export default function ProfileScreen() {
                 setCity(label);
                 // Auto-save the city
                 await setStoredCity(label);
-                setLocationSuccess(`Position détectée et enregistrée : ${data.city}`);
+                setLocationSuccess(`GPS (${latitude.toFixed(2)}, ${longitude.toFixed(2)}): ${label}`);
                 // Clear success message after 4 seconds
                 setTimeout(() => setLocationSuccess(null), 4000);
               } else {
