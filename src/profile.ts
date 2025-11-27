@@ -20,6 +20,7 @@ export interface Child {
 
 export interface Spouse {
   firstName: string;
+  birthDate?: string; // ISO date string - optional
 }
 
 export interface Profile {
@@ -39,6 +40,7 @@ const ChildSchema = z.object({
 
 const SpouseSchema = z.object({
   firstName: z.string().min(1),
+  birthDate: z.string().optional(),
 });
 
 const ProfileSchema = z.object({
@@ -136,12 +138,27 @@ export async function deleteChild(id: string): Promise<boolean> {
 export async function updateSpouse(spouse: Spouse): Promise<Profile> {
   const profile = await readProfile();
   const isNewSpouse = !profile.spouse;
+  const hadBirthDate = profile.spouse?.birthDate;
   profile.spouse = spouse;
   await writeProfile(profile);
   
-  // Only create birthday task if this is a new spouse (not an update)
-  // Since Spouse doesn't have birthDate in our schema, we won't create a task here
-  // The client asked for spouse firstName only in M2 requirements
+  // Auto-create birthday task if spouse has birthDate and it's new or changed
+  if (spouse.birthDate && (!hadBirthDate || hadBirthDate !== spouse.birthDate)) {
+    // Delete old birthday task if it existed
+    if (hadBirthDate) {
+      await deleteTasksByRecurringSource('spouse');
+    }
+    
+    const birthDate = new Date(spouse.birthDate);
+    const formattedDate = birthDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' });
+    await createRecurringTask({
+      title: `Anniversaire de ${spouse.firstName} - le ${formattedDate}`,
+      category: 'personnel',
+      birthDate: spouse.birthDate,
+      recurringSource: 'spouse',
+      description: 'Penser au gâteau / cadeau / organisation.',
+    });
+  }
   
   return profile;
 }

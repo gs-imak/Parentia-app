@@ -123,6 +123,7 @@ export interface Child {
 
 export interface Spouse {
   firstName: string;
+  birthDate?: string;
 }
 
 export interface Profile {
@@ -156,11 +157,11 @@ export async function deleteChild(id: string): Promise<void> {
   await fetch(`${BACKEND_URL}/profile/children/${id}`, { method: 'DELETE' });
 }
 
-export async function updateSpouse(firstName: string): Promise<Profile> {
+export async function updateSpouse(data: { firstName: string; birthDate?: string }): Promise<Profile> {
   return fetchApi<Profile>('/profile/spouse', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ firstName }),
+    body: JSON.stringify(data),
   });
 }
 

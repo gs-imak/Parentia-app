@@ -35,11 +35,17 @@ export default function ProfileScreen() {
   // Child form state
   const [childFirstName, setChildFirstName] = useState('');
   const [childBirthDate, setChildBirthDate] = useState(new Date());
+  const [childHeight, setChildHeight] = useState('');
+  const [childWeight, setChildWeight] = useState('');
+  const [childNotes, setChildNotes] = useState('');
   const [showChildDatePicker, setShowChildDatePicker] = useState(false);
   const [addingChild, setAddingChild] = useState(false);
+  const [expandedChildId, setExpandedChildId] = useState<string | null>(null);
 
   // Spouse form state
   const [spouseFirstName, setSpouseFirstName] = useState('');
+  const [spouseBirthDate, setSpouseBirthDate] = useState(new Date());
+  const [showSpouseDatePicker, setShowSpouseDatePicker] = useState(false);
   const [savingSpouse, setSavingSpouse] = useState(false);
 
   // Marriage date state
@@ -59,7 +65,10 @@ export default function ProfileScreen() {
     try {
       const data = await getProfile();
       setProfile(data);
-      if (data.spouse) setSpouseFirstName(data.spouse.firstName);
+      if (data.spouse) {
+        setSpouseFirstName(data.spouse.firstName);
+        if (data.spouse.birthDate) setSpouseBirthDate(new Date(data.spouse.birthDate));
+      }
       if (data.marriageDate) setMarriageDate(new Date(data.marriageDate));
     } catch (error) {
       console.error('Failed to load profile:', error);
@@ -249,9 +258,20 @@ export default function ProfileScreen() {
 
     setAddingChild(true);
     try {
-      await addChild({ firstName: childFirstName.trim(), birthDate: childBirthDate.toISOString() });
+      const childData: any = {
+        firstName: childFirstName.trim(),
+        birthDate: childBirthDate.toISOString(),
+      };
+      if (childHeight) childData.height = parseFloat(childHeight);
+      if (childWeight) childData.weight = parseFloat(childWeight);
+      if (childNotes.trim()) childData.notes = childNotes.trim();
+      
+      await addChild(childData);
       setChildFirstName('');
       setChildBirthDate(new Date());
+      setChildHeight('');
+      setChildWeight('');
+      setChildNotes('');
       await loadProfile();
     } catch (error) {
       Alert.alert('Erreur', 'Impossible d\'ajouter l\'enfant.');
@@ -287,7 +307,9 @@ export default function ProfileScreen() {
 
     setSavingSpouse(true);
     try {
-      await updateSpouse(spouseFirstName.trim());
+      const spouseData: any = { firstName: spouseFirstName.trim() };
+      if (spouseBirthDate) spouseData.birthDate = spouseBirthDate.toISOString();
+      await updateSpouse(spouseData);
       await loadProfile();
     } catch (error) {
       Alert.alert('Erreur', 'Impossible de mettre à jour le conjoint.');
@@ -306,6 +328,7 @@ export default function ProfileScreen() {
           try {
             await deleteSpouse();
             setSpouseFirstName('');
+            setSpouseBirthDate(new Date());
             await loadProfile();
           } catch (error) {
             Alert.alert('Erreur', 'Impossible de supprimer le conjoint.');
@@ -440,17 +463,42 @@ export default function ProfileScreen() {
               <View>
                 {profile.children.map((child) => {
                   const age = Math.floor((Date.now() - new Date(child.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+                  const isExpanded = expandedChildId === child.id;
                   return (
-                    <View key={child.id} style={styles.childItem}>
-                      <View style={styles.childInfo}>
-                        <Text style={styles.childName}>{child.firstName}</Text>
-                        <Text style={styles.childAge}>
-                          {age} ans · Né(e) le {new Date(child.birthDate).toLocaleDateString('fr-FR')}
-                        </Text>
-                      </View>
-                      <TouchableOpacity onPress={() => handleDeleteChild(child.id)}>
-                        <Feather name="trash-2" size={18} color="#DC2626" />
+                    <View key={child.id}>
+                      <TouchableOpacity 
+                        style={styles.childItem}
+                        onPress={() => setExpandedChildId(isExpanded ? null : child.id)}
+                      >
+                        <View style={styles.childInfo}>
+                          <Text style={styles.childName}>{child.firstName}</Text>
+                          <Text style={styles.childAge}>
+                            {age} ans · Né(e) le {new Date(child.birthDate).toLocaleDateString('fr-FR')}
+                          </Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                          <Feather name={isExpanded ? 'chevron-up' : 'chevron-down'} size={18} color="#6E7A84" />
+                          <TouchableOpacity onPress={(e) => { e.stopPropagation(); handleDeleteChild(child.id); }}>
+                            <Feather name="trash-2" size={18} color="#DC2626" />
+                          </TouchableOpacity>
+                        </View>
                       </TouchableOpacity>
+                      {isExpanded && (
+                        <View style={styles.childDetails}>
+                          {child.height && (
+                            <Text style={styles.childDetailText}>Taille : {child.height} cm</Text>
+                          )}
+                          {child.weight && (
+                            <Text style={styles.childDetailText}>Poids : {child.weight} kg</Text>
+                          )}
+                          {child.notes && (
+                            <Text style={styles.childDetailText}>Notes : {child.notes}</Text>
+                          )}
+                          {!child.height && !child.weight && !child.notes && (
+                            <Text style={styles.childDetailText}>Aucun détail supplémentaire</Text>
+                          )}
+                        </View>
+                      )}
                     </View>
                   );
                 })}
@@ -460,7 +508,7 @@ export default function ProfileScreen() {
                     <Text style={styles.formLabel}>Ajouter un enfant</Text>
                     <TextInput
                       style={styles.input}
-                      placeholder="Prénom"
+                      placeholder="Prénom *"
                       value={childFirstName}
                       onChangeText={setChildFirstName}
                       placeholderTextColor="#9CA3AF"
@@ -499,8 +547,36 @@ onChange={(event: any, selectedDate?: Date) => {
                         )}
                       </>
                     )}
+                    <View style={{ marginTop: 12 }}>
+                      <Text style={styles.optionalLabel}>Informations optionnelles</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Taille (cm)"
+                        value={childHeight}
+                        onChangeText={setChildHeight}
+                        keyboardType="numeric"
+                        placeholderTextColor="#9CA3AF"
+                      />
+                      <TextInput
+                        style={[styles.input, { marginTop: 8 }]}
+                        placeholder="Poids (kg)"
+                        value={childWeight}
+                        onChangeText={setChildWeight}
+                        keyboardType="numeric"
+                        placeholderTextColor="#9CA3AF"
+                      />
+                      <TextInput
+                        style={[styles.input, styles.textArea, { marginTop: 8 }]}
+                        placeholder="Notes"
+                        value={childNotes}
+                        onChangeText={setChildNotes}
+                        multiline
+                        numberOfLines={3}
+                        placeholderTextColor="#9CA3AF"
+                      />
+                    </View>
                     <TouchableOpacity
-                      style={[styles.button, addingChild && styles.buttonDisabled]}
+                      style={[styles.button, addingChild && styles.buttonDisabled, { marginTop: 12 }]}
                       onPress={handleAddChild}
                       disabled={addingChild}
                     >
@@ -529,24 +605,67 @@ onChange={(event: any, selectedDate?: Date) => {
             {spouseExpanded && (
               <View>
                 {profile.spouse ? (
-                  <View style={styles.spouseInfo}>
-                    <Text style={styles.spouseName}>{profile.spouse.firstName}</Text>
-                    <TouchableOpacity onPress={handleDeleteSpouse}>
-                      <Feather name="trash-2" size={18} color="#DC2626" />
-                    </TouchableOpacity>
+                  <View>
+                    <View style={styles.spouseInfo}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.spouseName}>{profile.spouse.firstName}</Text>
+                        {profile.spouse.birthDate && (
+                          <Text style={styles.spouseBirthDate}>
+                            Né(e) le {new Date(profile.spouse.birthDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                          </Text>
+                        )}
+                      </View>
+                      <TouchableOpacity onPress={handleDeleteSpouse}>
+                        <Feather name="trash-2" size={18} color="#DC2626" />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 ) : (
                   <View>
-                    <Text style={styles.formLabel}>Prénom du conjoint</Text>
+                    <Text style={styles.formLabel}>Informations du conjoint</Text>
                     <TextInput
                       style={styles.input}
-                      placeholder="Prénom"
+                      placeholder="Prénom *"
                       value={spouseFirstName}
                       onChangeText={setSpouseFirstName}
                       placeholderTextColor="#9CA3AF"
                     />
+{Platform.OS === 'web' ? (
+                      <TextInput
+                        style={[styles.input, { marginTop: 8 }]}
+                        placeholder="Date de naissance (AAAA-MM-JJ)"
+                        value={spouseBirthDate.toISOString().split('T')[0]}
+                        onChangeText={(text) => {
+                          const d = new Date(text);
+                          if (!isNaN(d.getTime())) setSpouseBirthDate(d);
+                        }}
+                      />
+                    ) : (
+                      <>
+                        <TouchableOpacity
+                          style={[styles.dateButton, { marginTop: 8 }]}
+                          onPress={() => setShowSpouseDatePicker(true)}
+                        >
+                          <Feather name="calendar" size={18} color="#2C3E50" />
+                          <Text style={styles.dateButtonText}>
+                            {spouseBirthDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                          </Text>
+                        </TouchableOpacity>
+                        {showSpouseDatePicker && DateTimePicker && (
+                          <DateTimePicker
+                            value={spouseBirthDate}
+                            mode="date"
+                            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                            onChange={(event: any, selectedDate?: Date) => {
+                              setShowSpouseDatePicker(Platform.OS === 'ios');
+                              if (selectedDate) setSpouseBirthDate(selectedDate);
+                            }}
+                          />
+                        )}
+                      </>
+                    )}
                     <TouchableOpacity
-                      style={[styles.button, savingSpouse && styles.buttonDisabled]}
+                      style={[styles.button, savingSpouse && styles.buttonDisabled, { marginTop: 12 }]}
                       onPress={handleSaveSpouse}
                       disabled={savingSpouse}
                     >
@@ -886,5 +1005,32 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: '#2C3E50',
+  },
+  childDetails: {
+    padding: 12,
+    backgroundColor: '#F5F7FA',
+    borderRadius: 8,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  childDetailText: {
+    fontSize: 14,
+    color: '#6E7A84',
+    marginBottom: 4,
+  },
+  optionalLabel: {
+    fontSize: 14,
+    color: '#6E7A84',
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  textArea: {
+    height: 80,
+    textAlignVertical: 'top',
+  },
+  spouseBirthDate: {
+    fontSize: 14,
+    color: '#6E7A84',
+    marginTop: 4,
   },
 });
