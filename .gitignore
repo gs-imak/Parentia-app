@@ -1,3 +1,7 @@
 node_modules/
 dist/
 .env
+
+# User data (created at runtime, not committed)
+data/*.json
+!data/.gitkeep

@@ -6,7 +6,8 @@ import { processPipeline } from './pipeline.js';
 import { getRandomQuote } from './quotes.js';
 import { getWeatherForCity } from './weather.js';
 import { getTopNews } from './news.js';
-import { getTasksForToday } from './tasks.js';
+import { getTasksForToday, createTask, getTasks, updateTask, deleteTask } from './tasks.js';
+import { getProfile, addChild, updateChild, deleteChild, updateSpouse, deleteSpouse, updateMarriageDate, deleteMarriageDate } from './profile.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -71,9 +72,9 @@ app.post('/parse', async (req, res) => {
   }
 });
 
-function handleQuote(req: express.Request, res: express.Response) {
+async function handleQuote(req: express.Request, res: express.Response) {
   try {
-    const quote = getRandomQuote();
+    const quote = await getRandomQuote();
     return res.json({ success: true, data: quote });
   } catch (error) {
     return res.status(500).json({
@@ -121,14 +122,219 @@ app.get('/news', async (req, res) => {
   }
 });
 
-app.get('/tasks/today', (req, res) => {
+app.get('/tasks/today', async (req, res) => {
   try {
-    const tasks = getTasksForToday();
+    const tasks = await getTasksForToday();
     return res.json({ success: true, data: { tasks } });
   } catch (error) {
     return res.status(500).json({
       success: false,
       error: 'Impossible de récupérer les tâches pour le moment.',
+    });
+  }
+});
+
+app.post('/tasks', async (req, res) => {
+  try {
+    const { title, category, deadline, description } = req.body;
+    if (!title || !category || !deadline) {
+      return res.status(400).json({
+        success: false,
+        error: 'Les champs title, category et deadline sont requis.',
+      });
+    }
+    const task = await createTask({ title, category, deadline, description });
+    return res.status(201).json({ success: true, data: task });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'Impossible de créer la tâche.',
+    });
+  }
+});
+
+app.get('/tasks', async (req, res) => {
+  try {
+    const tasks = await getTasks();
+    return res.json({ success: true, data: { tasks } });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'Impossible de récupérer les tâches.',
+    });
+  }
+});
+
+app.patch('/tasks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+    const task = await updateTask(id, updates);
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: 'Tâche introuvable.',
+      });
+    }
+    return res.json({ success: true, data: task });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'Impossible de mettre à jour la tâche.',
+    });
+  }
+});
+
+app.delete('/tasks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await deleteTask(id);
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        error: 'Tâche introuvable.',
+      });
+    }
+    return res.json({ success: true, message: 'Tâche supprimée avec succès.' });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'Impossible de supprimer la tâche.',
+    });
+  }
+});
+
+// Profile endpoints
+app.get('/profile', async (req, res) => {
+  try {
+    const profile = await getProfile();
+    return res.json({ success: true, data: profile });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'Impossible de récupérer le profil.',
+    });
+  }
+});
+
+app.post('/profile/children', async (req, res) => {
+  try {
+    const { firstName, birthDate, height, weight, notes } = req.body;
+    if (!firstName || !birthDate) {
+      return res.status(400).json({
+        success: false,
+        error: 'Les champs firstName et birthDate sont requis.',
+      });
+    }
+    const child = await addChild({ firstName, birthDate, height, weight, notes });
+    return res.status(201).json({ success: true, data: child });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Impossible d\'ajouter l\'enfant.';
+    const status = message.includes('Maximum 5') ? 400 : 500;
+    return res.status(status).json({
+      success: false,
+      error: message,
+    });
+  }
+});
+
+app.patch('/profile/children/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+    const child = await updateChild(id, updates);
+    if (!child) {
+      return res.status(404).json({
+        success: false,
+        error: 'Enfant introuvable.',
+      });
+    }
+    return res.json({ success: true, data: child });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'Impossible de mettre à jour l\'enfant.',
+    });
+  }
+});
+
+app.delete('/profile/children/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await deleteChild(id);
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        error: 'Enfant introuvable.',
+      });
+    }
+    return res.json({ success: true, message: 'Enfant supprimé avec succès.' });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'Impossible de supprimer l\'enfant.',
+    });
+  }
+});
+
+app.put('/profile/spouse', async (req, res) => {
+  try {
+    const { firstName } = req.body;
+    if (!firstName) {
+      return res.status(400).json({
+        success: false,
+        error: 'Le champ firstName est requis.',
+      });
+    }
+    const profile = await updateSpouse({ firstName });
+    return res.json({ success: true, data: profile });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'Impossible de mettre à jour le conjoint.',
+    });
+  }
+});
+
+app.delete('/profile/spouse', async (req, res) => {
+  try {
+    const profile = await deleteSpouse();
+    return res.json({ success: true, data: profile });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'Impossible de supprimer le conjoint.',
+    });
+  }
+});
+
+app.put('/profile/marriage-date', async (req, res) => {
+  try {
+    const { date } = req.body;
+    if (!date) {
+      return res.status(400).json({
+        success: false,
+        error: 'Le champ date est requis.',
+      });
+    }
+    const profile = await updateMarriageDate(date);
+    return res.json({ success: true, data: profile });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'Impossible de mettre à jour la date de mariage.',
+    });
+  }
+});
+
+app.delete('/profile/marriage-date', async (req, res) => {
+  try {
+    const profile = await deleteMarriageDate();
+    return res.json({ success: true, data: profile });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'Impossible de supprimer la date de mariage.',
     });
   }
 });

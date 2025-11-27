@@ -6,6 +6,7 @@ import {
   fetchWeather,
   fetchTasks,
   fetchNews,
+  updateTask,
   type Quote,
   type WeatherSummary,
   type Task,
@@ -27,7 +28,8 @@ export default function HomeScreen() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [tasksError, setTasksError] = useState<string | null>(null);
 
-  const toggleTaskStatus = (taskId: string) => {
+  const toggleTaskStatus = async (taskId: string) => {
+    // Optimistic update
     setTasks(prevTasks => 
       prevTasks.map(task => {
         if (task.id !== taskId) return task;
@@ -45,6 +47,26 @@ export default function HomeScreen() {
         return { ...task, status: newStatus };
       })
     );
+
+    // Persist to backend
+    try {
+      const task = tasks.find(t => t.id === taskId);
+      if (!task) return;
+      
+      let newStatus: 'todo' | 'in_progress' | 'done';
+      if (task.status === 'todo') {
+        newStatus = 'in_progress';
+      } else if (task.status === 'in_progress') {
+        newStatus = 'done';
+      } else {
+        newStatus = 'todo';
+      }
+      
+      await updateTask(taskId, { status: newStatus });
+    } catch (error) {
+      // Silently fail, the UI has already updated optimistically
+      console.error('Failed to update task status:', error);
+    }
   };
 
   const [news, setNews] = useState<NewsItem[]>([]);

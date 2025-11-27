@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { getProfile } from './profile.js';
 
 const GeocodingResponseSchema = z.object({
   results: z
@@ -102,6 +103,24 @@ function buildOutfitRecommendation(tempC: number, isRaining: boolean, isSnowing:
   return parts.join(' ; ');
 }
 
+// Helper: Check if user has young children (<=15 years old) for outfit recommendations
+async function shouldShowOutfit(): Promise<boolean> {
+  try {
+    const profile = await getProfile();
+    if (profile.children.length === 0) return false;
+    
+    const now = new Date();
+    return profile.children.some(child => {
+      const birthDate = new Date(child.birthDate);
+      const ageYears = (now.getTime() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
+      return ageYears <= 15;
+    });
+  } catch (error) {
+    // If profile loading fails, default to showing outfit
+    return true;
+  }
+}
+
 export async function getWeatherForCity(city: string): Promise<WeatherSummary> {
   const { latitude, longitude, resolvedName } = await geocodeCity(city);
   const current = await fetchCurrentWeather(latitude, longitude);
@@ -114,7 +133,9 @@ export async function getWeatherForCity(city: string): Promise<WeatherSummary> {
   const isSnowing = snowfall > 0;
   const isRaining = !isSnowing && precipitation > 0;
 
-  const outfit = buildOutfitRecommendation(temperatureC, isRaining, isSnowing, windSpeedKmh);
+  // Only show outfit recommendations if user has young children
+  const showOutfit = await shouldShowOutfit();
+  const outfit = showOutfit ? buildOutfitRecommendation(temperatureC, isRaining, isSnowing, windSpeedKmh) : '';
 
   return {
     city: resolvedName,

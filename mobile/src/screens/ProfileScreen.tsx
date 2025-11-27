@@ -2,10 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Alert, Platform, View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, ActivityIndicator, StyleSheet } from 'react-native';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { getStoredCity, setStoredCity } from '../utils/storage';
-import { reverseGeocode, geolocateByIP } from '../api/client';
+import { reverseGeocode, geolocateByIP, getProfile, addChild, deleteChild, updateSpouse, deleteSpouse, updateMarriageDate, deleteMarriageDate, type Child, type Profile } from '../api/client';
+import { AppEvents, EVENTS } from '../utils/events';
 
 export default function ProfileScreen() {
+  // City state
   const [city, setCity] = useState('');
   const [saving, setSaving] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
@@ -14,12 +17,51 @@ export default function ProfileScreen() {
   const [locationSuccess, setLocationSuccess] = useState<string | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
 
+  // Profile state
+  const [profile, setProfile] = useState<Profile>({ children: [] });
+  const [loadingProfile, setLoadingProfile] = useState(false);
+
+  // Section collapse state
+  const [cityExpanded, setCityExpanded] = useState(true);
+  const [childrenExpanded, setChildrenExpanded] = useState(false);
+  const [spouseExpanded, setSpouseExpanded] = useState(false);
+  const [marriageExpanded, setMarriageExpanded] = useState(false);
+
+  // Child form state
+  const [childFirstName, setChildFirstName] = useState('');
+  const [childBirthDate, setChildBirthDate] = useState(new Date());
+  const [showChildDatePicker, setShowChildDatePicker] = useState(false);
+  const [addingChild, setAddingChild] = useState(false);
+
+  // Spouse form state
+  const [spouseFirstName, setSpouseFirstName] = useState('');
+  const [savingSpouse, setSavingSpouse] = useState(false);
+
+  // Marriage date state
+  const [marriageDate, setMarriageDate] = useState(new Date());
+  const [showMarriageDatePicker, setShowMarriageDatePicker] = useState(false);
+  const [savingMarriageDate, setSavingMarriageDate] = useState(false);
+
   useEffect(() => {
     getStoredCity().then((storedCity) => {
       if (storedCity) setCity(storedCity);
     });
-    // Don't auto-request location on mount - user will click button
+    loadProfile();
   }, []);
+
+  const loadProfile = async () => {
+    setLoadingProfile(true);
+    try {
+      const data = await getProfile();
+      setProfile(data);
+      if (data.spouse) setSpouseFirstName(data.spouse.firstName);
+      if (data.marriageDate) setMarriageDate(new Date(data.marriageDate));
+    } catch (error) {
+      console.error('Failed to load profile:', error);
+    } finally {
+      setLoadingProfile(false);
+    }
+  };
 
   const handleUseLocation = async () => {
     console.log('[Geolocation] Button clicked');
@@ -189,6 +231,117 @@ export default function ProfileScreen() {
     }, 1500);
   };
 
+  // Child handlers
+  const handleAddChild = async () => {
+    if (!childFirstName.trim()) {
+      Alert.alert('Erreur', 'Le prénom est requis.');
+      return;
+    }
+    if (profile.children.length >= 5) {
+      Alert.alert('Limite atteinte', 'Vous ne pouvez ajouter que 5 enfants maximum.');
+      return;
+    }
+
+    setAddingChild(true);
+    try {
+      await addChild({ firstName: childFirstName.trim(), birthDate: childBirthDate.toISOString() });
+      setChildFirstName('');
+      setChildBirthDate(new Date());
+      await loadProfile();
+    } catch (error) {
+      Alert.alert('Erreur', 'Impossible d\'ajouter l\'enfant.');
+    } finally {
+      setAddingChild(false);
+    }
+  };
+
+  const handleDeleteChild = async (childId: string) => {
+    Alert.alert('Supprimer', 'Êtes-vous sûr de vouloir supprimer cet enfant ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Supprimer',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteChild(childId);
+            await loadProfile();
+          } catch (error) {
+            Alert.alert('Erreur', 'Impossible de supprimer l\'enfant.');
+          }
+        },
+      },
+    ]);
+  };
+
+  // Spouse handlers
+  const handleSaveSpouse = async () => {
+    if (!spouseFirstName.trim()) {
+      Alert.alert('Erreur', 'Le prénom est requis.');
+      return;
+    }
+
+    setSavingSpouse(true);
+    try {
+      await updateSpouse(spouseFirstName.trim());
+      await loadProfile();
+    } catch (error) {
+      Alert.alert('Erreur', 'Impossible de mettre à jour le conjoint.');
+    } finally {
+      setSavingSpouse(false);
+    }
+  };
+
+  const handleDeleteSpouse = async () => {
+    Alert.alert('Supprimer', 'Êtes-vous sûr de vouloir supprimer le conjoint ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Supprimer',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteSpouse();
+            setSpouseFirstName('');
+            await loadProfile();
+          } catch (error) {
+            Alert.alert('Erreur', 'Impossible de supprimer le conjoint.');
+          }
+        },
+      },
+    ]);
+  };
+
+  // Marriage date handlers
+  const handleSaveMarriageDate = async () => {
+    setSavingMarriageDate(true);
+    try {
+      await updateMarriageDate(marriageDate.toISOString());
+      await loadProfile();
+    } catch (error) {
+      Alert.alert('Erreur', 'Impossible de mettre à jour la date de mariage.');
+    } finally {
+      setSavingMarriageDate(false);
+    }
+  };
+
+  const handleDeleteMarriageDate = async () => {
+    Alert.alert('Supprimer', 'Êtes-vous sûr de vouloir supprimer la date de mariage ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Supprimer',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteMarriageDate();
+            setMarriageDate(new Date());
+            await loadProfile();
+          } catch (error) {
+            Alert.alert('Erreur', 'Impossible de supprimer la date de mariage.');
+          }
+        },
+      },
+    ]);
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.keyboardView}
@@ -268,11 +421,186 @@ export default function ProfileScreen() {
             )}
           </View>
 
+          {/* Children Section */}
           <View style={styles.card}>
-            <Text style={styles.title}>Profil</Text>
-            <Text style={styles.text}>
-              Autres paramètres du profil seront ajoutés dans les prochains milestones.
-            </Text>
+            <TouchableOpacity style={styles.sectionHeader} onPress={() => setChildrenExpanded(!childrenExpanded)}>
+              <View style={styles.sectionHeaderLeft}>
+                <Feather name="users" size={20} color="#2C3E50" />
+                <Text style={styles.sectionTitle}>Enfants ({profile.children.length}/5)</Text>
+              </View>
+              <Feather name={childrenExpanded ? 'chevron-up' : 'chevron-down'} size={20} color="#6E7A84" />
+            </TouchableOpacity>
+
+            {childrenExpanded && (
+              <View>
+                {profile.children.map((child) => {
+                  const age = Math.floor((Date.now() - new Date(child.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+                  return (
+                    <View key={child.id} style={styles.childItem}>
+                      <View style={styles.childInfo}>
+                        <Text style={styles.childName}>{child.firstName}</Text>
+                        <Text style={styles.childAge}>
+                          {age} ans · Né(e) le {new Date(child.birthDate).toLocaleDateString('fr-FR')}
+                        </Text>
+                      </View>
+                      <TouchableOpacity onPress={() => handleDeleteChild(child.id)}>
+                        <Feather name="trash-2" size={18} color="#DC2626" />
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+
+                {profile.children.length < 5 && (
+                  <View style={styles.addChildForm}>
+                    <Text style={styles.formLabel}>Ajouter un enfant</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Prénom"
+                      value={childFirstName}
+                      onChangeText={setChildFirstName}
+                      placeholderTextColor="#9CA3AF"
+                    />
+                    <TouchableOpacity
+                      style={styles.dateButton}
+                      onPress={() => setShowChildDatePicker(true)}
+                    >
+                      <Feather name="calendar" size={18} color="#2C3E50" />
+                      <Text style={styles.dateButtonText}>
+                        {childBirthDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                      </Text>
+                    </TouchableOpacity>
+                    {showChildDatePicker && (
+                      <DateTimePicker
+                        value={childBirthDate}
+                        mode="date"
+                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                        onChange={(event, selectedDate) => {
+                          setShowChildDatePicker(Platform.OS === 'ios');
+                          if (selectedDate) setChildBirthDate(selectedDate);
+                        }}
+                      />
+                    )}
+                    <TouchableOpacity
+                      style={[styles.button, addingChild && styles.buttonDisabled]}
+                      onPress={handleAddChild}
+                      disabled={addingChild}
+                    >
+                      {addingChild ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Text style={styles.buttonText}>Ajouter</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+
+          {/* Spouse Section */}
+          <View style={styles.card}>
+            <TouchableOpacity style={styles.sectionHeader} onPress={() => setSpouseExpanded(!spouseExpanded)}>
+              <View style={styles.sectionHeaderLeft}>
+                <Feather name="heart" size={20} color="#2C3E50" />
+                <Text style={styles.sectionTitle}>Conjoint(e)</Text>
+              </View>
+              <Feather name={spouseExpanded ? 'chevron-up' : 'chevron-down'} size={20} color="#6E7A84" />
+            </TouchableOpacity>
+
+            {spouseExpanded && (
+              <View>
+                {profile.spouse ? (
+                  <View style={styles.spouseInfo}>
+                    <Text style={styles.spouseName}>{profile.spouse.firstName}</Text>
+                    <TouchableOpacity onPress={handleDeleteSpouse}>
+                      <Feather name="trash-2" size={18} color="#DC2626" />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View>
+                    <Text style={styles.formLabel}>Prénom du conjoint</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Prénom"
+                      value={spouseFirstName}
+                      onChangeText={setSpouseFirstName}
+                      placeholderTextColor="#9CA3AF"
+                    />
+                    <TouchableOpacity
+                      style={[styles.button, savingSpouse && styles.buttonDisabled]}
+                      onPress={handleSaveSpouse}
+                      disabled={savingSpouse}
+                    >
+                      {savingSpouse ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Text style={styles.buttonText}>Enregistrer</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+
+          {/* Marriage Date Section */}
+          <View style={styles.card}>
+            <TouchableOpacity style={styles.sectionHeader} onPress={() => setMarriageExpanded(!marriageExpanded)}>
+              <View style={styles.sectionHeaderLeft}>
+                <Feather name="calendar" size={20} color="#2C3E50" />
+                <Text style={styles.sectionTitle}>Date de mariage</Text>
+              </View>
+              <Feather name={marriageExpanded ? 'chevron-up' : 'chevron-down'} size={20} color="#6E7A84" />
+            </TouchableOpacity>
+
+            {marriageExpanded && (
+              <View>
+                {profile.marriageDate ? (
+                  <View style={styles.marriageInfo}>
+                    <Text style={styles.marriageDate}>
+                      {new Date(profile.marriageDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                    </Text>
+                    <TouchableOpacity onPress={handleDeleteMarriageDate}>
+                      <Feather name="trash-2" size={18} color="#DC2626" />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View>
+                    <TouchableOpacity
+                      style={styles.dateButton}
+                      onPress={() => setShowMarriageDatePicker(true)}
+                    >
+                      <Feather name="calendar" size={18} color="#2C3E50" />
+                      <Text style={styles.dateButtonText}>
+                        {marriageDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                      </Text>
+                    </TouchableOpacity>
+                    {showMarriageDatePicker && (
+                      <DateTimePicker
+                        value={marriageDate}
+                        mode="date"
+                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                        onChange={(event, selectedDate) => {
+                          setShowMarriageDatePicker(Platform.OS === 'ios');
+                          if (selectedDate) setMarriageDate(selectedDate);
+                        }}
+                      />
+                    )}
+                    <TouchableOpacity
+                      style={[styles.button, savingMarriageDate && styles.buttonDisabled]}
+                      onPress={handleSaveMarriageDate}
+                      disabled={savingMarriageDate}
+                    >
+                      {savingMarriageDate ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Text style={styles.buttonText}>Enregistrer</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
           </View>
         </View>
       </ScrollView>
@@ -438,5 +766,92 @@ const styles = StyleSheet.create({
     color: '#DC2626',
     fontWeight: '500',
     flex: 1,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  sectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sectionTitle: {
+    fontSize: 19,
+    color: '#2C3E50',
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  childItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E9EEF2',
+  },
+  childInfo: {
+    flex: 1,
+  },
+  childName: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#2C3E50',
+    marginBottom: 4,
+  },
+  childAge: {
+    fontSize: 14,
+    color: '#6E7A84',
+  },
+  addChildForm: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E9EEF2',
+  },
+  formLabel: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#2C3E50',
+    marginBottom: 12,
+  },
+  dateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E9EEF2',
+    borderRadius: 9,
+    padding: 12,
+    backgroundColor: '#F5F7FA',
+    marginTop: 12,
+    marginBottom: 12,
+  },
+  dateButtonText: {
+    fontSize: 16,
+    color: '#2C3E50',
+    marginLeft: 8,
+  },
+  spouseInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  spouseName: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#2C3E50',
+  },
+  marriageInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  marriageDate: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#2C3E50',
   },
 });
