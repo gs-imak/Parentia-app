@@ -23,37 +23,87 @@ export default function ProfileScreen() {
     setLocationPermissionAsked(true);
 
     try {
-      // Request permission
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (Platform.OS === 'web') {
+        // Use browser Geolocation API for web
+        if (!navigator.geolocation) {
+          Alert.alert('Erreur', 'La géolocalisation n\'est pas supportée par votre navigateur.');
+          setLoadingLocation(false);
+          return;
+        }
 
-      if (status !== 'granted') {
-        Alert.alert(
-          'Permission refusée',
-          'La géolocalisation a été refusée. Vous pouvez saisir votre ville manuellement ci-dessous.'
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            const { latitude, longitude } = position.coords;
+            
+            // Use Nominatim for reverse geocoding on web (free, no API key needed)
+            try {
+              const response = await fetch(
+                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
+                {
+                  headers: {
+                    'User-Agent': 'ParentiaApp/1.0',
+                  },
+                }
+              );
+              const data = await response.json();
+              
+              const cityName = data.address?.postcode || data.address?.city || data.address?.town || data.address?.village || '';
+              if (cityName) {
+                setCity(cityName);
+                Alert.alert('Localisation trouvée', `Votre position: ${cityName}`);
+              } else {
+                Alert.alert('Erreur', 'Impossible de déterminer votre ville.');
+              }
+            } catch (error) {
+              Alert.alert('Erreur', 'Impossible de récupérer l\'adresse.');
+            }
+            setLoadingLocation(false);
+          },
+          (error) => {
+            let message = 'Impossible d\'obtenir votre position.';
+            if (error.code === error.PERMISSION_DENIED) {
+              message = 'La géolocalisation a été refusée. Vous pouvez saisir votre ville manuellement.';
+            }
+            Alert.alert('Permission refusée', message);
+            setLoadingLocation(false);
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0,
+          }
         );
-        setLoadingLocation(false);
-        return;
-      }
-
-      // Get current location
-      const location = await Location.getCurrentPositionAsync({});
-      const { latitude, longitude } = location.coords;
-
-      // Reverse geocode to get city
-      const [address] = await Location.reverseGeocodeAsync({ latitude, longitude });
-      
-      if (address.city || address.postalCode) {
-        const cityName = address.postalCode || address.city || '';
-        setCity(cityName);
-        Alert.alert('Localisation trouvée', `Votre position: ${cityName}`);
       } else {
-        Alert.alert('Erreur', 'Impossible de déterminer votre ville.');
+        // Use expo-location for mobile
+        const { status } = await Location.requestForegroundPermissionsAsync();
+
+        if (status !== 'granted') {
+          Alert.alert(
+            'Permission refusée',
+            'La géolocalisation a été refusée. Vous pouvez saisir votre ville manuellement ci-dessous.'
+          );
+          setLoadingLocation(false);
+          return;
+        }
+
+        const location = await Location.getCurrentPositionAsync({});
+        const { latitude, longitude } = location.coords;
+
+        const [address] = await Location.reverseGeocodeAsync({ latitude, longitude });
+        
+        if (address.city || address.postalCode) {
+          const cityName = address.postalCode || address.city || '';
+          setCity(cityName);
+          Alert.alert('Localisation trouvée', `Votre position: ${cityName}`);
+        } else {
+          Alert.alert('Erreur', 'Impossible de déterminer votre ville.');
+        }
+        setLoadingLocation(false);
       }
     } catch (error) {
       Alert.alert('Erreur', 'Impossible d\'obtenir votre position.');
+      setLoadingLocation(false);
     }
-
-    setLoadingLocation(false);
   };
 
   const handleSave = async () => {
@@ -100,11 +150,6 @@ export default function ProfileScreen() {
                 </>
               )}
             </TouchableOpacity>
-            {Platform.OS === 'web' && (
-              <Text style={styles.webNote}>
-                Note : La géolocalisation fonctionne uniquement sur mobile via Expo Go
-              </Text>
-            )}
 
             <Text style={styles.orText}>ou</Text>
 
