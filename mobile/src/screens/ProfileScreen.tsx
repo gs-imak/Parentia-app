@@ -2,10 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { Alert, Platform, View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, ActivityIndicator, StyleSheet } from 'react-native';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { getStoredCity, setStoredCity } from '../utils/storage';
 import { reverseGeocode, geolocateByIP, getProfile, addChild, deleteChild, updateSpouse, deleteSpouse, updateMarriageDate, deleteMarriageDate, type Child, type Profile } from '../api/client';
 import { AppEvents, EVENTS } from '../utils/events';
+
+// Conditionally import DateTimePicker only for mobile
+let DateTimePicker: any = null;
+if (Platform.OS !== 'web') {
+  DateTimePicker = require('@react-native-community/datetimepicker').default;
+}
 
 export default function ProfileScreen() {
   // City state
@@ -460,25 +465,39 @@ export default function ProfileScreen() {
                       onChangeText={setChildFirstName}
                       placeholderTextColor="#9CA3AF"
                     />
-                    <TouchableOpacity
-                      style={styles.dateButton}
-                      onPress={() => setShowChildDatePicker(true)}
-                    >
-                      <Feather name="calendar" size={18} color="#2C3E50" />
-                      <Text style={styles.dateButtonText}>
-                        {childBirthDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
-                      </Text>
-                    </TouchableOpacity>
-                    {showChildDatePicker && (
-                      <DateTimePicker
-                        value={childBirthDate}
-                        mode="date"
-                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                        onChange={(event, selectedDate) => {
-                          setShowChildDatePicker(Platform.OS === 'ios');
-                          if (selectedDate) setChildBirthDate(selectedDate);
+{Platform.OS === 'web' ? (
+                      <TextInput
+                        style={styles.input}
+                        placeholder="AAAA-MM-JJ"
+                        value={childBirthDate.toISOString().split('T')[0]}
+                        onChangeText={(text) => {
+                          const d = new Date(text);
+                          if (!isNaN(d.getTime())) setChildBirthDate(d);
                         }}
                       />
+                    ) : (
+                      <>
+                        <TouchableOpacity
+                          style={styles.dateButton}
+                          onPress={() => setShowChildDatePicker(true)}
+                        >
+                          <Feather name="calendar" size={18} color="#2C3E50" />
+                          <Text style={styles.dateButtonText}>
+                            {childBirthDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                          </Text>
+                        </TouchableOpacity>
+                        {showChildDatePicker && DateTimePicker && (
+                          <DateTimePicker
+                            value={childBirthDate}
+                            mode="date"
+                            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+onChange={(event: any, selectedDate?: Date) => {
+                              setShowChildDatePicker(Platform.OS === 'ios');
+                              if (selectedDate) setChildBirthDate(selectedDate);
+                            }}
+                          />
+                        )}
+                      </>
                     )}
                     <TouchableOpacity
                       style={[styles.button, addingChild && styles.buttonDisabled]}
@@ -566,25 +585,39 @@ export default function ProfileScreen() {
                   </View>
                 ) : (
                   <View>
-                    <TouchableOpacity
-                      style={styles.dateButton}
-                      onPress={() => setShowMarriageDatePicker(true)}
-                    >
-                      <Feather name="calendar" size={18} color="#2C3E50" />
-                      <Text style={styles.dateButtonText}>
-                        {marriageDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
-                      </Text>
-                    </TouchableOpacity>
-                    {showMarriageDatePicker && (
-                      <DateTimePicker
-                        value={marriageDate}
-                        mode="date"
-                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                        onChange={(event, selectedDate) => {
-                          setShowMarriageDatePicker(Platform.OS === 'ios');
-                          if (selectedDate) setMarriageDate(selectedDate);
+{Platform.OS === 'web' ? (
+                      <TextInput
+                        style={styles.input}
+                        placeholder="AAAA-MM-JJ"
+                        value={marriageDate.toISOString().split('T')[0]}
+                        onChangeText={(text) => {
+                          const d = new Date(text);
+                          if (!isNaN(d.getTime())) setMarriageDate(d);
                         }}
                       />
+                    ) : (
+                      <>
+                        <TouchableOpacity
+                          style={styles.dateButton}
+                          onPress={() => setShowMarriageDatePicker(true)}
+                        >
+                          <Feather name="calendar" size={18} color="#2C3E50" />
+                          <Text style={styles.dateButtonText}>
+                            {marriageDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                          </Text>
+                        </TouchableOpacity>
+                        {showMarriageDatePicker && DateTimePicker && (
+                          <DateTimePicker
+                            value={marriageDate}
+                            mode="date"
+                            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+onChange={(event: any, selectedDate?: Date) => {
+                              setShowMarriageDatePicker(Platform.OS === 'ios');
+                              if (selectedDate) setMarriageDate(selectedDate);
+                            }}
+                          />
+                        )}
+                      </>
                     )}
                     <TouchableOpacity
                       style={[styles.button, savingMarriageDate && styles.buttonDisabled]}

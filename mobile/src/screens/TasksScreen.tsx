@@ -11,9 +11,14 @@ import {
   Alert,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
 import { createTask, getAllTasks, deleteTask, type TaskCategory, type Task } from '../api/client';
+
+// Conditionally import DateTimePicker only for mobile
+let DateTimePicker: any = null;
+if (Platform.OS !== 'web') {
+  DateTimePicker = require('@react-native-community/datetimepicker').default;
+}
 
 const CATEGORIES: { value: TaskCategory; label: string }[] = [
   { value: 'administratif', label: 'Administratif' },
@@ -138,28 +143,50 @@ export default function TasksScreen() {
 
         <View style={styles.formGroup}>
           <Text style={styles.label}>Échéance *</Text>
-          <TouchableOpacity style={styles.dateButton} onPress={() => setShowDatePicker(true)}>
-            <Feather name="calendar" size={18} color="#2C3E50" />
-            <Text style={styles.dateButtonText}>
-              {deadline.toLocaleDateString('fr-FR', {
-                day: '2-digit',
-                month: 'long',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </Text>
-          </TouchableOpacity>
-          {showDatePicker && (
-            <DateTimePicker
-              value={deadline}
-              mode="datetime"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={(event, selectedDate) => {
-                setShowDatePicker(Platform.OS === 'ios');
-                if (selectedDate) setDeadline(selectedDate);
+{Platform.OS === 'web' ? (
+            <TextInput
+              style={styles.input}
+              placeholder="AAAA-MM-JJ HH:MM"
+              value={new Date(deadline.getTime() - deadline.getTimezoneOffset() * 60000)
+                .toISOString()
+                .slice(0, 16)
+                .replace('T', ' ')}
+              onChangeText={(text) => {
+                // Expect format YYYY-MM-DD HH:mm
+                const normalized = text.replace('T', ' ').trim();
+                const [datePart, timePart] = normalized.split(' ');
+                if (!datePart) return;
+                const iso = `${datePart}${timePart ? 'T' + timePart : 'T00:00'}`;
+                const d = new Date(iso);
+                if (!isNaN(d.getTime())) setDeadline(d);
               }}
             />
+          ) : (
+            <>
+              <TouchableOpacity style={styles.dateButton} onPress={() => setShowDatePicker(true)}>
+                <Feather name="calendar" size={18} color="#2C3E50" />
+                <Text style={styles.dateButtonText}>
+                  {deadline.toLocaleDateString('fr-FR', {
+                    day: '2-digit',
+                    month: 'long',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </Text>
+              </TouchableOpacity>
+              {showDatePicker && DateTimePicker && (
+                <DateTimePicker
+                  value={deadline}
+                  mode="datetime"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+onChange={(event: any, selectedDate?: Date) => {
+                    setShowDatePicker(Platform.OS === 'ios');
+                    if (selectedDate) setDeadline(selectedDate);
+                  }}
+                />
+              )}
+            </>
           )}
         </View>
 
