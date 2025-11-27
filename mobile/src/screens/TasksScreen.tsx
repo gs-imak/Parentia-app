@@ -33,6 +33,7 @@ export default function TasksScreen() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [tasksError, setTasksError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Form state
   const [title, setTitle] = useState('');
@@ -60,8 +61,11 @@ export default function TasksScreen() {
   }, []);
 
   const handleSubmit = async () => {
+    // Clear previous errors
+    setFormError(null);
+    
     if (!title.trim()) {
-      Alert.alert('Erreur', 'Le titre est requis.');
+      setFormError('Le titre est requis.');
       return;
     }
 
@@ -87,13 +91,25 @@ export default function TasksScreen() {
       // Reload tasks
       await loadTasks();
     } catch (error) {
-      Alert.alert('Erreur', 'Impossible de créer la tâche.');
+      setFormError('Impossible de créer la tâche. Veuillez réessayer.');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDelete = async (taskId: string) => {
+    // On web, skip confirmation and delete directly (or implement custom modal later)
+    if (Platform.OS === 'web') {
+      try {
+        await deleteTask(taskId);
+        await loadTasks();
+      } catch (error) {
+        setFormError('Impossible de supprimer la tâche.');
+      }
+      return;
+    }
+    
+    // Native platforms: use Alert
     Alert.alert('Supprimer', 'Êtes-vous sûr de vouloir supprimer cette tâche ?', [
       { text: 'Annuler', style: 'cancel' },
       {
@@ -104,7 +120,7 @@ export default function TasksScreen() {
             await deleteTask(taskId);
             await loadTasks();
           } catch (error) {
-            Alert.alert('Erreur', 'Impossible de supprimer la tâche.');
+            setFormError('Impossible de supprimer la tâche.');
           }
         },
       },
@@ -118,6 +134,17 @@ export default function TasksScreen() {
         <View style={styles.successBanner}>
           <Feather name="check-circle" size={20} color="#4CAF50" />
           <Text style={styles.successText}>{successMessage}</Text>
+        </View>
+      )}
+
+      {/* Error Message */}
+      {formError && (
+        <View style={styles.errorBanner}>
+          <Feather name="alert-circle" size={20} color="#DC2626" />
+          <Text style={styles.errorText}>{formError}</Text>
+          <TouchableOpacity onPress={() => setFormError(null)}>
+            <Feather name="x" size={20} color="#DC2626" />
+          </TouchableOpacity>
         </View>
       )}
 
@@ -322,6 +349,24 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     fontWeight: '500',
     marginLeft: 8,
+    flex: 1,
+  },
+  errorBanner: {
+    backgroundColor: '#FEE2E2',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#DC2626',
+  },
+  errorText: {
+    fontSize: 15,
+    color: '#DC2626',
+    fontWeight: '500',
+    marginLeft: 8,
+    flex: 1,
   },
   card: {
     backgroundColor: '#FFFFFF',
