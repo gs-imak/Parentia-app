@@ -26,6 +26,26 @@ export default function HomeScreen() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [tasksError, setTasksError] = useState<string | null>(null);
 
+  const toggleTaskStatus = (taskId: string) => {
+    setTasks(prevTasks => 
+      prevTasks.map(task => {
+        if (task.id !== taskId) return task;
+        
+        // Cycle: pending -> in_progress -> done -> pending
+        let newStatus: 'pending' | 'in_progress' | 'done';
+        if (task.status === 'pending') {
+          newStatus = 'in_progress';
+        } else if (task.status === 'in_progress') {
+          newStatus = 'done';
+        } else {
+          newStatus = 'pending';
+        }
+        
+        return { ...task, status: newStatus };
+      })
+    );
+  };
+
   const [news, setNews] = useState<NewsItem[]>([]);
   const [newsError, setNewsError] = useState<string | null>(null);
 
@@ -176,7 +196,12 @@ export default function HomeScreen() {
                 }
 
                 return (
-                  <View key={task.id} style={styles.taskRow}>
+                  <TouchableOpacity 
+                    key={task.id} 
+                    style={styles.taskRow}
+                    onPress={() => toggleTaskStatus(task.id)}
+                    activeOpacity={0.7}
+                  >
                     <View
                       style={[
                         styles.taskCircle,
@@ -192,7 +217,7 @@ export default function HomeScreen() {
                         </View>
                       </View>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
             </View>
