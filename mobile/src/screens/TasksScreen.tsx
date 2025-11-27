@@ -198,16 +198,17 @@ export default function TasksScreen() {
               style={{
                 borderWidth: 1,
                 borderColor: '#E9EEF2',
-                borderRadius: 8,
-                paddingLeft: 12,
-                paddingRight: 12,
-                paddingTop: 10,
-                paddingBottom: 10,
+                borderRadius: 12,
+                paddingLeft: 16,
+                paddingRight: 16,
+                paddingTop: 12,
+                paddingBottom: 12,
                 fontSize: 16,
                 color: '#2C3E50',
-                backgroundColor: '#FFFFFF',
+                backgroundColor: '#F8F9FB',
                 width: '100%',
                 fontFamily: 'system-ui',
+                textAlign: 'left' as any,
               }}
               value={new Date(deadline.getTime() - deadline.getTimezoneOffset() * 60000)
                 .toISOString()
