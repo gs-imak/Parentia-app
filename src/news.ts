@@ -115,6 +115,43 @@ function isMajorNews(item: NewsItem): boolean {
   return MAJOR_NEWS_KEYWORDS.some(keyword => textToCheck.includes(keyword));
 }
 
+// Simple title similarity check (Levenshtein-like but simpler)
+function areTitlesSimilar(title1: string, title2: string): boolean {
+  const normalize = (str: string) => str.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+  const t1 = normalize(title1);
+  const t2 = normalize(title2);
+  
+  // If titles are very short, require exact match
+  if (t1.length < 20 || t2.length < 20) {
+    return t1 === t2;
+  }
+  
+  // Check if one title contains most of the other (80% overlap)
+  const words1 = new Set(t1.split(/\s+/));
+  const words2 = new Set(t2.split(/\s+/));
+  
+  const intersection = new Set([...words1].filter(w => words2.has(w)));
+  const minSize = Math.min(words1.size, words2.size);
+  
+  if (minSize === 0) return false;
+  
+  const similarity = intersection.size / minSize;
+  return similarity >= 0.75; // 75% word overlap = considered duplicate
+}
+
+function deduplicateNews(items: NewsItem[]): NewsItem[] {
+  const unique: NewsItem[] = [];
+  
+  for (const item of items) {
+    const isDuplicate = unique.some(existing => areTitlesSimilar(existing.title, item.title));
+    if (!isDuplicate) {
+      unique.push(item);
+    }
+  }
+  
+  return unique;
+}
+
 export async function getTopNews(): Promise<NewsItem[]> {
   const [lemondeXml, franceInfoXml] = await Promise.all([
     fetchRss(LEMONDE_URL),
@@ -126,11 +163,14 @@ export async function getTopNews(): Promise<NewsItem[]> {
 
   const merged = [...lemondeItems, ...franceInfoItems];
   
+  // Remove duplicates before filtering
+  const deduplicated = deduplicateNews(merged);
+  
   // Filter for major news first
-  const majorNews = merged.filter(isMajorNews);
+  const majorNews = deduplicated.filter(isMajorNews);
   
   // If we have enough major news, use those; otherwise fall back to all news
-  const newsToUse = majorNews.length >= 3 ? majorNews : merged;
+  const newsToUse = majorNews.length >= 3 ? majorNews : deduplicated;
   
   const sorted = newsToUse.sort(
     (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()

@@ -19,24 +19,30 @@ export default function ProfileScreen() {
   }, []);
 
   const handleUseLocation = async () => {
+    console.log('[Geolocation] Button clicked');
     setLoadingLocation(true);
     setLocationPermissionAsked(true);
 
     try {
       if (Platform.OS === 'web') {
+        console.log('[Geolocation] Running on web platform');
         // Use browser Geolocation API for web
         if (!navigator.geolocation) {
+          console.error('[Geolocation] navigator.geolocation not available');
           Alert.alert('Erreur', 'La géolocalisation n\'est pas supportée par votre navigateur.');
           setLoadingLocation(false);
           return;
         }
+        console.log('[Geolocation] Requesting position from browser...');
 
         navigator.geolocation.getCurrentPosition(
           async (position) => {
+            console.log('[Geolocation] Position obtained:', position.coords.latitude, position.coords.longitude);
             const { latitude, longitude } = position.coords;
             
             // Use Nominatim for reverse geocoding on web (free, no API key needed)
             try {
+              console.log('[Geolocation] Fetching address from Nominatim...');
               const response = await fetch(
                 `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
                 {
@@ -46,25 +52,34 @@ export default function ProfileScreen() {
                 }
               );
               const data = await response.json();
+              console.log('[Geolocation] Nominatim response:', data);
               
               const cityName = data.address?.postcode || data.address?.city || data.address?.town || data.address?.village || '';
               if (cityName) {
+                console.log('[Geolocation] City found:', cityName);
                 setCity(cityName);
                 Alert.alert('Localisation trouvée', `Votre position: ${cityName}`);
               } else {
+                console.warn('[Geolocation] No city name in response');
                 Alert.alert('Erreur', 'Impossible de déterminer votre ville.');
               }
             } catch (error) {
+              console.error('[Geolocation] Reverse geocoding error:', error);
               Alert.alert('Erreur', 'Impossible de récupérer l\'adresse.');
             }
             setLoadingLocation(false);
           },
           (error) => {
+            console.error('[Geolocation] Browser error:', error.code, error.message);
             let message = 'Impossible d\'obtenir votre position.';
             if (error.code === error.PERMISSION_DENIED) {
               message = 'La géolocalisation a été refusée. Vous pouvez saisir votre ville manuellement.';
+            } else if (error.code === error.POSITION_UNAVAILABLE) {
+              message = 'Position non disponible. Vérifiez vos paramètres de localisation.';
+            } else if (error.code === error.TIMEOUT) {
+              message = 'La demande de localisation a expiré. Réessayez.';
             }
-            Alert.alert('Permission refusée', message);
+            Alert.alert('Erreur de géolocalisation', message);
             setLoadingLocation(false);
           },
           {

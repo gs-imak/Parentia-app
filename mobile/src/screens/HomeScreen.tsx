@@ -207,9 +207,15 @@ export default function HomeScreen() {
                         styles.taskCircle,
                         { borderColor: statusColor, backgroundColor: isFilled ? statusColor : 'transparent' },
                       ]}
-                    />
+                    >
+                      {task.status === 'done' && (
+                        <Feather name="check" size={14} color="#FFFFFF" />
+                      )}
+                    </View>
                     <View style={styles.taskContent}>
-                      <Text style={styles.taskTitle}>{task.title}</Text>
+                      <Text style={[styles.taskTitle, task.status === 'done' && styles.taskTitleDone]}>
+                        {task.title}
+                      </Text>
                       <View style={styles.taskMeta}>
                         <Text style={styles.taskDeadline}>{formattedDeadline}</Text>
                         <View style={styles.taskBadge}>
@@ -383,6 +389,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     marginTop: 2,
     marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   taskContent: {
     flex: 1,
@@ -392,6 +400,10 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#2C3E50',
     marginBottom: 4,
+  },
+  taskTitleDone: {
+    textDecorationLine: 'line-through',
+    color: '#9CA3AF',
   },
   taskMeta: {
     flexDirection: 'row',
