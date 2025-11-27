@@ -3,6 +3,7 @@ import { Alert, Platform, View, Text, TextInput, TouchableOpacity, ScrollView, K
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
 import { getStoredCity, setStoredCity } from '../utils/storage';
+import { reverseGeocode } from '../api/client';
 
 export default function ProfileScreen() {
   const [city, setCity] = useState('');
@@ -40,25 +41,16 @@ export default function ProfileScreen() {
             console.log('[Geolocation] Position obtained:', position.coords.latitude, position.coords.longitude);
             const { latitude, longitude } = position.coords;
             
-            // Use Nominatim for reverse geocoding on web (free, no API key needed)
+            // Use backend proxy for reverse geocoding to avoid CORS
             try {
-              console.log('[Geolocation] Fetching address from Nominatim...');
-              const response = await fetch(
-                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
-                {
-                  headers: {
-                    'User-Agent': 'ParentiaApp/1.0',
-                  },
-                }
-              );
-              const data = await response.json();
-              console.log('[Geolocation] Nominatim response:', data);
+              console.log('[Geolocation] Fetching address from backend...');
+              const data = await reverseGeocode(latitude, longitude);
+              console.log('[Geolocation] Backend response:', data);
               
-              const cityName = data.address?.postcode || data.address?.city || data.address?.town || data.address?.village || '';
-              if (cityName) {
-                console.log('[Geolocation] City found:', cityName);
-                setCity(cityName);
-                Alert.alert('Localisation trouvée', `Votre position: ${cityName}`);
+              if (data.city) {
+                console.log('[Geolocation] City found:', data.city);
+                setCity(data.city);
+                Alert.alert('Localisation trouvée', `Votre position: ${data.city}`);
               } else {
                 console.warn('[Geolocation] No city name in response');
                 Alert.alert('Erreur', 'Impossible de déterminer votre ville.');

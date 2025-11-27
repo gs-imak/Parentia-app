@@ -70,3 +70,7 @@ export async function fetchTasks(): Promise<{ tasks: Task[] }> {
 export async function fetchNews(): Promise<{ items: NewsItem[] }> {
   return fetchApi<{ items: NewsItem[] }>('/news');
 }
+
+export async function reverseGeocode(lat: number, lon: number): Promise<{ city: string }> {
+  return fetchApi<{ city: string }>(`/geocode/reverse?lat=${lat}&lon=${lon}`);
+}
