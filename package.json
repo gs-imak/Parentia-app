@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
+    "build:web": "cd mobile && npx expo export --platform web --output-dir dist",
     "start": "node dist/index.js"
   },
   "dependencies": {

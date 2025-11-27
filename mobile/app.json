@@ -25,7 +25,8 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "pwa": { "enabled": false }
     },
     "extra": {
       "backendUrl": "https://parentia-app-production.up.railway.app"

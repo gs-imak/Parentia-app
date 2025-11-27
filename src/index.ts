@@ -26,6 +26,12 @@ app.use(express.static(path.join(__dirname, '..', 'mobile', 'dist'), {
     if (filePath.endsWith('.js')) {
       res.setHeader('Content-Type', 'application/javascript');
     }
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-store');
+    }
+    if (filePath.includes('service-worker')) {
+      res.setHeader('Cache-Control', 'no-store');
+    }
   },
 }));
 
@@ -394,6 +400,7 @@ app.get('/geocode/ip', async (req, res) => {
 
 // Fallback route for client-side routing
 app.get('*', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, '..', 'mobile', 'dist', 'index.html'));
 });
 
