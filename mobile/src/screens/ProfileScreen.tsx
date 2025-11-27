@@ -11,6 +11,8 @@ export default function ProfileScreen() {
   const [justSaved, setJustSaved] = useState(false);
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [locationPermissionAsked, setLocationPermissionAsked] = useState(false);
+  const [locationSuccess, setLocationSuccess] = useState<string | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   useEffect(() => {
     getStoredCity().then((storedCity) => {
@@ -23,6 +25,8 @@ export default function ProfileScreen() {
     console.log('[Geolocation] Button clicked');
     setLoadingLocation(true);
     setLocationPermissionAsked(true);
+    setLocationSuccess(null);
+    setLocationError(null);
 
     try {
       if (Platform.OS === 'web') {
@@ -50,14 +54,16 @@ export default function ProfileScreen() {
               if (data.city) {
                 console.log('[Geolocation] City found:', data.city);
                 setCity(data.city);
-                Alert.alert('Localisation trouvée', `Votre position: ${data.city}`);
+                setLocationSuccess(`Position détectée : ${data.city}`);
+                // Clear success message after 4 seconds
+                setTimeout(() => setLocationSuccess(null), 4000);
               } else {
                 console.warn('[Geolocation] No city name in response');
-                Alert.alert('Erreur', 'Impossible de déterminer votre ville.');
+                setLocationError('Impossible de déterminer votre ville.');
               }
             } catch (error) {
               console.error('[Geolocation] Reverse geocoding error:', error);
-              Alert.alert('Erreur', 'Impossible de récupérer l\'adresse.');
+              setLocationError('Impossible de récupérer l\'adresse.');
             }
             setLoadingLocation(false);
           },
@@ -71,7 +77,7 @@ export default function ProfileScreen() {
             } else if (error.code === error.TIMEOUT) {
               message = 'La demande de localisation a expiré. Réessayez.';
             }
-            Alert.alert('Erreur de géolocalisation', message);
+            setLocationError(message);
             setLoadingLocation(false);
           },
           {
@@ -157,6 +163,20 @@ export default function ProfileScreen() {
                 </>
               )}
             </TouchableOpacity>
+
+            {locationSuccess && (
+              <View style={styles.locationSuccessBox}>
+                <Feather name="check-circle" size={16} color="#4CAF50" />
+                <Text style={styles.locationSuccessText}>{locationSuccess}</Text>
+              </View>
+            )}
+
+            {locationError && (
+              <View style={styles.locationErrorBox}>
+                <Feather name="alert-circle" size={16} color="#DC2626" />
+                <Text style={styles.locationErrorText}>{locationError}</Text>
+              </View>
+            )}
 
             <Text style={styles.orText}>ou</Text>
 
@@ -335,5 +355,35 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6E7A84',
     fontWeight: '400',
+  },
+  locationSuccessBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 12,
+    gap: 8,
+  },
+  locationSuccessText: {
+    fontSize: 14,
+    color: '#2E7D32',
+    fontWeight: '500',
+    flex: 1,
+  },
+  locationErrorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEE2E2',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 12,
+    gap: 8,
+  },
+  locationErrorText: {
+    fontSize: 14,
+    color: '#DC2626',
+    fontWeight: '500',
+    flex: 1,
   },
 });
