@@ -19,8 +19,14 @@ app.use(cors());
 
 app.use(express.json());
 
-// Serve React Native web build
-app.use(express.static(path.join(__dirname, '..', 'mobile', 'dist')));
+// Serve React Native web build with proper MIME types and caching
+app.use(express.static(path.join(__dirname, '..', 'mobile', 'dist'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript');
+    }
+  },
+}));
 
 app.post('/parse', async (req, res) => {
   try {
