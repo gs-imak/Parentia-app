@@ -32,6 +32,7 @@ export default function TasksScreen() {
   const [loading, setLoading] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [tasksError, setTasksError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Form state
   const [title, setTitle] = useState('');
@@ -73,6 +74,10 @@ export default function TasksScreen() {
         description: description.trim() || undefined,
       });
 
+      // Show success message
+      setSuccessMessage('Tâche créée avec succès !');
+      setTimeout(() => setSuccessMessage(null), 3000);
+
       // Reset form
       setTitle('');
       setCategory('personnel');
@@ -108,6 +113,14 @@ export default function TasksScreen() {
 
   return (
     <ScrollView style={styles.container}>
+      {/* Success Message */}
+      {successMessage && (
+        <View style={styles.successBanner}>
+          <Feather name="check-circle" size={20} color="#4CAF50" />
+          <Text style={styles.successText}>{successMessage}</Text>
+        </View>
+      )}
+
       {/* Form Card */}
       <View style={styles.card}>
         <View style={styles.header}>
@@ -293,6 +306,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
     padding: 20,
+  },
+  successBanner: {
+    backgroundColor: '#E8F5E9',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+  },
+  successText: {
+    fontSize: 15,
+    color: '#4CAF50',
+    fontWeight: '500',
+    marginLeft: 8,
   },
   card: {
     backgroundColor: '#FFFFFF',
