@@ -54,7 +54,9 @@ export default function ProfileScreen() {
               if (data.city) {
                 console.log('[Geolocation] City found:', data.city);
                 setCity(data.city);
-                setLocationSuccess(`Position détectée : ${data.city}`);
+                // Auto-save the city
+                await setStoredCity(data.city);
+                setLocationSuccess(`Position détectée et enregistrée : ${data.city}`);
                 // Clear success message after 4 seconds
                 setTimeout(() => setLocationSuccess(null), 4000);
               } else {
@@ -107,7 +109,10 @@ export default function ProfileScreen() {
         if (address.city || address.postalCode) {
           const cityName = address.postalCode || address.city || '';
           setCity(cityName);
-          Alert.alert('Localisation trouvée', `Votre position: ${cityName}`);
+          // Auto-save the city
+          await setStoredCity(cityName);
+          setLocationSuccess(`Position détectée et enregistrée : ${cityName}`);
+          setTimeout(() => setLocationSuccess(null), 4000);
         } else {
           Alert.alert('Erreur', 'Impossible de déterminer votre ville.');
         }
