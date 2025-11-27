@@ -12,6 +12,7 @@ import {
   type NewsItem,
 } from '../api/client';
 import { getStoredCity, getStoredQuote, setStoredQuote } from '../utils/storage';
+import { AppEvents, EVENTS } from '../utils/events';
 
 export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
@@ -100,6 +101,17 @@ export default function HomeScreen() {
 
   useEffect(() => {
     loadData();
+    // Reload when city is updated from Profile screen
+    const handler = () => {
+      setLoading(true);
+      loadData();
+    };
+    // @ts-ignore: EventTarget typing
+    AppEvents.addEventListener(EVENTS.CITY_UPDATED, handler);
+    return () => {
+      // @ts-ignore
+      AppEvents.removeEventListener(EVENTS.CITY_UPDATED, handler);
+    };
   }, []);
 
   const onRefresh = async () => {
