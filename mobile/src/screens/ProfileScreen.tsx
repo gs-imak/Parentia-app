@@ -89,32 +89,42 @@ export default function ProfileScreen() {
           }
         );
       } else {
-        // Use expo-location for mobile
+        // Use expo-location for mobile GPS
+        console.log('[Geolocation] Running on mobile platform');
         const { status } = await Location.requestForegroundPermissionsAsync();
+        console.log('[Geolocation] Permission status:', status);
 
         if (status !== 'granted') {
-          Alert.alert(
-            'Permission refusée',
-            'La géolocalisation a été refusée. Vous pouvez saisir votre ville manuellement ci-dessous.'
-          );
+          console.error('[Geolocation] Permission denied');
+          setLocationError('La géolocalisation a été refusée. Vous pouvez saisir votre ville manuellement.');
           setLoadingLocation(false);
           return;
         }
 
+        console.log('[Geolocation] Getting current position...');
         const location = await Location.getCurrentPositionAsync({});
         const { latitude, longitude } = location.coords;
+        console.log('[Geolocation] Position obtained:', latitude, longitude);
 
-        const [address] = await Location.reverseGeocodeAsync({ latitude, longitude });
-        
-        if (address.city || address.postalCode) {
-          const cityName = address.postalCode || address.city || '';
-          setCity(cityName);
-          // Auto-save the city
-          await setStoredCity(cityName);
-          setLocationSuccess(`Position détectée et enregistrée : ${cityName}`);
-          setTimeout(() => setLocationSuccess(null), 4000);
-        } else {
-          Alert.alert('Erreur', 'Impossible de déterminer votre ville.');
+        // Use backend proxy for reverse geocoding (same as web)
+        try {
+          console.log('[Geolocation] Fetching address from backend...');
+          const data = await reverseGeocode(latitude, longitude);
+          console.log('[Geolocation] Backend response:', data);
+          
+          if (data.city) {
+            console.log('[Geolocation] City found:', data.city);
+            setCity(data.city);
+            await setStoredCity(data.city);
+            setLocationSuccess(`Position détectée et enregistrée : ${data.city}`);
+            setTimeout(() => setLocationSuccess(null), 4000);
+          } else {
+            console.warn('[Geolocation] No city in backend response');
+            setLocationError('Impossible de déterminer votre ville.');
+          }
+        } catch (error) {
+          console.error('[Geolocation] Backend geocoding error:', error);
+          setLocationError('Impossible de récupérer l\'adresse.');
         }
         setLoadingLocation(false);
       }
