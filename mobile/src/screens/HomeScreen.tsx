@@ -31,14 +31,14 @@ export default function HomeScreen() {
       prevTasks.map(task => {
         if (task.id !== taskId) return task;
         
-        // Cycle: pending -> in_progress -> done -> pending
-        let newStatus: 'pending' | 'in_progress' | 'done';
-        if (task.status === 'pending') {
+        // Cycle: todo -> in_progress -> done -> todo
+        let newStatus: 'todo' | 'in_progress' | 'done';
+        if (task.status === 'todo') {
           newStatus = 'in_progress';
         } else if (task.status === 'in_progress') {
           newStatus = 'done';
         } else {
-          newStatus = 'pending';
+          newStatus = 'todo';
         }
         
         return { ...task, status: newStatus };
