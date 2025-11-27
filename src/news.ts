@@ -95,6 +95,26 @@ async function summarizeWithAI(text: string): Promise<string | null> {
   return content.trim();
 }
 
+// Keywords for major news filtering
+const MAJOR_NEWS_KEYWORDS = [
+  'international',
+  'guerre',
+  'économie',
+  'politique',
+  'monde',
+  'france',
+  'conflit',
+  'crise',
+  'election',
+  'président',
+  'gouvernement',
+];
+
+function isMajorNews(item: NewsItem): boolean {
+  const textToCheck = `${item.title} ${item.summary ?? ''}`.toLowerCase();
+  return MAJOR_NEWS_KEYWORDS.some(keyword => textToCheck.includes(keyword));
+}
+
 export async function getTopNews(): Promise<NewsItem[]> {
   const [lemondeXml, franceInfoXml] = await Promise.all([
     fetchRss(LEMONDE_URL),
@@ -104,11 +124,19 @@ export async function getTopNews(): Promise<NewsItem[]> {
   const lemondeItems = parseRss(lemondeXml, 'Le Monde');
   const franceInfoItems = parseRss(franceInfoXml, 'France Info');
 
-  const merged = [...lemondeItems, ...franceInfoItems].sort(
+  const merged = [...lemondeItems, ...franceInfoItems];
+  
+  // Filter for major news first
+  const majorNews = merged.filter(isMajorNews);
+  
+  // If we have enough major news, use those; otherwise fall back to all news
+  const newsToUse = majorNews.length >= 3 ? majorNews : merged;
+  
+  const sorted = newsToUse.sort(
     (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
   );
 
-  const topThree = merged.slice(0, 3);
+  const topThree = sorted.slice(0, 3);
 
   const withSummaries = await Promise.all(
     topThree.map(async (item) => {

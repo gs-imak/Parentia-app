@@ -123,17 +123,10 @@ export default function HomeScreen() {
                 </Text>
               </View>
               <View style={styles.outfitSection}>
-                <View style={styles.outfitHeader}>
-                  <Feather name="shopping-bag" size={16} color="#3A82F7" />
-                  <Text style={styles.outfitTitle}>À prévoir</Text>
-                </View>
-                <View style={styles.outfitTags}>
-                  {weather.outfit.split(/[.,;]+/).filter(s => s.trim()).map((item, idx) => (
-                    <View key={idx} style={styles.outfitTag}>
-                      <Text style={styles.outfitTagText}>{item.trim()}</Text>
-                    </View>
-                  ))}
-                </View>
+                <Text style={styles.outfitText}>
+                  <Text style={styles.outfitLabel}>À prévoir : </Text>
+                  {weather.outfit}
+                </Text>
               </View>
             </View>
           ) : null}
@@ -323,34 +316,19 @@ const styles = StyleSheet.create({
   },
   outfitSection: {
     marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E9EEF2',
   },
-  outfitHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  outfitTitle: {
+  outfitText: {
     fontSize: 15,
-    color: '#2C3E50',
-    fontWeight: '600',
-    marginLeft: 8,
+    color: '#6E7A84',
+    fontWeight: '400',
+    lineHeight: 22,
   },
-  outfitTags: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  outfitTag: {
-    backgroundColor: '#3A82F7',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  outfitTagText: {
-    fontSize: 14,
-    color: '#FFFFFF',
+  outfitLabel: {
     fontWeight: '500',
+    color: '#2C3E50',
   },
   quoteCard: {
     backgroundColor: '#F9FAFB',

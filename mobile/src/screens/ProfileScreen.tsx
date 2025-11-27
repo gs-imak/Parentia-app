@@ -100,6 +100,11 @@ export default function ProfileScreen() {
                 </>
               )}
             </TouchableOpacity>
+            {Platform.OS === 'web' && (
+              <Text style={styles.webNote}>
+                Note : La géolocalisation fonctionne uniquement sur mobile via Expo Go
+              </Text>
+            )}
 
             <Text style={styles.orText}>ou</Text>
 
@@ -195,6 +200,13 @@ const styles = StyleSheet.create({
     color: '#3A82F7',
     fontSize: 16,
     fontWeight: '600',
+  },
+  webNote: {
+    fontSize: 12,
+    color: '#F7A45A',
+    textAlign: 'center',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
   orText: {
     textAlign: 'center',
