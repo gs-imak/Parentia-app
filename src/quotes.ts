@@ -85,13 +85,13 @@ export interface SpecialDateQuote {
 }
 
 export const SPECIAL_DATE_QUOTES: SpecialDateQuote[] = [
-  { date: '01-01', text: 'Bonne année ! Que cette nouvelle année t’apporte joie, santé et sérénité.' },
-  { date: '02-14', text: 'Joyeuse Saint-Valentin ! Célèbre l’amour sous toutes ses formes aujourd’hui.' },
-  { date: '05-01', text: 'Joyeuse fête du travail ! Prends le temps de te reposer et d’apprécier tes efforts.' },
-  { date: '07-14', text: 'Joyeux 14 juillet ! Profite de cette journée de célébration et de liberté.' },
-  { date: '12-24', text: 'Joyeux réveillon de Noël ! Que cette soirée soit remplie de magie et de chaleur.' },
-  { date: '12-25', text: 'Joyeux Noël ! Profite de ces moments précieux avec tes proches.' },
-  { date: '12-31', text: 'Bonne fin d’année ! Que cette soirée soit remplie d’espoir et de joie.' },
+  { date: '01-01', text: '365 jours : assez pour réinventer une vie.' },
+  { date: '05-08', text: 'Hommage à ceux qui ont rendu la liberté à l\'Europe meurtrie.' },
+  { date: '07-14', text: 'Le peuple fit surgir la liberté, et la France devint sa voix.' },
+  { date: '09-11', text: 'Cette date demeure : témoin d\'une tragédie, et d\'un courage sans mesure.' },
+  { date: '11-11', text: 'À ceux qui ont donné leur jeunesse pour que survive un pays.' },
+  { date: '11-13', text: 'Le 13 novembre a brisé une nuit, mais pas la nation.' },
+  { date: '12-25', text: 'Le 25 décembre est cette parenthèse où l\'humanité se souvient de sa douceur possible.' },
 ];
 
 export const EVENING_QUOTES: string[] = [
