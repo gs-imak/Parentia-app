@@ -71,9 +71,12 @@ export default function HomeScreen() {
     }
 
     const city = await getStoredCity();
+    console.log('[Home] Stored city from AsyncStorage:', city);
     if (city && city.trim()) {
       try {
+        console.log('[Home] Fetching weather for:', city);
         const w = await fetchWeather(city);
+        console.log('[Home] Weather response:', w);
         setWeather(w);
       } catch {
         setWeatherError('Impossible de charger la météo pour le moment.');
