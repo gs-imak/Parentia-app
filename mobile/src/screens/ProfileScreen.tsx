@@ -57,12 +57,12 @@ export default function ProfileScreen() {
               console.log('[Geolocation] Fetching address from backend...');
               const data = await reverseGeocode(latitude, longitude);
               console.log('[Geolocation] Backend response:', data);
-              
-              if (data.city) {
-                console.log('[Geolocation] City found:', data.city);
-                setCity(data.city);
+              const label = data.city || (data.postcode && data.cityName ? `${data.postcode} ${data.cityName}` : data.cityName || '');
+              if (label) {
+                console.log('[Geolocation] City found:', label);
+                setCity(label);
                 // Auto-save the city
-                await setStoredCity(data.city);
+                await setStoredCity(label);
                 setLocationSuccess(`Position détectée et enregistrée : ${data.city}`);
                 // Clear success message after 4 seconds
                 setTimeout(() => setLocationSuccess(null), 4000);
@@ -76,10 +76,11 @@ export default function ProfileScreen() {
               try {
                 console.log('[Geolocation] Falling back to IP geolocation...');
                 const byIp = await geolocateByIP();
-                if (byIp.city) {
-                  setCity(byIp.city);
-                  await setStoredCity(byIp.city);
-                  setLocationSuccess(`Position (IP) enregistrée : ${byIp.city}`);
+                const ipLabel = byIp.city || (byIp.postcode && byIp.cityName ? `${byIp.postcode} ${byIp.cityName}` : byIp.cityName || '');
+                if (ipLabel) {
+                  setCity(ipLabel);
+                  await setStoredCity(ipLabel);
+                  setLocationSuccess(`Position (IP) enregistrée : ${ipLabel}`);
                   setTimeout(() => setLocationSuccess(null), 4000);
                 } else {
                   setLocationError('Impossible de déterminer votre ville.');
@@ -95,10 +96,11 @@ export default function ProfileScreen() {
             // Fallback to IP-based when denied/unavailable/timeout
             try {
               const byIp = await geolocateByIP();
-              if (byIp.city) {
-                setCity(byIp.city);
-                await setStoredCity(byIp.city);
-                setLocationSuccess(`Position (IP) enregistrée : ${byIp.city}`);
+              const ipLabel = byIp.city || (byIp.postcode && byIp.cityName ? `${byIp.postcode} ${byIp.cityName}` : byIp.cityName || '');
+              if (ipLabel) {
+                setCity(ipLabel);
+                await setStoredCity(ipLabel);
+                setLocationSuccess(`Position (IP) enregistrée : ${ipLabel}`);
                 setTimeout(() => setLocationSuccess(null), 4000);
               } else {
                 setLocationError('Impossible de déterminer votre ville.');

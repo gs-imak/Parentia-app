@@ -71,10 +71,10 @@ export async function fetchNews(): Promise<{ items: NewsItem[] }> {
   return fetchApi<{ items: NewsItem[] }>('/news');
 }
 
-export async function reverseGeocode(lat: number, lon: number): Promise<{ city: string }> {
+export async function reverseGeocode(lat: number, lon: number): Promise<{ city: string; postcode?: string; cityName?: string; country?: string }> {
   return fetchApi<{ city: string }>(`/geocode/reverse?lat=${lat}&lon=${lon}`);
 }
 
-export async function geolocateByIP(): Promise<{ city: string }> {
+export async function geolocateByIP(): Promise<{ city: string; postcode?: string; cityName?: string; country?: string }> {
   return fetchApi<{ city: string }>(`/geocode/ip`);
 }

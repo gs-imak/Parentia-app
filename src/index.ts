@@ -138,41 +138,29 @@ app.get('/geocode/reverse', async (req, res) => {
   const lon = req.query.lon as string | undefined;
 
   if (!lat || !lon) {
-    return res.status(400).json({
-      success: false,
-      error: 'Les paramètres lat et lon sont requis.',
-    });
+    return res.status(400).json({ success: false, error: 'Les paramètres lat et lon sont requis.' });
   }
 
   try {
     const response = await fetch(
       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1`,
-      {
-        headers: {
-          'User-Agent': 'ParentiaApp/1.0',
-        },
-      }
+      { headers: { 'User-Agent': 'ParentiaApp/1.0' } }
     );
 
-    if (!response.ok) {
-      throw new Error(`Nominatim error: ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`Nominatim error: ${response.status}`);
 
     const data = await response.json();
-    const cityName = data.address?.postcode || data.address?.city || data.address?.town || data.address?.village || '';
+    const postcode = data.address?.postcode || '';
+    const city = data.address?.city || data.address?.town || data.address?.village || '';
+    const country = data.address?.country || '';
+    const combined = postcode && city ? `${postcode} ${city}` : city || postcode;
 
     return res.json({
       success: true,
-      data: {
-        city: cityName,
-        fullAddress: data,
-      },
+      data: { city: combined, postcode, cityName: city, country, fullAddress: data },
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      error: 'Impossible de récupérer l\'adresse.',
-    });
+    return res.status(500).json({ success: false, error: "Impossible de récupérer l'adresse." });
   }
 });
 
@@ -186,8 +174,11 @@ app.get('/geocode/ip', async (req, res) => {
       throw new Error(`ipapi error: ${response.status}`);
     }
     const data = await response.json();
-    const city = data.postal || data.city || '';
-    return res.json({ success: true, data: { city, provider: 'ipapi', raw: data } });
+    const postcode = data.postal || '';
+    const cityName = data.city || '';
+    const country = data.country_name || '';
+    const combined = postcode && cityName ? `${postcode} ${cityName}` : cityName || postcode;
+    return res.json({ success: true, data: { city: combined, postcode, cityName, country, provider: 'ipapi', raw: data } });
   } catch (error) {
     return res.status(500).json({ success: false, error: "Impossible d'obtenir la localisation par IP." });
   }
