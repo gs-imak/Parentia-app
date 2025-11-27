@@ -11,7 +11,6 @@ import {
   Alert,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { Picker } from '@react-native-picker/picker';
 import { createTask, getAllTasks, deleteTask, type TaskCategory, type Task } from '../api/client';
 
 // Conditionally import DateTimePicker only for mobile
@@ -168,16 +167,26 @@ export default function TasksScreen() {
 
         <View style={styles.formGroup}>
           <Text style={styles.label}>Catégorie *</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={category}
-              onValueChange={(value) => setCategory(value as TaskCategory)}
-              style={styles.picker}
-            >
-              {CATEGORIES.map((cat) => (
-                <Picker.Item key={cat.value} label={cat.label} value={cat.value} />
-              ))}
-            </Picker>
+          <View style={styles.categoryGrid}>
+            {CATEGORIES.map((cat) => (
+              <TouchableOpacity
+                key={cat.value}
+                style={[
+                  styles.categoryButton,
+                  category === cat.value && styles.categoryButtonActive,
+                ]}
+                onPress={() => setCategory(cat.value)}
+              >
+                <Text
+                  style={[
+                    styles.categoryButtonText,
+                    category === cat.value && styles.categoryButtonTextActive,
+                  ]}
+                >
+                  {cat.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
@@ -436,15 +445,31 @@ const styles = StyleSheet.create({
     height: 90,
     textAlignVertical: 'top',
   },
-  pickerContainer: {
-    backgroundColor: '#F8F9FB',
-    borderWidth: 1,
-    borderColor: '#E9EEF2',
-    borderRadius: 12,
-    overflow: 'hidden',
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
   },
-  picker: {
-    height: 50,
+  categoryButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#E9EEF2',
+    backgroundColor: '#FFFFFF',
+  },
+  categoryButtonActive: {
+    backgroundColor: '#3A82F7',
+    borderColor: '#3A82F7',
+  },
+  categoryButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6E7A84',
+  },
+  categoryButtonTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
   dateButton: {
     flexDirection: 'row',
