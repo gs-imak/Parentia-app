@@ -184,21 +184,31 @@ export default function TasksScreen() {
         <View style={styles.formGroup}>
           <Text style={styles.label}>Échéance *</Text>
 {Platform.OS === 'web' ? (
-            <TextInput
-              style={styles.input}
-              placeholder="AAAA-MM-JJ HH:MM"
+            <input
+              type="datetime-local"
+              style={{
+                borderWidth: 1,
+                borderColor: '#E9EEF2',
+                borderRadius: 8,
+                paddingLeft: 12,
+                paddingRight: 12,
+                paddingTop: 10,
+                paddingBottom: 10,
+                fontSize: 16,
+                color: '#2C3E50',
+                backgroundColor: '#FFFFFF',
+                width: '100%',
+                fontFamily: 'system-ui',
+              }}
               value={new Date(deadline.getTime() - deadline.getTimezoneOffset() * 60000)
                 .toISOString()
-                .slice(0, 16)
-                .replace('T', ' ')}
-              onChangeText={(text) => {
-                // Expect format YYYY-MM-DD HH:mm
-                const normalized = text.replace('T', ' ').trim();
-                const [datePart, timePart] = normalized.split(' ');
-                if (!datePart) return;
-                const iso = `${datePart}${timePart ? 'T' + timePart : 'T00:00'}`;
-                const d = new Date(iso);
-                if (!isNaN(d.getTime())) setDeadline(d);
+                .slice(0, 16)}
+              onChange={(e: any) => {
+                const value = e.target.value;
+                if (value) {
+                  const d = new Date(value);
+                  if (!isNaN(d.getTime())) setDeadline(d);
+                }
               }}
             />
           ) : (
