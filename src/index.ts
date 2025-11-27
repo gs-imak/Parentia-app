@@ -151,13 +151,14 @@ app.get('/geocode/reverse', async (req, res) => {
 
     const data = await response.json();
     const postcode = data.address?.postcode || '';
-    const city = data.address?.city || data.address?.town || data.address?.village || '';
+    const cityName = data.address?.city || data.address?.town || data.address?.village || '';
     const country = data.address?.country || '';
-    const combined = postcode && city ? `${postcode} ${city}` : city || postcode;
+    // Return ONLY postcode for weather API compatibility
+    const cityForWeather = postcode || cityName;
 
     return res.json({
       success: true,
-      data: { city: combined, postcode, cityName: city, country, fullAddress: data },
+      data: { city: cityForWeather, postcode, cityName, country, fullAddress: data },
     });
   } catch (error) {
     return res.status(500).json({ success: false, error: "Impossible de récupérer l'adresse." });
@@ -177,8 +178,9 @@ app.get('/geocode/ip', async (req, res) => {
     const postcode = data.postal || '';
     const cityName = data.city || '';
     const country = data.country_name || '';
-    const combined = postcode && cityName ? `${postcode} ${cityName}` : cityName || postcode;
-    return res.json({ success: true, data: { city: combined, postcode, cityName, country, provider: 'ipapi', raw: data } });
+    // Return ONLY postcode for weather API compatibility
+    const cityForWeather = postcode || cityName;
+    return res.json({ success: true, data: { city: cityForWeather, postcode, cityName, country, provider: 'ipapi', raw: data } });
   } catch (error) {
     return res.status(500).json({ success: false, error: "Impossible d'obtenir la localisation par IP." });
   }
