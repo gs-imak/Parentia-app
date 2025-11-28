@@ -168,8 +168,8 @@ export default function ProfileScreen() {
           },
           {
             enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0,
+            timeout: 15000,
+            maximumAge: 30000, // Safari requires non-zero value (30s cache acceptable)
           }
         );
       } else {
