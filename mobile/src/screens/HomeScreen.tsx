@@ -171,11 +171,12 @@ export default function HomeScreen() {
   }
 
   return (
-    <ScrollView
-      style={styles.scrollView}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-    >
-      <View style={styles.container}>
+    <View style={{ flex: 1 }}>
+      <ScrollView
+        style={styles.scrollView}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
+        <View style={styles.container}>
         {/* Weather block */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
@@ -337,6 +338,7 @@ export default function HomeScreen() {
           )}
         </View>
       </View>
+      </ScrollView>
       
       {/* Description Modal - shown on long press */}
       {longPressedTask && longPressedTask.description && (
@@ -352,7 +354,7 @@ export default function HomeScreen() {
           </View>
         </TouchableOpacity>
       )}
-    </ScrollView>
+    </View>
   );
 }
 
