@@ -146,8 +146,8 @@ export default function TasksScreen() {
             setFormError('Impossible de supprimer la tâche.');
           }
         },
-      ]);
-    }
+      },
+    ]);
   };
   
   const handleEditTask = (task: Task) => {
