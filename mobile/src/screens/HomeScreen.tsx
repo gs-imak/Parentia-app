@@ -258,8 +258,14 @@ export default function HomeScreen() {
                     key={task.id} 
                     style={styles.taskRow}
                     onPress={() => toggleTaskStatus(task.id)}
-                    onLongPress={() => task.description && setLongPressedTask(task)}
-                    onPressOut={() => setLongPressedTask(null)}
+                    onLongPress={() => {
+                      if (task.description) {
+                        setLongPressedTask(task);
+                        // Auto-hide after 3 seconds
+                        setTimeout(() => setLongPressedTask(null), 3000);
+                      }
+                    }}
+                    delayLongPress={500}
                     activeOpacity={0.7}
                   >
                     <View
@@ -334,13 +340,17 @@ export default function HomeScreen() {
       
       {/* Description Modal - shown on long press */}
       {longPressedTask && longPressedTask.description && (
-        <View style={styles.descriptionOverlay}>
+        <TouchableOpacity 
+          style={styles.descriptionOverlay}
+          activeOpacity={1}
+          onPress={() => setLongPressedTask(null)}
+        >
           <View style={styles.descriptionModal}>
             <Text style={styles.descriptionTitle}>{longPressedTask.title}</Text>
             <Text style={styles.descriptionText}>{longPressedTask.description}</Text>
-            <Text style={styles.descriptionHint}>Relâchez pour fermer</Text>
+            <Text style={styles.descriptionHint}>Toucher pour fermer</Text>
           </View>
-        </View>
+        </TouchableOpacity>
       )}
     </ScrollView>
   );
