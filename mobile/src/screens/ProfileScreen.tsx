@@ -62,7 +62,7 @@ export default function ProfileScreen() {
 
   // Spouse form state
   const [spouseFirstName, setSpouseFirstName] = useState('');
-  const [spouseBirthDate, setSpouseBirthDate] = useState<Date | null>(null);
+  const [spouseBirthDate, setSpouseBirthDate] = useState(new Date());
   const [showSpouseDatePicker, setShowSpouseDatePicker] = useState(false);
   const [savingSpouse, setSavingSpouse] = useState(false);
   const [editingSpouse, setEditingSpouse] = useState(false);
@@ -435,10 +435,7 @@ export default function ProfileScreen() {
     setSavingSpouse(true);
     try {
       const spouseData: any = { firstName: spouseFirstName.trim() };
-      // Only include birthDate if it's set (not null)
-      if (spouseBirthDate) {
-        spouseData.birthDate = spouseBirthDate.toISOString();
-      }
+      if (spouseBirthDate) spouseData.birthDate = spouseBirthDate.toISOString();
       await updateSpouse(spouseData);
       setEditingSpouse(false);
       await loadProfile();
@@ -457,7 +454,7 @@ export default function ProfileScreen() {
     if (profile.spouse) {
       setEditingSpouse(true);
       setSpouseFirstName(profile.spouse.firstName);
-      setSpouseBirthDate(profile.spouse.birthDate ? new Date(profile.spouse.birthDate) : null);
+      setSpouseBirthDate(profile.spouse.birthDate ? new Date(profile.spouse.birthDate) : new Date());
     }
   };
 
@@ -465,7 +462,7 @@ export default function ProfileScreen() {
     setEditingSpouse(false);
     if (profile.spouse) {
       setSpouseFirstName(profile.spouse.firstName);
-      setSpouseBirthDate(profile.spouse.birthDate ? new Date(profile.spouse.birthDate) : null);
+      setSpouseBirthDate(profile.spouse.birthDate ? new Date(profile.spouse.birthDate) : new Date());
     }
   };
 
@@ -475,7 +472,7 @@ export default function ProfileScreen() {
         try {
           await deleteSpouse();
           setSpouseFirstName('');
-          setSpouseBirthDate(null);
+          setSpouseBirthDate(new Date());
           setEditingSpouse(false);
           await loadProfile();
         } catch (error) {
@@ -492,7 +489,7 @@ export default function ProfileScreen() {
             try {
             await deleteSpouse();
             setSpouseFirstName('');
-            setSpouseBirthDate(null);
+            setSpouseBirthDate(new Date());
             setEditingSpouse(false);
             await loadProfile();
             } catch (error) {
@@ -1002,14 +999,12 @@ onChange={(event: any, selectedDate?: Date) => {
                           fontFamily: 'system-ui',
                           marginTop: 8,
                         }}
-                        value={spouseBirthDate ? spouseBirthDate.toISOString().split('T')[0] : ''}
+                        value={spouseBirthDate.toISOString().split('T')[0]}
                         onChange={(e: any) => {
                           const value = e.target.value;
                           if (value) {
                             const d = new Date(value);
                             if (!isNaN(d.getTime())) setSpouseBirthDate(d);
-                          } else {
-                            setSpouseBirthDate(null);
                           }
                         }}
                       />
@@ -1021,12 +1016,12 @@ onChange={(event: any, selectedDate?: Date) => {
                         >
                           <Feather name="calendar" size={18} color="#2C3E50" />
                           <Text style={styles.dateButtonText}>
-                            {spouseBirthDate ? spouseBirthDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : 'Choisir une date (optionnel)'}
+                            {spouseBirthDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
                           </Text>
                         </TouchableOpacity>
                         {showSpouseDatePicker && DateTimePicker && (
                           <DateTimePicker
-                            value={spouseBirthDate || new Date()}
+                            value={spouseBirthDate}
                             mode="date"
                             display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                             onChange={(event: any, selectedDate?: Date) => {
