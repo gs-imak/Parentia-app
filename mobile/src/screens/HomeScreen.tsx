@@ -267,8 +267,8 @@ export default function HomeScreen() {
                         if (task.description) {
                           setLongPressedTask(longPressedTask?.id === task.id ? null : task);
                           if (longPressedTask?.id !== task.id) {
-                            // Auto-hide after 3 seconds
-                            setTimeout(() => setLongPressedTask(null), 3000);
+                            // Auto-hide after 1.5 seconds for snappier feel
+                            setTimeout(() => setLongPressedTask(null), 1500);
                           }
                         }
                       }}

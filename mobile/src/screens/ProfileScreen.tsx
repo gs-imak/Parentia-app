@@ -983,7 +983,8 @@ onChange={(event: any, selectedDate?: Date) => {
                       onChangeText={setSpouseFirstName}
                       placeholderTextColor="#9CA3AF"
                     />
-{Platform.OS === 'web' ? (
+                    <Text style={styles.formLabel}>Date de naissance</Text>
+                    {Platform.OS === 'web' ? (
                       <input
                         type="date"
                         style={{
