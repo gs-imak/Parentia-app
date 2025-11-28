@@ -675,13 +675,29 @@ export default function ProfileScreen() {
                           placeholderTextColor="#9CA3AF"
                         />
                         {Platform.OS === 'web' ? (
-                          <TextInput
-                            style={styles.input}
-                            placeholder="AAAA-MM-JJ"
+                          <input
+                            type="date"
+                            style={{
+                              borderWidth: 1,
+                              borderColor: '#E9EEF2',
+                              borderRadius: 10,
+                              paddingLeft: 14,
+                              paddingRight: 14,
+                              paddingTop: 12,
+                              paddingBottom: 12,
+                              fontSize: 16,
+                              color: '#2C3E50',
+                              backgroundColor: '#F5F7FA',
+                              width: '100%',
+                              fontFamily: 'system-ui',
+                            }}
                             value={editChildBirthDate.toISOString().split('T')[0]}
-                            onChangeText={(text) => {
-                              const d = new Date(text);
-                              if (!isNaN(d.getTime())) setEditChildBirthDate(d);
+                            onChange={(e: any) => {
+                              const value = e.target.value;
+                              if (value) {
+                                const d = new Date(value);
+                                if (!isNaN(d.getTime())) setEditChildBirthDate(d);
+                              }
                             }}
                           />
                         ) : (
@@ -820,13 +836,29 @@ export default function ProfileScreen() {
                       placeholderTextColor="#9CA3AF"
                     />
 {Platform.OS === 'web' ? (
-                      <TextInput
-                        style={styles.input}
-                        placeholder="AAAA-MM-JJ"
+                      <input
+                        type="date"
+                        style={{
+                          borderWidth: 1,
+                          borderColor: '#E9EEF2',
+                          borderRadius: 10,
+                          paddingLeft: 14,
+                          paddingRight: 14,
+                          paddingTop: 12,
+                          paddingBottom: 12,
+                          fontSize: 16,
+                          color: '#2C3E50',
+                          backgroundColor: '#F5F7FA',
+                          width: '100%',
+                          fontFamily: 'system-ui',
+                        }}
                         value={childBirthDate.toISOString().split('T')[0]}
-                        onChangeText={(text) => {
-                          const d = new Date(text);
-                          if (!isNaN(d.getTime())) setChildBirthDate(d);
+                        onChange={(e: any) => {
+                          const value = e.target.value;
+                          if (value) {
+                            const d = new Date(value);
+                            if (!isNaN(d.getTime())) setChildBirthDate(d);
+                          }
                         }}
                       />
                     ) : (
@@ -950,13 +982,30 @@ onChange={(event: any, selectedDate?: Date) => {
                       placeholderTextColor="#9CA3AF"
                     />
 {Platform.OS === 'web' ? (
-                      <TextInput
-                        style={[styles.input, { marginTop: 8 }]}
-                        placeholder="Date de naissance (AAAA-MM-JJ)"
+                      <input
+                        type="date"
+                        style={{
+                          borderWidth: 1,
+                          borderColor: '#E9EEF2',
+                          borderRadius: 10,
+                          paddingLeft: 14,
+                          paddingRight: 14,
+                          paddingTop: 12,
+                          paddingBottom: 12,
+                          fontSize: 16,
+                          color: '#2C3E50',
+                          backgroundColor: '#F5F7FA',
+                          width: '100%',
+                          fontFamily: 'system-ui',
+                          marginTop: 8,
+                        }}
                         value={spouseBirthDate.toISOString().split('T')[0]}
-                        onChangeText={(text) => {
-                          const d = new Date(text);
-                          if (!isNaN(d.getTime())) setSpouseBirthDate(d);
+                        onChange={(e: any) => {
+                          const value = e.target.value;
+                          if (value) {
+                            const d = new Date(value);
+                            if (!isNaN(d.getTime())) setSpouseBirthDate(d);
+                          }
                         }}
                       />
                     ) : (
@@ -1051,13 +1100,29 @@ onChange={(event: any, selectedDate?: Date) => {
                 ) : (
                   <View>
 {Platform.OS === 'web' ? (
-                      <TextInput
-                        style={styles.input}
-                        placeholder="AAAA-MM-JJ"
+                      <input
+                        type="date"
+                        style={{
+                          borderWidth: 1,
+                          borderColor: '#E9EEF2',
+                          borderRadius: 10,
+                          paddingLeft: 14,
+                          paddingRight: 14,
+                          paddingTop: 12,
+                          paddingBottom: 12,
+                          fontSize: 16,
+                          color: '#2C3E50',
+                          backgroundColor: '#F5F7FA',
+                          width: '100%',
+                          fontFamily: 'system-ui',
+                        }}
                         value={marriageDate.toISOString().split('T')[0]}
-                        onChangeText={(text) => {
-                          const d = new Date(text);
-                          if (!isNaN(d.getTime())) setMarriageDate(d);
+                        onChange={(e: any) => {
+                          const value = e.target.value;
+                          if (value) {
+                            const d = new Date(value);
+                            if (!isNaN(d.getTime())) setMarriageDate(d);
+                          }
                         }}
                       />
                     ) : (

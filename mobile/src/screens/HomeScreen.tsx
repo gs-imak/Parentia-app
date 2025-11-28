@@ -82,12 +82,17 @@ export default function HomeScreen() {
     const cachedQuote = await getStoredQuote();
     if (cachedQuote) {
       setQuote(cachedQuote);
-    } else {
-      try {
-        const q = await fetchQuote();
-        setQuote(q);
-        await setStoredQuote(q);
-      } catch {
+    }
+    
+    // Always fetch fresh quote to ensure period changes are reflected
+    // This will replace cached quote if period has changed
+    try {
+      const q = await fetchQuote();
+      setQuote(q);
+      await setStoredQuote(q);
+    } catch {
+      // If fetch fails and we don't have cached quote, show error
+      if (!cachedQuote) {
         setQuoteError('Impossible de charger la citation pour le moment.');
       }
     }
@@ -191,12 +196,14 @@ export default function HomeScreen() {
                   {weather.isSnowing ? '❄️' : weather.isRaining ? '🌧️' : '☀️'}
                 </Text>
               </View>
-              <View style={styles.outfitSection}>
-                <Text style={styles.outfitText}>
-                  <Text style={styles.outfitLabel}>À prévoir : </Text>
-                  {weather.outfit}
-                </Text>
-              </View>
+              {weather.outfit && weather.outfit.trim() && (
+                <View style={styles.outfitSection}>
+                  <Text style={styles.outfitText}>
+                    <Text style={styles.outfitLabel}>À prévoir : </Text>
+                    {weather.outfit}
+                  </Text>
+                </View>
+              )}
             </View>
           ) : null}
         </View>
