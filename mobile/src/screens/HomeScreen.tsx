@@ -12,7 +12,7 @@ import {
   type Task,
   type NewsItem,
 } from '../api/client';
-import { getStoredCity, getStoredQuote, setStoredQuote } from '../utils/storage';
+import { getStoredCity, getStoredWeatherCity, getStoredQuote, setStoredQuote } from '../utils/storage';
 import { AppEvents, EVENTS } from '../utils/events';
 
 export default function HomeScreen() {
@@ -92,12 +92,19 @@ export default function HomeScreen() {
       }
     }
 
-    const city = await getStoredCity();
-    console.log('[Home] Stored city from AsyncStorage:', city);
-    if (city && city.trim()) {
+    // Use weatherCity (postcode) for API, display city for UI
+    const weatherCity = await getStoredWeatherCity();
+    const displayCity = await getStoredCity();
+    
+    console.log('[Home] Stored cities - display:', displayCity, 'weather:', weatherCity);
+    
+    // Prefer weatherCity for API precision, fallback to displayCity
+    const cityForApi = weatherCity || displayCity;
+    
+    if (cityForApi && cityForApi.trim()) {
       try {
-        console.log('[Home] Fetching weather for:', city);
-        const w = await fetchWeather(city);
+        console.log('[Home] Fetching weather for:', cityForApi);
+        const w = await fetchWeather(cityForApi);
         console.log('[Home] Weather response:', w);
         setWeather(w);
       } catch {

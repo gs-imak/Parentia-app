@@ -365,12 +365,21 @@ app.get('/geocode/reverse', async (req, res) => {
     const postcode = data.address?.postcode || '';
     const cityName = data.address?.city || data.address?.town || data.address?.village || '';
     const country = data.address?.country || '';
-    // Return ONLY postcode for weather API compatibility
-    const cityForWeather = postcode || cityName;
+    
+    // Return human-readable city name for display, but include postcode for weather API
+    const displayCity = cityName || postcode;
+    const weatherCity = postcode || cityName;
 
     return res.json({
       success: true,
-      data: { city: cityForWeather, postcode, cityName, country, fullAddress: data },
+      data: { 
+        city: displayCity,
+        weatherCity,
+        postcode, 
+        cityName, 
+        country,
+        coordinates: { lat: parseFloat(lat), lon: parseFloat(lon) }
+      },
     });
   } catch (error) {
     return res.status(500).json({ success: false, error: "Impossible de récupérer l'adresse." });
@@ -390,9 +399,23 @@ app.get('/geocode/ip', async (req, res) => {
     const postcode = data.postal || '';
     const cityName = data.city || '';
     const country = data.country_name || '';
-    // Return ONLY postcode for weather API compatibility
-    const cityForWeather = postcode || cityName;
-    return res.json({ success: true, data: { city: cityForWeather, postcode, cityName, country, provider: 'ipapi', raw: data } });
+    
+    // Return human-readable city name for display, but include postcode for weather API
+    const displayCity = cityName || postcode;
+    const weatherCity = postcode || cityName;
+    
+    return res.json({ 
+      success: true, 
+      data: { 
+        city: displayCity,
+        weatherCity,
+        postcode, 
+        cityName, 
+        country, 
+        provider: 'ipapi',
+        coordinates: { lat: data.latitude, lon: data.longitude }
+      } 
+    });
   } catch (error) {
     return res.status(500).json({ success: false, error: "Impossible d'obtenir la localisation par IP." });
   }

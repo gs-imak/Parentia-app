@@ -78,12 +78,21 @@ export async function fetchNews(): Promise<{ items: NewsItem[] }> {
   return fetchApi<{ items: NewsItem[] }>('/news');
 }
 
-export async function reverseGeocode(lat: number, lon: number): Promise<{ city: string; postcode?: string; cityName?: string; country?: string }> {
-  return fetchApi<{ city: string }>(`/geocode/reverse?lat=${lat}&lon=${lon}`);
+export interface GeocodeResponse {
+  city: string;
+  weatherCity: string;
+  postcode?: string;
+  cityName?: string;
+  country?: string;
+  coordinates?: { lat: number; lon: number };
 }
 
-export async function geolocateByIP(): Promise<{ city: string; postcode?: string; cityName?: string; country?: string }> {
-  return fetchApi<{ city: string }>(`/geocode/ip`);
+export async function reverseGeocode(lat: number, lon: number): Promise<GeocodeResponse> {
+  return fetchApi<GeocodeResponse>(`/geocode/reverse?lat=${lat}&lon=${lon}`);
+}
+
+export async function geolocateByIP(): Promise<GeocodeResponse> {
+  return fetchApi<GeocodeResponse>(`/geocode/ip`);
 }
 
 // Task CRUD operations

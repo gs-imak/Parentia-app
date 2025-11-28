@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Alert, Platform, View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, ActivityIndicator, StyleSheet } from 'react-native';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
-import { getStoredCity, setStoredCity } from '../utils/storage';
+import { getStoredCity, setStoredCity, getStoredWeatherCity, setStoredWeatherCity, getCachedLocation, setCachedLocation } from '../utils/storage';
 import { reverseGeocode, geolocateByIP, getProfile, addChild, deleteChild, updateSpouse, deleteSpouse, updateMarriageDate, deleteMarriageDate, type Child, type Profile } from '../api/client';
 import { AppEvents, EVENTS } from '../utils/events';
 
@@ -108,20 +108,38 @@ export default function ProfileScreen() {
             console.log('[Geolocation] Position obtained:', position.coords.latitude, position.coords.longitude);
             const { latitude, longitude } = position.coords;
             
+            // Check cache first to avoid redundant API calls
+            const cached = await getCachedLocation(latitude, longitude);
+            if (cached) {
+              console.log('[Geolocation] Using cached location:', cached.city);
+              setCity(cached.city);
+              await setStoredCity(cached.city);
+              await setStoredWeatherCity(cached.weatherCity);
+              console.log('[Profile] Dispatching CITY_UPDATED event');
+              AppEvents.dispatchEvent(new Event(EVENTS.CITY_UPDATED));
+              setLocationSuccess(`Position enregistrée : ${cached.city}`);
+              setTimeout(() => setLocationSuccess(null), 4000);
+              setLoadingLocation(false);
+              return;
+            }
+            
             // Use backend proxy for reverse geocoding to avoid CORS
             try {
               console.log('[Geolocation] Fetching address from backend...');
               const data = await reverseGeocode(latitude, longitude);
               console.log('[Geolocation] Backend response:', data);
-              const label = data.city || (data.postcode && data.cityName ? `${data.postcode} ${data.cityName}` : data.cityName || '');
-              if (label) {
-                console.log('[Geolocation] City found:', label);
-                setCity(label);
-                // Auto-save the city
-                await setStoredCity(label);
+              
+              if (data.city) {
+                console.log('[Geolocation] City found:', data.city);
+                setCity(data.city);
+                // Auto-save both display city and weather city
+                await setStoredCity(data.city);
+                await setStoredWeatherCity(data.weatherCity);
+                // Cache the location
+                await setCachedLocation(data.city, data.weatherCity, latitude, longitude);
                 console.log('[Profile] Dispatching CITY_UPDATED event');
                 AppEvents.dispatchEvent(new Event(EVENTS.CITY_UPDATED));
-                setLocationSuccess(`GPS (${latitude.toFixed(2)}, ${longitude.toFixed(2)}): ${label}`);
+                setLocationSuccess(`Position enregistrée : ${data.city}`);
                 // Clear success message after 4 seconds
                 setTimeout(() => setLocationSuccess(null), 4000);
               } else {
@@ -134,11 +152,14 @@ export default function ProfileScreen() {
               try {
                 console.log('[Geolocation] Falling back to IP geolocation...');
                 const byIp = await geolocateByIP();
-                const ipLabel = byIp.city || (byIp.postcode && byIp.cityName ? `${byIp.postcode} ${byIp.cityName}` : byIp.cityName || '');
-                if (ipLabel) {
-                  setCity(ipLabel);
-                  await setStoredCity(ipLabel);
-                  setLocationSuccess(`Position (IP) enregistrée : ${ipLabel}`);
+                if (byIp.city) {
+                  setCity(byIp.city);
+                  await setStoredCity(byIp.city);
+                  await setStoredWeatherCity(byIp.weatherCity);
+                  if (byIp.coordinates) {
+                    await setCachedLocation(byIp.city, byIp.weatherCity, byIp.coordinates.lat, byIp.coordinates.lon);
+                  }
+                  setLocationSuccess(`Position (IP) enregistrée : ${byIp.city}`);
                   setTimeout(() => setLocationSuccess(null), 4000);
                 } else {
                   setLocationError('Impossible de déterminer votre ville.');
@@ -154,11 +175,14 @@ export default function ProfileScreen() {
             // Fallback to IP-based when denied/unavailable/timeout
             try {
               const byIp = await geolocateByIP();
-              const ipLabel = byIp.city || (byIp.postcode && byIp.cityName ? `${byIp.postcode} ${byIp.cityName}` : byIp.cityName || '');
-              if (ipLabel) {
-                setCity(ipLabel);
-                await setStoredCity(ipLabel);
-                setLocationSuccess(`Position (IP) enregistrée : ${ipLabel}`);
+              if (byIp.city) {
+                setCity(byIp.city);
+                await setStoredCity(byIp.city);
+                await setStoredWeatherCity(byIp.weatherCity);
+                if (byIp.coordinates) {
+                  await setCachedLocation(byIp.city, byIp.weatherCity, byIp.coordinates.lat, byIp.coordinates.lon);
+                }
+                setLocationSuccess(`Position (IP) enregistrée : ${byIp.city}`);
                 setTimeout(() => setLocationSuccess(null), 4000);
               } else {
                 setLocationError('Impossible de déterminer votre ville.');
@@ -200,6 +224,21 @@ export default function ProfileScreen() {
         const { latitude, longitude } = location.coords;
         console.log('[Geolocation] Position obtained:', latitude, longitude);
 
+        // Check cache first to avoid redundant API calls
+        const cached = await getCachedLocation(latitude, longitude);
+        if (cached) {
+          console.log('[Geolocation] Using cached location:', cached.city);
+          setCity(cached.city);
+          await setStoredCity(cached.city);
+          await setStoredWeatherCity(cached.weatherCity);
+          console.log('[Profile] Dispatching CITY_UPDATED event');
+          AppEvents.dispatchEvent(new Event(EVENTS.CITY_UPDATED));
+          setLocationSuccess(`Position enregistrée : ${cached.city}`);
+          setTimeout(() => setLocationSuccess(null), 4000);
+          setLoadingLocation(false);
+          return;
+        }
+
         // Use backend proxy for reverse geocoding (same as web)
         try {
           console.log('[Geolocation] Fetching address from backend...');
@@ -210,7 +249,11 @@ export default function ProfileScreen() {
             console.log('[Geolocation] City found:', data.city);
             setCity(data.city);
             await setStoredCity(data.city);
-            setLocationSuccess(`Position détectée et enregistrée : ${data.city}`);
+            await setStoredWeatherCity(data.weatherCity);
+            await setCachedLocation(data.city, data.weatherCity, latitude, longitude);
+            console.log('[Profile] Dispatching CITY_UPDATED event');
+            AppEvents.dispatchEvent(new Event(EVENTS.CITY_UPDATED));
+            setLocationSuccess(`Position enregistrée : ${data.city}`);
             setTimeout(() => setLocationSuccess(null), 4000);
           } else {
             console.warn('[Geolocation] No city in backend response');
