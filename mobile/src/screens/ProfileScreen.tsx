@@ -84,10 +84,19 @@ export default function ProfileScreen() {
     setLoadingProfile(true);
     try {
       const data = await getProfile();
+      console.log('[ProfileScreen] Loaded profile data:', JSON.stringify(data, null, 2));
       setProfile(data);
       if (data.spouse) {
+        console.log('[ProfileScreen] Spouse found:', data.spouse);
+        console.log('[ProfileScreen] Spouse birthDate:', data.spouse.birthDate);
         setSpouseFirstName(data.spouse.firstName);
-        if (data.spouse.birthDate) setSpouseBirthDate(new Date(data.spouse.birthDate));
+        if (data.spouse.birthDate) {
+          const parsedDate = new Date(data.spouse.birthDate);
+          console.log('[ProfileScreen] Setting spouse birthdate to:', parsedDate.toISOString());
+          setSpouseBirthDate(parsedDate);
+        } else {
+          console.log('[ProfileScreen] No spouse birthDate in data');
+        }
       }
       if (data.marriageDate) setMarriageDate(new Date(data.marriageDate));
     } catch (error) {
@@ -452,9 +461,13 @@ export default function ProfileScreen() {
 
   const handleEditSpouse = () => {
     if (profile.spouse) {
+      console.log('[ProfileScreen] handleEditSpouse - profile.spouse:', profile.spouse);
+      console.log('[ProfileScreen] handleEditSpouse - birthDate:', profile.spouse.birthDate);
       setEditingSpouse(true);
       setSpouseFirstName(profile.spouse.firstName);
-      setSpouseBirthDate(profile.spouse.birthDate ? new Date(profile.spouse.birthDate) : new Date());
+      const dateToSet = profile.spouse.birthDate ? new Date(profile.spouse.birthDate) : new Date();
+      console.log('[ProfileScreen] handleEditSpouse - setting birthdate to:', dateToSet.toISOString());
+      setSpouseBirthDate(dateToSet);
     }
   };
 
@@ -1001,10 +1014,17 @@ onChange={(event: any, selectedDate?: Date) => {
                         }}
                         value={spouseBirthDate.toISOString().split('T')[0]}
                         onChange={(e: any) => {
+                          console.log('[ProfileScreen] Spouse date input onChange fired');
                           const value = e.target.value;
+                          console.log('[ProfileScreen] Input value:', value);
                           if (value) {
                             const d = new Date(value);
-                            if (!isNaN(d.getTime())) setSpouseBirthDate(d);
+                            console.log('[ProfileScreen] Parsed date:', d.toISOString());
+                            console.log('[ProfileScreen] Is valid?', !isNaN(d.getTime()));
+                            if (!isNaN(d.getTime())) {
+                              console.log('[ProfileScreen] Calling setSpouseBirthDate with:', d.toISOString());
+                              setSpouseBirthDate(d);
+                            }
                           }
                         }}
                       />
