@@ -81,18 +81,15 @@ export default function HomeScreen() {
     // Check for cached quote first
     const cachedQuote = await getStoredQuote();
     if (cachedQuote) {
+      // Cache is valid for current day+period, use it
       setQuote(cachedQuote);
-    }
-    
-    // Always fetch fresh quote to ensure period changes are reflected
-    // This will replace cached quote if period has changed
-    try {
-      const q = await fetchQuote();
-      setQuote(q);
-      await setStoredQuote(q);
-    } catch {
-      // If fetch fails and we don't have cached quote, show error
-      if (!cachedQuote) {
+    } else {
+      // No valid cache, fetch fresh quote
+      try {
+        const q = await fetchQuote();
+        setQuote(q);
+        await setStoredQuote(q);
+      } catch {
         setQuoteError('Impossible de charger la citation pour le moment.');
       }
     }
@@ -181,7 +178,9 @@ export default function HomeScreen() {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Feather name="cloud" size={20} color="#2C3E50" />
-            <Text style={styles.cardTitle}>Météo & habits</Text>
+            <Text style={styles.cardTitle}>
+              {weather && weather.outfit && weather.outfit.trim() ? 'Météo & habits' : 'Météo'}
+            </Text>
           </View>
           {weatherError ? (
             <Text style={styles.errorText}>{weatherError}</Text>

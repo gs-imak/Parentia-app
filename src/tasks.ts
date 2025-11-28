@@ -99,6 +99,8 @@ export async function getTasksForToday(): Promise<Task[]> {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
+  const sevenDaysFromNow = new Date(today);
+  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
   
   // Tasks due today
   const todayTasks = tasks.filter(t => {
@@ -106,10 +108,24 @@ export async function getTasksForToday(): Promise<Task[]> {
     return deadline >= today && deadline < tomorrow && t.status !== 'done';
   });
   
-  // Sort by deadline and limit to 3
-  return todayTasks
-    .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
-    .slice(0, 3);
+  // Sort with priority: recurring tasks (birthdays/anniversaries) within 7 days first,
+  // then regular tasks by deadline
+  const sorted = todayTasks.sort((a, b) => {
+    const aDeadline = new Date(a.deadline);
+    const bDeadline = new Date(b.deadline);
+    const aIsUpcomingBirthday = a.isRecurring && aDeadline <= sevenDaysFromNow;
+    const bIsUpcomingBirthday = b.isRecurring && bDeadline <= sevenDaysFromNow;
+    
+    // If both are upcoming birthdays, or neither are, sort by deadline
+    if (aIsUpcomingBirthday === bIsUpcomingBirthday) {
+      return aDeadline.getTime() - bDeadline.getTime();
+    }
+    
+    // Otherwise, upcoming birthdays come first
+    return aIsUpcomingBirthday ? -1 : 1;
+  });
+  
+  return sorted.slice(0, 3);
 }
 
 // Helper: Delete all tasks associated with a recurring source (for profile deletion)

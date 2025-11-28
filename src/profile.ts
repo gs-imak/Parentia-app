@@ -115,8 +115,28 @@ export async function updateChild(id: string, updates: Partial<Omit<Child, 'id'>
   
   if (index === -1) return null;
   
-  profile.children[index] = { ...profile.children[index], ...updates };
+  const oldChild = profile.children[index];
+  profile.children[index] = { ...oldChild, ...updates };
   await writeProfile(profile);
+  
+  // If birthDate changed, update the birthday task
+  if (updates.birthDate && updates.birthDate !== oldChild.birthDate) {
+    // Delete old birthday task
+    await deleteTasksByRecurringSource(`child:${id}`);
+    
+    // Create new birthday task with updated date
+    const birthDate = new Date(updates.birthDate);
+    const formattedDate = birthDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' });
+    const firstName = updates.firstName || oldChild.firstName;
+    await createRecurringTask({
+      title: `Anniversaire de ${firstName} - le ${formattedDate}`,
+      category: 'enfants-école',
+      birthDate: updates.birthDate,
+      recurringSource: `child:${id}`,
+      description: 'Penser au gâteau / cadeau / organisation.',
+    });
+  }
+  
   return profile.children[index];
 }
 
@@ -176,22 +196,25 @@ export async function deleteSpouse(): Promise<Profile> {
 
 export async function updateMarriageDate(date: string): Promise<Profile> {
   const profile = await readProfile();
-  const isNewDate = !profile.marriageDate;
+  const hadDate = profile.marriageDate;
   profile.marriageDate = date;
   await writeProfile(profile);
   
-  // Auto-create anniversary task if this is a new date
-  if (isNewDate) {
-    const marriageDate = new Date(date);
-    const formattedDate = marriageDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' });
-    await createRecurringTask({
-      title: `Anniversaire de mariage - le ${formattedDate}`,
-      category: 'personnel',
-      birthDate: date,
-      recurringSource: 'marriage',
-      description: 'Penser à fêter cet événement important.',
-    });
+  // Always delete old task if it existed
+  if (hadDate) {
+    await deleteTasksByRecurringSource('marriage');
   }
+  
+  // Create new anniversary task with updated date
+  const marriageDate = new Date(date);
+  const formattedDate = marriageDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' });
+  await createRecurringTask({
+    title: `Anniversaire de mariage - le ${formattedDate}`,
+    category: 'personnel',
+    birthDate: date,
+    recurringSource: 'marriage',
+    description: 'Penser à fêter cet événement important.',
+  });
   
   return profile;
 }

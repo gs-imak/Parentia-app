@@ -154,13 +154,16 @@ async function hasYoungChildren(): Promise<boolean> {
 
 export async function getRandomQuote(now: Date = new Date()): Promise<QuoteResult> {
   // Check for special date first (highest priority)
+  // Special date quotes are displayed for the entire day (00:00-23:59)
+  // This check happens BEFORE time-based morning/evening split to ensure
+  // the special quote is shown all day long
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
   const currentDate = `${month}-${day}`;
   
   const specialQuote = SPECIAL_DATE_QUOTES.find(q => q.date === currentDate);
   if (specialQuote) {
-    // For special dates, return as morning type (displayed all day)
+    // For special dates, return as morning type (displayed all day 00:00-23:59)
     return { type: 'morning', text: specialQuote.text };
   }
   

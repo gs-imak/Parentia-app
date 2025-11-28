@@ -98,7 +98,7 @@ function buildOutfitRecommendation(tempC: number, isRaining: boolean, isSnowing:
 
   // Add scarf recommendation for cold weather
   if (tempC < 10) {
-    parts.push('ajouter une écharpe');
+    parts.push('écharpe');
   }
 
   return parts.join(' ; ');
