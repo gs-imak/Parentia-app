@@ -1003,12 +1003,8 @@ onChange={(event: any, selectedDate?: Date) => {
                         onChange={(e: any) => {
                           const value = e.target.value;
                           if (value) {
-                            // Parse as local date to avoid timezone shifts
-                            const [year, month, day] = value.split('-').map(Number);
-                            const d = new Date(year, month - 1, day);
-                            if (!isNaN(d.getTime())) {
-                              setSpouseBirthDate(d);
-                            }
+                            const d = new Date(value);
+                            if (!isNaN(d.getTime())) setSpouseBirthDate(d);
                           }
                         }}
                       />
