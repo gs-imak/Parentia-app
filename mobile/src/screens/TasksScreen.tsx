@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { Feather } from '@expo/vector-icons';
-import { createTask, getAllTasks, deleteTask, type TaskCategory, type Task } from '../api/client';
+import { createTask, getAllTasks, deleteTask, updateTask, type TaskCategory, type Task } from '../api/client';
 
 // Conditionally import DateTimePicker only for mobile
 let DateTimePicker: any = null;
@@ -43,6 +43,20 @@ export default function TasksScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  
+  // Filter state
+  type FilterType = 'all' | 'today' | TaskCategory;
+  const [filter, setFilter] = useState<FilterType>('all');
+  
+  // Edit state
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editCategory, setEditCategory] = useState<TaskCategory>('personnel');
+  const [editDeadline, setEditDeadline] = useState(new Date());
+  const [editDescription, setEditDescription] = useState('');
+  const [editStatus, setEditStatus] = useState<'todo' | 'in_progress' | 'done'>('todo');
+  const [showEditDatePicker, setShowEditDatePicker] = useState(false);
+  const [updating, setUpdating] = useState(false);
 
   const loadTasks = async () => {
     setLoading(true);
@@ -128,9 +142,81 @@ export default function TasksScreen() {
             setFormError('Impossible de supprimer la tâche.');
           }
         },
-      },
-    ]);
+      ]);
+    }
   };
+  
+  const handleEditTask = (task: Task) => {
+    setEditingTaskId(task.id);
+    setEditTitle(task.title);
+    setEditCategory(task.category);
+    setEditDeadline(new Date(task.deadline));
+    setEditDescription(task.description || '');
+    setEditStatus(task.status);
+    // Scroll to top to show edit form
+    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+  };
+  
+  const handleCancelEdit = () => {
+    setEditingTaskId(null);
+    setEditTitle('');
+    setEditCategory('personnel');
+    setEditDeadline(new Date());
+    setEditDescription('');
+    setEditStatus('todo');
+  };
+  
+  const handleUpdateTask = async () => {
+    if (!editTitle.trim()) {
+      setFormError('Le titre est requis.');
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
+    
+    setUpdating(true);
+    try {
+      await updateTask(editingTaskId!, {
+        title: editTitle.trim(),
+        category: editCategory,
+        deadline: editDeadline.toISOString(),
+        description: editDescription.trim() || undefined,
+        status: editStatus,
+      });
+      
+      setSuccessMessage('Tâche mise à jour avec succès !');
+      setTimeout(() => setSuccessMessage(null), 3000);
+      
+      handleCancelEdit();
+      await loadTasks();
+    } catch (error) {
+      setFormError('Impossible de mettre à jour la tâche.');
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+    } finally {
+      setUpdating(false);
+    }
+  };
+  
+  // Filter tasks based on selected filter
+  const getFilteredTasks = () => {
+    if (filter === 'all') return tasks;
+    
+    if (filter === 'today') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      return tasks.filter(task => {
+        const deadline = new Date(task.deadline);
+        return deadline >= today && deadline < tomorrow;
+      });
+    }
+    
+    // Filter by category
+    return tasks.filter(task => task.category === filter);
+  };
+  
+  const filteredTasks = getFilteredTasks();
 
   return (
     <ScrollView ref={scrollViewRef} style={styles.container}>
@@ -305,16 +391,49 @@ onChange={(event: any, selectedDate?: Date) => {
           <Feather name="list" size={20} color="#2C3E50" />
           <Text style={styles.cardTitle}>Toutes les tâches</Text>
         </View>
+        
+        {/* Filter Buttons */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScrollView}>
+          <TouchableOpacity
+            style={[styles.filterButton, filter === 'all' && styles.filterButtonActive]}
+            onPress={() => setFilter('all')}
+          >
+            <Text style={[styles.filterButtonText, filter === 'all' && styles.filterButtonTextActive]}>
+              Toutes
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.filterButton, filter === 'today' && styles.filterButtonActive]}
+            onPress={() => setFilter('today')}
+          >
+            <Text style={[styles.filterButtonText, filter === 'today' && styles.filterButtonTextActive]}>
+              Aujourd'hui
+            </Text>
+          </TouchableOpacity>
+          {CATEGORIES.map((cat) => (
+            <TouchableOpacity
+              key={cat.value}
+              style={[styles.filterButton, filter === cat.value && styles.filterButtonActive]}
+              onPress={() => setFilter(cat.value)}
+            >
+              <Text style={[styles.filterButtonText, filter === cat.value && styles.filterButtonTextActive]}>
+                {cat.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
 
         {loading ? (
           <ActivityIndicator size="large" color="#3A82F7" />
         ) : tasksError ? (
           <Text style={styles.errorText}>{tasksError}</Text>
-        ) : tasks.length === 0 ? (
-          <Text style={styles.placeholderText}>Aucune tâche pour le moment.</Text>
+        ) : filteredTasks.length === 0 ? (
+          <Text style={styles.placeholderText}>
+            {tasks.length === 0 ? 'Aucune tâche pour le moment.' : 'Aucune tâche ne correspond à ce filtre.'}
+          </Text>
         ) : (
           <View>
-            {tasks.map((task) => {
+            {filteredTasks.map((task) => {
               const deadlineDate = new Date(task.deadline);
               const isOverdue = deadlineDate < new Date() && task.status !== 'done';
               const categoryLabel = CATEGORIES.find((c) => c.value === task.category)?.label || task.category;
@@ -331,35 +450,210 @@ onChange={(event: any, selectedDate?: Date) => {
 
               return (
                 <View key={task.id} style={styles.taskItem}>
-                  <View style={styles.taskHeader}>
-                    <Text style={styles.taskTitle}>{task.title}</Text>
-                    <TouchableOpacity onPress={() => handleDelete(task.id)}>
-                      <Feather name="trash-2" size={18} color="#DC2626" />
-                    </TouchableOpacity>
-                  </View>
-                  <View style={styles.taskMeta}>
-                    <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
-                      <Text style={[styles.statusText, { color: statusColor }]}>{statusLabel}</Text>
+                  {editingTaskId === task.id ? (
+                    // Edit Form
+                    <View>
+                      <View style={styles.formGroup}>
+                        <Text style={styles.label}>Titre</Text>
+                        <TextInput
+                          style={styles.input}
+                          value={editTitle}
+                          onChangeText={setEditTitle}
+                          placeholder="Titre de la tâche"
+                          placeholderTextColor="#9CA3AF"
+                        />
+                      </View>
+
+                      <View style={styles.formGroup}>
+                        <Text style={styles.label}>Catégorie</Text>
+                        {Platform.OS === 'web' ? (
+                          <select
+                            value={editCategory}
+                            onChange={(e: any) => setEditCategory(e.target.value as TaskCategory)}
+                            style={{
+                              width: '100%',
+                              padding: 12,
+                              fontSize: 16,
+                              borderRadius: 12,
+                              border: '1px solid #E5E7EB',
+                              backgroundColor: '#FFFFFF',
+                              color: '#2C3E50',
+                            }}
+                          >
+                            {CATEGORIES.map((cat) => (
+                              <option key={cat.value} value={cat.value}>
+                                {cat.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <View style={[styles.input, { padding: 0 }]}>
+                            <Picker
+                              selectedValue={editCategory}
+                              onValueChange={(itemValue) => setEditCategory(itemValue as TaskCategory)}
+                            >
+                              {CATEGORIES.map((cat) => (
+                                <Picker.Item key={cat.value} label={cat.label} value={cat.value} />
+                              ))}
+                            </Picker>
+                          </View>
+                        )}
+                      </View>
+
+                      <View style={styles.formGroup}>
+                        <Text style={styles.label}>Échéance</Text>
+                        {Platform.OS === 'web' ? (
+                          <input
+                            type="datetime-local"
+                            value={editDeadline.toISOString().slice(0, 16)}
+                            onChange={(e: any) => setEditDeadline(new Date(e.target.value))}
+                            style={{
+                              width: '100%',
+                              padding: 12,
+                              fontSize: 16,
+                              borderRadius: 12,
+                              border: '1px solid #E5E7EB',
+                              backgroundColor: '#FFFFFF',
+                              color: '#2C3E50',
+                            }}
+                          />
+                        ) : (
+                          <>
+                            <TouchableOpacity
+                              onPress={() => setShowEditDatePicker(true)}
+                              style={styles.input}
+                            >
+                              <Text style={{ color: '#2C3E50' }}>
+                                {editDeadline.toLocaleDateString('fr-FR', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </Text>
+                            </TouchableOpacity>
+                            {showEditDatePicker && DateTimePicker && (
+                              <DateTimePicker
+                                value={editDeadline}
+                                mode="datetime"
+                                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                onChange={(event: any, selectedDate?: Date) => {
+                                  setShowEditDatePicker(Platform.OS === 'ios');
+                                  if (selectedDate) setEditDeadline(selectedDate);
+                                }}
+                              />
+                            )}
+                          </>
+                        )}
+                      </View>
+
+                      <View style={styles.formGroup}>
+                        <Text style={styles.label}>Description (optionnel)</Text>
+                        <TextInput
+                          style={[styles.input, styles.textArea]}
+                          value={editDescription}
+                          onChangeText={setEditDescription}
+                          placeholder="Détails supplémentaires..."
+                          placeholderTextColor="#9CA3AF"
+                          multiline
+                          numberOfLines={3}
+                        />
+                      </View>
+
+                      <View style={styles.formGroup}>
+                        <Text style={styles.label}>Statut</Text>
+                        {Platform.OS === 'web' ? (
+                          <select
+                            value={editStatus}
+                            onChange={(e: any) => setEditStatus(e.target.value as 'todo' | 'in_progress' | 'done')}
+                            style={{
+                              width: '100%',
+                              padding: 12,
+                              fontSize: 16,
+                              borderRadius: 12,
+                              border: '1px solid #E5E7EB',
+                              backgroundColor: '#FFFFFF',
+                              color: '#2C3E50',
+                            }}
+                          >
+                            <option value="todo">À faire</option>
+                            <option value="in_progress">En cours</option>
+                            <option value="done">Terminé</option>
+                          </select>
+                        ) : (
+                          <View style={[styles.input, { padding: 0 }]}>
+                            <Picker
+                              selectedValue={editStatus}
+                              onValueChange={(itemValue) => setEditStatus(itemValue as 'todo' | 'in_progress' | 'done')}
+                            >
+                              <Picker.Item label="À faire" value="todo" />
+                              <Picker.Item label="En cours" value="in_progress" />
+                              <Picker.Item label="Terminé" value="done" />
+                            </Picker>
+                          </View>
+                        )}
+                      </View>
+
+                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                        <TouchableOpacity
+                          style={[styles.submitButton, { flex: 1 }, updating && styles.submitButtonDisabled]}
+                          onPress={handleUpdateTask}
+                          disabled={updating}
+                        >
+                          {updating ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <Text style={styles.submitButtonText}>Enregistrer</Text>
+                          )}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.submitButton, { flex: 1, backgroundColor: '#6E7A84' }]}
+                          onPress={handleCancelEdit}
+                        >
+                          <Text style={styles.submitButtonText}>Annuler</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                    <View style={styles.categoryBadge}>
-                      <Text style={styles.categoryText}>{categoryLabel}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.taskDeadlineRow}>
-                    <Feather name="clock" size={14} color={isOverdue ? '#DC2626' : '#6E7A84'} />
-                    <Text style={[styles.taskDeadlineText, isOverdue && styles.overdueText]}>
-                      {deadlineDate.toLocaleString('fr-FR', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                      {isOverdue && ' (en retard)'}
-                    </Text>
-                  </View>
-                  {task.description && (
-                    <Text style={styles.taskDescription}>{task.description}</Text>
+                  ) : (
+                    // Normal Task Display
+                    <>
+                      <View style={styles.taskHeader}>
+                        <Text style={styles.taskTitle}>{task.title}</Text>
+                        <View style={{ flexDirection: 'row', gap: 12 }}>
+                          <TouchableOpacity onPress={() => handleEditTask(task)}>
+                            <Feather name="edit" size={18} color="#3A82F7" />
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => handleDelete(task.id)}>
+                            <Feather name="trash-2" size={18} color="#DC2626" />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                      <View style={styles.taskMeta}>
+                        <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
+                          <Text style={[styles.statusText, { color: statusColor }]}>{statusLabel}</Text>
+                        </View>
+                        <View style={styles.categoryBadge}>
+                          <Text style={styles.categoryText}>{categoryLabel}</Text>
+                        </View>
+                      </View>
+                      <View style={styles.taskDeadlineRow}>
+                        <Feather name="clock" size={14} color={isOverdue ? '#DC2626' : '#6E7A84'} />
+                        <Text style={[styles.taskDeadlineText, isOverdue && styles.overdueText]}>
+                          {deadlineDate.toLocaleString('fr-FR', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                          {isOverdue && ' (en retard)'}
+                        </Text>
+                      </View>
+                      {task.description && (
+                        <Text style={styles.taskDescription}>{task.description}</Text>
+                      )}
+                    </>
                   )}
                 </View>
               );
@@ -591,5 +885,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6E7A84',
     marginTop: 4,
+  },
+  filterScrollView: {
+    marginBottom: 16,
+    flexGrow: 0,
+  },
+  filterButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#F5F7FA',
+    borderWidth: 1,
+    borderColor: '#E9EEF2',
+    marginRight: 8,
+  },
+  filterButtonActive: {
+    backgroundColor: '#3A82F7',
+    borderColor: '#3A82F7',
+  },
+  filterButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6E7A84',
+  },
+  filterButtonTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
 });
