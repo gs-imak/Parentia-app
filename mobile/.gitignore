@@ -5,7 +5,8 @@ node_modules/
 
 # Expo
 .expo/
-dist/
+# dist/ is REQUIRED for Railway web deployment - DO NOT IGNORE
+# dist/
 web-build/
 expo-env.d.ts
 
