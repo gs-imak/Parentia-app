@@ -157,8 +157,7 @@ export default function TasksScreen() {
     setEditDeadline(new Date(task.deadline));
     setEditDescription(task.description || '');
     setEditStatus(task.status);
-    // Scroll to top to show edit form
-    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+    // Edit form appears inline where the task is
   };
   
   const handleCancelEdit = () => {
