@@ -41,6 +41,7 @@ export default function ProfileScreen() {
   const [showChildDatePicker, setShowChildDatePicker] = useState(false);
   const [addingChild, setAddingChild] = useState(false);
   const [expandedChildId, setExpandedChildId] = useState<string | null>(null);
+  const [childFormError, setChildFormError] = useState<string | null>(null);
 
   // Spouse form state
   const [spouseFirstName, setSpouseFirstName] = useState('');
@@ -263,12 +264,28 @@ export default function ProfileScreen() {
 
   // Child handlers
   const handleAddChild = async () => {
+    setChildFormError(null);
+    
+    // Validation
     if (!childFirstName.trim()) {
-      Alert.alert('Erreur', 'Le prénom est requis.');
+      setChildFormError('Le prénom de l\'enfant est requis.');
       return;
     }
+    
     if (profile.children.length >= 5) {
-      Alert.alert('Limite atteinte', 'Vous ne pouvez ajouter que 5 enfants maximum.');
+      setChildFormError('Vous ne pouvez ajouter que 5 enfants maximum.');
+      return;
+    }
+    
+    // Validate height if provided
+    if (childHeight && (isNaN(parseFloat(childHeight)) || parseFloat(childHeight) <= 0)) {
+      setChildFormError('La taille doit être un nombre valide.');
+      return;
+    }
+    
+    // Validate weight if provided
+    if (childWeight && (isNaN(parseFloat(childWeight)) || parseFloat(childWeight) <= 0)) {
+      setChildFormError('Le poids doit être un nombre valide.');
       return;
     }
 
@@ -288,9 +305,10 @@ export default function ProfileScreen() {
       setChildHeight('');
       setChildWeight('');
       setChildNotes('');
+      setChildFormError(null);
       await loadProfile();
     } catch (error) {
-      Alert.alert('Erreur', 'Impossible d\'ajouter l\'enfant.');
+      setChildFormError('Impossible d\'ajouter l\'enfant. Veuillez réessayer.');
     } finally {
       setAddingChild(false);
     }
@@ -591,6 +609,14 @@ onChange={(event: any, selectedDate?: Date) => {
                         placeholderTextColor="#9CA3AF"
                       />
                     </View>
+                    
+                    {childFormError && (
+                      <View style={styles.errorBox}>
+                        <Feather name="alert-circle" size={16} color="#DC2626" />
+                        <Text style={styles.errorText}>{childFormError}</Text>
+                      </View>
+                    )}
+                    
                     <TouchableOpacity
                       style={[styles.button, addingChild && styles.buttonDisabled, { marginTop: 12 }]}
                       onPress={handleAddChild}
@@ -930,6 +956,21 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   locationErrorText: {
+    fontSize: 14,
+    color: '#DC2626',
+    fontWeight: '500',
+    flex: 1,
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEE2E2',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 12,
+    gap: 8,
+  },
+  errorText: {
     fontSize: 14,
     color: '#DC2626',
     fontWeight: '500',
