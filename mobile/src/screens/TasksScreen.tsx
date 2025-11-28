@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -28,6 +28,7 @@ const CATEGORIES: { value: TaskCategory; label: string }[] = [
 ];
 
 export default function TasksScreen() {
+  const scrollViewRef = useRef<ScrollView>(null);
   const [loading, setLoading] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [tasksError, setTasksError] = useState<string | null>(null);
@@ -65,6 +66,8 @@ export default function TasksScreen() {
     
     if (!title.trim()) {
       setFormError('Le titre est requis.');
+      // Scroll to top to show error
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       return;
     }
 
@@ -91,6 +94,8 @@ export default function TasksScreen() {
       await loadTasks();
     } catch (error) {
       setFormError('Impossible de créer la tâche. Veuillez réessayer.');
+      // Scroll to top to show error
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
     } finally {
       setSubmitting(false);
     }
@@ -127,7 +132,7 @@ export default function TasksScreen() {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView ref={scrollViewRef} style={styles.container}>
       {/* Success Message */}
       {successMessage && (
         <View style={styles.successBanner}>
