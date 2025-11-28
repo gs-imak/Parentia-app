@@ -10,7 +10,6 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import { Feather } from '@expo/vector-icons';
 import { createTask, getAllTasks, deleteTask, updateTask, type TaskCategory, type Task } from '../api/client';
 
@@ -57,6 +56,11 @@ export default function TasksScreen() {
   const [editStatus, setEditStatus] = useState<'todo' | 'in_progress' | 'done'>('todo');
   const [showEditDatePicker, setShowEditDatePicker] = useState(false);
   const [updating, setUpdating] = useState(false);
+  
+  // Dropdown state
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [showEditCategoryPicker, setShowEditCategoryPicker] = useState(false);
+  const [showEditStatusPicker, setShowEditStatusPicker] = useState(false);
 
   const loadTasks = async () => {
     setLoading(true);
@@ -285,16 +289,43 @@ export default function TasksScreen() {
               ))}
             </select>
           ) : (
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={category}
-                onValueChange={(value) => setCategory(value)}
-                style={styles.picker}
+            <View>
+              <TouchableOpacity
+                style={styles.dropdownButton}
+                onPress={() => setShowCategoryPicker(!showCategoryPicker)}
               >
-                {CATEGORIES.map((cat) => (
-                  <Picker.Item key={cat.value} label={cat.label} value={cat.value} />
-                ))}
-              </Picker>
+                <Text style={styles.dropdownButtonText}>
+                  {CATEGORIES.find(c => c.value === category)?.label || 'Sélectionner'}
+                </Text>
+                <Feather name={showCategoryPicker ? 'chevron-up' : 'chevron-down'} size={20} color="#2C3E50" />
+              </TouchableOpacity>
+              {showCategoryPicker && (
+                <View style={styles.dropdownList}>
+                  {CATEGORIES.map((cat) => (
+                    <TouchableOpacity
+                      key={cat.value}
+                      style={[
+                        styles.dropdownItem,
+                        category === cat.value && styles.dropdownItemActive
+                      ]}
+                      onPress={() => {
+                        setCategory(cat.value);
+                        setShowCategoryPicker(false);
+                      }}
+                    >
+                      <Text style={[
+                        styles.dropdownItemText,
+                        category === cat.value && styles.dropdownItemTextActive
+                      ]}>
+                        {cat.label}
+                      </Text>
+                      {category === cat.value && (
+                        <Feather name="check" size={18} color="#3A82F7" />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </View>
           )}
         </View>
@@ -487,15 +518,43 @@ onChange={(event: any, selectedDate?: Date) => {
                             ))}
                           </select>
                         ) : (
-                          <View style={[styles.input, { padding: 0 }]}>
-                            <Picker
-                              selectedValue={editCategory}
-                              onValueChange={(itemValue) => setEditCategory(itemValue as TaskCategory)}
+                          <View>
+                            <TouchableOpacity
+                              style={styles.dropdownButton}
+                              onPress={() => setShowEditCategoryPicker(!showEditCategoryPicker)}
                             >
-                              {CATEGORIES.map((cat) => (
-                                <Picker.Item key={cat.value} label={cat.label} value={cat.value} />
-                              ))}
-                            </Picker>
+                              <Text style={styles.dropdownButtonText}>
+                                {CATEGORIES.find(c => c.value === editCategory)?.label || 'Sélectionner'}
+                              </Text>
+                              <Feather name={showEditCategoryPicker ? 'chevron-up' : 'chevron-down'} size={20} color="#2C3E50" />
+                            </TouchableOpacity>
+                            {showEditCategoryPicker && (
+                              <View style={styles.dropdownList}>
+                                {CATEGORIES.map((cat) => (
+                                  <TouchableOpacity
+                                    key={cat.value}
+                                    style={[
+                                      styles.dropdownItem,
+                                      editCategory === cat.value && styles.dropdownItemActive
+                                    ]}
+                                    onPress={() => {
+                                      setEditCategory(cat.value);
+                                      setShowEditCategoryPicker(false);
+                                    }}
+                                  >
+                                    <Text style={[
+                                      styles.dropdownItemText,
+                                      editCategory === cat.value && styles.dropdownItemTextActive
+                                    ]}>
+                                      {cat.label}
+                                    </Text>
+                                    {editCategory === cat.value && (
+                                      <Feather name="check" size={18} color="#3A82F7" />
+                                    )}
+                                  </TouchableOpacity>
+                                ))}
+                              </View>
+                            )}
                           </View>
                         )}
                       </View>
@@ -582,15 +641,80 @@ onChange={(event: any, selectedDate?: Date) => {
                             <option value="done">Terminé</option>
                           </select>
                         ) : (
-                          <View style={[styles.input, { padding: 0 }]}>
-                            <Picker
-                              selectedValue={editStatus}
-                              onValueChange={(itemValue) => setEditStatus(itemValue as 'todo' | 'in_progress' | 'done')}
+                          <View>
+                            <TouchableOpacity
+                              style={styles.dropdownButton}
+                              onPress={() => setShowEditStatusPicker(!showEditStatusPicker)}
                             >
-                              <Picker.Item label="À faire" value="todo" />
-                              <Picker.Item label="En cours" value="in_progress" />
-                              <Picker.Item label="Terminé" value="done" />
-                            </Picker>
+                              <Text style={styles.dropdownButtonText}>
+                                {editStatus === 'todo' ? 'À faire' : editStatus === 'in_progress' ? 'En cours' : 'Terminé'}
+                              </Text>
+                              <Feather name={showEditStatusPicker ? 'chevron-up' : 'chevron-down'} size={20} color="#2C3E50" />
+                            </TouchableOpacity>
+                            {showEditStatusPicker && (
+                              <View style={styles.dropdownList}>
+                                <TouchableOpacity
+                                  style={[
+                                    styles.dropdownItem,
+                                    editStatus === 'todo' && styles.dropdownItemActive
+                                  ]}
+                                  onPress={() => {
+                                    setEditStatus('todo');
+                                    setShowEditStatusPicker(false);
+                                  }}
+                                >
+                                  <Text style={[
+                                    styles.dropdownItemText,
+                                    editStatus === 'todo' && styles.dropdownItemTextActive
+                                  ]}>
+                                    À faire
+                                  </Text>
+                                  {editStatus === 'todo' && (
+                                    <Feather name="check" size={18} color="#3A82F7" />
+                                  )}
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  style={[
+                                    styles.dropdownItem,
+                                    editStatus === 'in_progress' && styles.dropdownItemActive
+                                  ]}
+                                  onPress={() => {
+                                    setEditStatus('in_progress');
+                                    setShowEditStatusPicker(false);
+                                  }}
+                                >
+                                  <Text style={[
+                                    styles.dropdownItemText,
+                                    editStatus === 'in_progress' && styles.dropdownItemTextActive
+                                  ]}>
+                                    En cours
+                                  </Text>
+                                  {editStatus === 'in_progress' && (
+                                    <Feather name="check" size={18} color="#3A82F7" />
+                                  )}
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  style={[
+                                    styles.dropdownItem,
+                                    editStatus === 'done' && styles.dropdownItemActive
+                                  ]}
+                                  onPress={() => {
+                                    setEditStatus('done');
+                                    setShowEditStatusPicker(false);
+                                  }}
+                                >
+                                  <Text style={[
+                                    styles.dropdownItemText,
+                                    editStatus === 'done' && styles.dropdownItemTextActive
+                                  ]}>
+                                    Terminé
+                                  </Text>
+                                  {editStatus === 'done' && (
+                                    <Feather name="check" size={18} color="#3A82F7" />
+                                  )}
+                                </TouchableOpacity>
+                              </View>
+                            )}
                           </View>
                         )}
                       </View>
@@ -763,17 +887,6 @@ const styles = StyleSheet.create({
     height: 90,
     textAlignVertical: 'top',
   },
-  pickerContainer: {
-    backgroundColor: '#F8F9FB',
-    borderWidth: 1,
-    borderColor: '#E9EEF2',
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  picker: {
-    backgroundColor: '#F8F9FB',
-    color: '#2C3E50',
-  },
   dateButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -910,6 +1023,49 @@ const styles = StyleSheet.create({
   },
   filterButtonTextActive: {
     color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  dropdownButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#F8F9FB',
+    borderWidth: 1,
+    borderColor: '#E9EEF2',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  dropdownButtonText: {
+    fontSize: 16,
+    color: '#2C3E50',
+  },
+  dropdownList: {
+    marginTop: 4,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E9EEF2',
+    overflow: 'hidden',
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F2F5',
+  },
+  dropdownItemActive: {
+    backgroundColor: '#EBF5FF',
+  },
+  dropdownItemText: {
+    fontSize: 16,
+    color: '#2C3E50',
+  },
+  dropdownItemTextActive: {
+    color: '#3A82F7',
     fontWeight: '600',
   },
 });
