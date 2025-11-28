@@ -121,8 +121,24 @@ async function shouldShowOutfit(): Promise<boolean> {
   }
 }
 
-export async function getWeatherForCity(city: string): Promise<WeatherSummary> {
-  const { latitude, longitude, resolvedName } = await geocodeCity(city);
+export async function getWeatherForCity(city: string, lat?: number, lon?: number): Promise<WeatherSummary> {
+  let latitude: number;
+  let longitude: number;
+  let resolvedName: string;
+
+  // If coordinates are provided, use them directly (most accurate)
+  if (lat !== undefined && lon !== undefined) {
+    latitude = lat;
+    longitude = lon;
+    resolvedName = city; // Use the display city name directly
+  } else {
+    // Fallback to geocoding if no coordinates provided
+    const geocoded = await geocodeCity(city);
+    latitude = geocoded.latitude;
+    longitude = geocoded.longitude;
+    resolvedName = geocoded.resolvedName;
+  }
+
   const current = await fetchCurrentWeather(latitude, longitude);
 
   const temperatureC = current.temperature_2m;

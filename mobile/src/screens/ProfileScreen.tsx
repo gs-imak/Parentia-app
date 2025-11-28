@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Alert, Platform, View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, ActivityIndicator, StyleSheet } from 'react-native';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
-import { getStoredCity, setStoredCity, getStoredWeatherCity, setStoredWeatherCity, getCachedLocation, setCachedLocation } from '../utils/storage';
+import { getStoredCity, setStoredCity, getStoredWeatherCity, setStoredWeatherCity, getStoredCoordinates, setStoredCoordinates, getCachedLocation, setCachedLocation } from '../utils/storage';
 import { reverseGeocode, geolocateByIP, getProfile, addChild, deleteChild, updateSpouse, deleteSpouse, updateMarriageDate, deleteMarriageDate, type Child, type Profile } from '../api/client';
 import { AppEvents, EVENTS } from '../utils/events';
 
@@ -114,6 +114,7 @@ export default function ProfileScreen() {
               setCity(cached.city);
               await setStoredCity(cached.city);
               await setStoredWeatherCity(cached.weatherCity);
+              await setStoredCoordinates(latitude, longitude);
               console.log('[Profile] Dispatching CITY_UPDATED event');
               AppEvents.dispatchEvent(new Event(EVENTS.CITY_UPDATED));
               setLocationSuccess(`Position enregistrée : ${cached.city}`);
@@ -131,9 +132,10 @@ export default function ProfileScreen() {
               if (data.city) {
                 console.log('[Geolocation] City found:', data.city);
                 setCity(data.city);
-                // Auto-save both display city and weather city
+                // Auto-save both display city, weather city, and coordinates
                 await setStoredCity(data.city);
                 await setStoredWeatherCity(data.weatherCity);
+                await setStoredCoordinates(latitude, longitude);
                 // Cache the location
                 await setCachedLocation(data.city, data.weatherCity, latitude, longitude);
                 console.log('[Profile] Dispatching CITY_UPDATED event');
@@ -200,6 +202,7 @@ export default function ProfileScreen() {
           setCity(cached.city);
           await setStoredCity(cached.city);
           await setStoredWeatherCity(cached.weatherCity);
+          await setStoredCoordinates(latitude, longitude);
           console.log('[Profile] Dispatching CITY_UPDATED event');
           AppEvents.dispatchEvent(new Event(EVENTS.CITY_UPDATED));
           setLocationSuccess(`Position enregistrée : ${cached.city}`);
@@ -219,6 +222,7 @@ export default function ProfileScreen() {
             setCity(data.city);
             await setStoredCity(data.city);
             await setStoredWeatherCity(data.weatherCity);
+            await setStoredCoordinates(latitude, longitude);
             await setCachedLocation(data.city, data.weatherCity, latitude, longitude);
             console.log('[Profile] Dispatching CITY_UPDATED event');
             AppEvents.dispatchEvent(new Event(EVENTS.CITY_UPDATED));

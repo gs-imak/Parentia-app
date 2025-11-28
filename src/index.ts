@@ -95,6 +95,8 @@ app.get('/citations', handleQuote);
 
 app.get('/weather', async (req, res) => {
   const city = (req.query.city as string | undefined)?.trim();
+  const lat = req.query.lat ? parseFloat(req.query.lat as string) : undefined;
+  const lon = req.query.lon ? parseFloat(req.query.lon as string) : undefined;
 
   if (!city) {
     return res.status(400).json({
@@ -104,7 +106,7 @@ app.get('/weather', async (req, res) => {
   }
 
   try {
-    const summary = await getWeatherForCity(city);
+    const summary = await getWeatherForCity(city, lat, lon);
     return res.json({ success: true, data: summary });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Erreur inconnue';

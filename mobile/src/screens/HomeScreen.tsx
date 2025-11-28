@@ -12,7 +12,7 @@ import {
   type Task,
   type NewsItem,
 } from '../api/client';
-import { getStoredCity, getStoredWeatherCity, getStoredQuote, setStoredQuote } from '../utils/storage';
+import { getStoredCity, getStoredWeatherCity, getStoredCoordinates, getStoredQuote, setStoredQuote } from '../utils/storage';
 import { AppEvents, EVENTS } from '../utils/events';
 
 export default function HomeScreen() {
@@ -92,22 +92,27 @@ export default function HomeScreen() {
       }
     }
 
-    // Use weatherCity (postcode) for API, display city for UI
-    const weatherCity = await getStoredWeatherCity();
+    // Get display city and coordinates for accurate weather
     const displayCity = await getStoredCity();
+    const coords = await getStoredCoordinates();
     
-    console.log('[Home] Stored cities - display:', displayCity, 'weather:', weatherCity);
+    console.log('[Home] Stored data - city:', displayCity, 'coords:', coords);
     
-    // Prefer weatherCity for API precision, fallback to displayCity
-    const cityForApi = weatherCity || displayCity;
-    
-    if (cityForApi && cityForApi.trim()) {
+    if (displayCity && displayCity.trim()) {
       try {
-        console.log('[Home] Fetching weather for:', cityForApi);
-        const w = await fetchWeather(cityForApi);
-        console.log('[Home] Weather response:', w);
-        setWeather(w);
-      } catch {
+        console.log('[Home] Fetching weather for:', displayCity, coords);
+        // Pass coordinates to avoid geocoding issues with postal codes
+        const url = coords 
+          ? `/weather?city=${encodeURIComponent(displayCity)}&lat=${coords.lat}&lon=${coords.lon}`
+          : `/weather?city=${encodeURIComponent(displayCity)}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Weather API error');
+        const json = await response.json();
+        if (!json.success) throw new Error(json.error);
+        setWeather(json.data);
+        console.log('[Home] Weather response:', json.data);
+      } catch (error) {
+        console.error('[Home] Weather error:', error);
         setWeatherError('Impossible de charger la météo pour le moment.');
       }
     } else {

@@ -3,6 +3,7 @@ import { Quote } from '../api/client';
 
 const STORAGE_KEY_CITY = 'parentia_profile_city';
 const STORAGE_KEY_WEATHER_CITY = 'parentia_weather_city';
+const STORAGE_KEY_COORDINATES = 'parentia_coordinates';
 const STORAGE_KEY_LOCATION_CACHE = 'parentia_location_cache';
 const STORAGE_KEY_QUOTE = 'parentia_daily_quote';
 const STORAGE_KEY_QUOTE_DATE = 'parentia_quote_date';
@@ -38,6 +39,23 @@ export async function getStoredWeatherCity(): Promise<string | null> {
 export async function setStoredWeatherCity(city: string): Promise<void> {
   try {
     await AsyncStorage.setItem(STORAGE_KEY_WEATHER_CITY, city);
+  } catch {
+    // ignore storage errors
+  }
+}
+
+export async function getStoredCoordinates(): Promise<{ lat: number; lon: number } | null> {
+  try {
+    const coords = await AsyncStorage.getItem(STORAGE_KEY_COORDINATES);
+    return coords ? JSON.parse(coords) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function setStoredCoordinates(lat: number, lon: number): Promise<void> {
+  try {
+    await AsyncStorage.setItem(STORAGE_KEY_COORDINATES, JSON.stringify({ lat, lon }));
   } catch {
     // ignore storage errors
   }
