@@ -287,14 +287,14 @@ app.delete('/profile/children/:id', async (req, res) => {
 
 app.put('/profile/spouse', async (req, res) => {
   try {
-    const { firstName } = req.body;
+    const { firstName, birthDate } = req.body;
     if (!firstName) {
       return res.status(400).json({
         success: false,
         error: 'Le champ firstName est requis.',
       });
     }
-    const profile = await updateSpouse({ firstName });
+    const profile = await updateSpouse({ firstName, birthDate });
     return res.json({ success: true, data: profile });
   } catch (error) {
     return res.status(500).json({
