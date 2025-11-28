@@ -233,7 +233,7 @@ export default function TasksScreen() {
                 <Text style={styles.dateButtonText}>
                   {deadline.toLocaleDateString('fr-FR', {
                     day: '2-digit',
-                    month: 'long',
+                    month: '2-digit',
                     year: 'numeric',
                     hour: '2-digit',
                     minute: '2-digit',
@@ -332,7 +332,7 @@ onChange={(event: any, selectedDate?: Date) => {
                     <Text style={[styles.taskDeadlineText, isOverdue && styles.overdueText]}>
                       {deadlineDate.toLocaleString('fr-FR', {
                         day: '2-digit',
-                        month: 'short',
+                        month: '2-digit',
                         year: 'numeric',
                         hour: '2-digit',
                         minute: '2-digit',

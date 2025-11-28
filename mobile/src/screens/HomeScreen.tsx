@@ -229,10 +229,11 @@ export default function HomeScreen() {
               {tasks.map((task) => {
                 const deadline = new Date(task.deadline);
                 const formattedDeadline = deadline.toLocaleString('fr-FR', {
-                  hour: '2-digit',
-                  minute: '2-digit',
                   day: '2-digit',
                   month: '2-digit',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
                 });
 
                 let statusColor = '#6E7A84';
@@ -293,7 +294,10 @@ export default function HomeScreen() {
             <View>
               {news.map((item, index) => {
                 const publishedDate = new Date(item.publishedAt);
-                const formattedDate = publishedDate.toLocaleDateString('fr-FR', {
+                const formattedDate = publishedDate.toLocaleString('fr-FR', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
                   hour: '2-digit',
                   minute: '2-digit',
                 });

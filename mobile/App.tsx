@@ -27,7 +27,7 @@ export default function App() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Parentia</Text>
+        <Text style={styles.headerTitle}>H&C Family</Text>
       </View>
       <View style={styles.content}>
         {renderScreen()}

@@ -96,8 +96,9 @@ function buildOutfitRecommendation(tempC: number, isRaining: boolean, isSnowing:
     parts.push('pantalon étanche + bottes + manteau imperméable');
   }
 
-  if (windSpeedKmh >= 30) {
-    parts.push('ajouter coupe-vent, bonnet léger ou tour de cou');
+  // Add scarf recommendation for cold weather
+  if (tempC < 10) {
+    parts.push('ajouter une écharpe');
   }
 
   return parts.join(' ; ');

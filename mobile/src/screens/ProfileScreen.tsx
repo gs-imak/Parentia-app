@@ -3,8 +3,17 @@ import { Alert, Platform, View, Text, TextInput, TouchableOpacity, ScrollView, K
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
 import { getStoredCity, setStoredCity, getStoredWeatherCity, setStoredWeatherCity, getStoredCoordinates, setStoredCoordinates, getCachedLocation, setCachedLocation } from '../utils/storage';
-import { reverseGeocode, geolocateByIP, getProfile, addChild, deleteChild, updateSpouse, deleteSpouse, updateMarriageDate, deleteMarriageDate, type Child, type Profile } from '../api/client';
+import { reverseGeocode, geolocateByIP, getProfile, addChild, updateChild, deleteChild, updateSpouse, deleteSpouse, updateMarriageDate, deleteMarriageDate, type Child, type Profile } from '../api/client';
 import { AppEvents, EVENTS } from '../utils/events';
+
+// Cross-platform confirm dialog
+const confirmDialog = (message: string): boolean => {
+  if (Platform.OS === 'web') {
+    return window.confirm(message);
+  }
+  // For native, we'll use Alert.alert with Promise (handled inline in handlers)
+  return false;
+};
 
 // Conditionally import DateTimePicker only for mobile
 let DateTimePicker: any = null;
@@ -41,6 +50,14 @@ export default function ProfileScreen() {
   const [showChildDatePicker, setShowChildDatePicker] = useState(false);
   const [addingChild, setAddingChild] = useState(false);
   const [expandedChildId, setExpandedChildId] = useState<string | null>(null);
+  const [editingChildId, setEditingChildId] = useState<string | null>(null);
+  const [editChildFirstName, setEditChildFirstName] = useState('');
+  const [editChildBirthDate, setEditChildBirthDate] = useState(new Date());
+  const [editChildHeight, setEditChildHeight] = useState('');
+  const [editChildWeight, setEditChildWeight] = useState('');
+  const [editChildNotes, setEditChildNotes] = useState('');
+  const [showEditChildDatePicker, setShowEditChildDatePicker] = useState(false);
+  const [updatingChild, setUpdatingChild] = useState(false);
   const [childFormError, setChildFormError] = useState<string | null>(null);
 
   // Spouse form state
@@ -48,11 +65,13 @@ export default function ProfileScreen() {
   const [spouseBirthDate, setSpouseBirthDate] = useState(new Date());
   const [showSpouseDatePicker, setShowSpouseDatePicker] = useState(false);
   const [savingSpouse, setSavingSpouse] = useState(false);
+  const [editingSpouse, setEditingSpouse] = useState(false);
 
   // Marriage date state
   const [marriageDate, setMarriageDate] = useState(new Date());
   const [showMarriageDatePicker, setShowMarriageDatePicker] = useState(false);
   const [savingMarriageDate, setSavingMarriageDate] = useState(false);
+  const [editingMarriageDate, setEditingMarriageDate] = useState(false);
 
   useEffect(() => {
     getStoredCity().then((storedCity) => {
@@ -314,28 +333,102 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleEditChild = (child: Child) => {
+    setEditingChildId(child.id);
+    setEditChildFirstName(child.firstName);
+    setEditChildBirthDate(new Date(child.birthDate));
+    setEditChildHeight(child.height?.toString() || '');
+    setEditChildWeight(child.weight?.toString() || '');
+    setEditChildNotes(child.notes || '');
+    setExpandedChildId(null); // Close expand view
+  };
+
+  const handleCancelEditChild = () => {
+    setEditingChildId(null);
+    setEditChildFirstName('');
+    setEditChildBirthDate(new Date());
+    setEditChildHeight('');
+    setEditChildWeight('');
+    setEditChildNotes('');
+    setChildFormError(null);
+  };
+
+  const handleUpdateChild = async (childId: string) => {
+    setChildFormError(null);
+    
+    // Validation
+    if (!editChildFirstName.trim()) {
+      setChildFormError('Le prénom de l\'enfant est requis.');
+      return;
+    }
+    
+    if (editChildHeight && (isNaN(parseFloat(editChildHeight)) || parseFloat(editChildHeight) <= 0)) {
+      setChildFormError('La taille doit être un nombre valide.');
+      return;
+    }
+    
+    if (editChildWeight && (isNaN(parseFloat(editChildWeight)) || parseFloat(editChildWeight) <= 0)) {
+      setChildFormError('Le poids doit être un nombre valide.');
+      return;
+    }
+
+    setUpdatingChild(true);
+    try {
+      const updates: any = {
+        firstName: editChildFirstName.trim(),
+        birthDate: editChildBirthDate.toISOString(),
+      };
+      if (editChildHeight) updates.height = parseFloat(editChildHeight);
+      if (editChildWeight) updates.weight = parseFloat(editChildWeight);
+      updates.notes = editChildNotes.trim() || undefined;
+      
+      await updateChild(childId, updates);
+      handleCancelEditChild();
+      await loadProfile();
+    } catch (error) {
+      setChildFormError('Impossible de mettre à jour l\'enfant. Veuillez réessayer.');
+    } finally {
+      setUpdatingChild(false);
+    }
+  };
+
   const handleDeleteChild = async (childId: string) => {
-    Alert.alert('Supprimer', 'Êtes-vous sûr de vouloir supprimer cet enfant ?', [
-      { text: 'Annuler', style: 'cancel' },
-      {
-        text: 'Supprimer',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteChild(childId);
-            await loadProfile();
-          } catch (error) {
-            Alert.alert('Erreur', 'Impossible de supprimer l\'enfant.');
-          }
+    if (Platform.OS === 'web') {
+      if (confirmDialog('Êtes-vous sûr de vouloir supprimer cet enfant ?')) {
+        try {
+          await deleteChild(childId);
+          await loadProfile();
+        } catch (error) {
+          alert('Impossible de supprimer l\'enfant.');
+        }
+      }
+    } else {
+      Alert.alert('Supprimer', 'Êtes-vous sûr de vouloir supprimer cet enfant ?', [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteChild(childId);
+              await loadProfile();
+            } catch (error) {
+              Alert.alert('Erreur', 'Impossible de supprimer l\'enfant.');
+            }
+          },
         },
-      },
-    ]);
+      ]);
+    }
   };
 
   // Spouse handlers
   const handleSaveSpouse = async () => {
     if (!spouseFirstName.trim()) {
-      Alert.alert('Erreur', 'Le prénom est requis.');
+      if (Platform.OS === 'web') {
+        alert('Le prénom est requis.');
+      } else {
+        Alert.alert('Erreur', 'Le prénom est requis.');
+      }
       return;
     }
 
@@ -344,32 +437,68 @@ export default function ProfileScreen() {
       const spouseData: any = { firstName: spouseFirstName.trim() };
       if (spouseBirthDate) spouseData.birthDate = spouseBirthDate.toISOString();
       await updateSpouse(spouseData);
+      setEditingSpouse(false);
       await loadProfile();
     } catch (error) {
-      Alert.alert('Erreur', 'Impossible de mettre à jour le conjoint.');
+      if (Platform.OS === 'web') {
+        alert('Impossible de mettre à jour le conjoint.');
+      } else {
+        Alert.alert('Erreur', 'Impossible de mettre à jour le conjoint.');
+      }
     } finally {
       setSavingSpouse(false);
     }
   };
 
+  const handleEditSpouse = () => {
+    if (profile.spouse) {
+      setEditingSpouse(true);
+      setSpouseFirstName(profile.spouse.firstName);
+      setSpouseBirthDate(profile.spouse.birthDate ? new Date(profile.spouse.birthDate) : new Date());
+    }
+  };
+
+  const handleCancelEditSpouse = () => {
+    setEditingSpouse(false);
+    if (profile.spouse) {
+      setSpouseFirstName(profile.spouse.firstName);
+      setSpouseBirthDate(profile.spouse.birthDate ? new Date(profile.spouse.birthDate) : new Date());
+    }
+  };
+
   const handleDeleteSpouse = async () => {
-    Alert.alert('Supprimer', 'Êtes-vous sûr de vouloir supprimer le conjoint ?', [
-      { text: 'Annuler', style: 'cancel' },
-      {
-        text: 'Supprimer',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteSpouse();
-            setSpouseFirstName('');
-            setSpouseBirthDate(new Date());
-            await loadProfile();
-          } catch (error) {
-            Alert.alert('Erreur', 'Impossible de supprimer le conjoint.');
-          }
+    if (Platform.OS === 'web') {
+      if (confirmDialog('Êtes-vous sûr de vouloir supprimer le conjoint ?')) {
+        try {
+          await deleteSpouse();
+          setSpouseFirstName('');
+          setSpouseBirthDate(new Date());
+          setEditingSpouse(false);
+          await loadProfile();
+        } catch (error) {
+          alert('Impossible de supprimer le conjoint.');
+        }
+      }
+    } else {
+      Alert.alert('Supprimer', 'Êtes-vous sûr de vouloir supprimer le conjoint ?', [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteSpouse();
+              setSpouseFirstName('');
+              setSpouseBirthDate(new Date());
+              setEditingSpouse(false);
+              await loadProfile();
+            } catch (error) {
+              Alert.alert('Erreur', 'Impossible de supprimer le conjoint.');
+            }
+          },
         },
-      },
-    ]);
+      ]);
+    }
   };
 
   // Marriage date handlers
@@ -377,31 +506,64 @@ export default function ProfileScreen() {
     setSavingMarriageDate(true);
     try {
       await updateMarriageDate(marriageDate.toISOString());
+      setEditingMarriageDate(false);
       await loadProfile();
     } catch (error) {
-      Alert.alert('Erreur', 'Impossible de mettre à jour la date de mariage.');
+      if (Platform.OS === 'web') {
+        alert('Impossible de mettre à jour la date de mariage.');
+      } else {
+        Alert.alert('Erreur', 'Impossible de mettre à jour la date de mariage.');
+      }
     } finally {
       setSavingMarriageDate(false);
     }
   };
 
+  const handleEditMarriageDate = () => {
+    if (profile.marriageDate) {
+      setEditingMarriageDate(true);
+      setMarriageDate(new Date(profile.marriageDate));
+    }
+  };
+
+  const handleCancelEditMarriageDate = () => {
+    setEditingMarriageDate(false);
+    if (profile.marriageDate) {
+      setMarriageDate(new Date(profile.marriageDate));
+    }
+  };
+
   const handleDeleteMarriageDate = async () => {
-    Alert.alert('Supprimer', 'Êtes-vous sûr de vouloir supprimer la date de mariage ?', [
-      { text: 'Annuler', style: 'cancel' },
-      {
-        text: 'Supprimer',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteMarriageDate();
-            setMarriageDate(new Date());
-            await loadProfile();
-          } catch (error) {
-            Alert.alert('Erreur', 'Impossible de supprimer la date de mariage.');
-          }
+    if (Platform.OS === 'web') {
+      if (confirmDialog('Êtes-vous sûr de vouloir supprimer la date de mariage ?')) {
+        try {
+          await deleteMarriageDate();
+          setMarriageDate(new Date());
+          setEditingMarriageDate(false);
+          await loadProfile();
+        } catch (error) {
+          alert('Impossible de supprimer la date de mariage.');
+        }
+      }
+    } else {
+      Alert.alert('Supprimer', 'Êtes-vous sûr de vouloir supprimer la date de mariage ?', [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteMarriageDate();
+              setMarriageDate(new Date());
+              setEditingMarriageDate(false);
+              await loadProfile();
+            } catch (error) {
+              Alert.alert('Erreur', 'Impossible de supprimer la date de mariage.');
+            }
+          },
         },
-      },
-    ]);
+      ]);
+    }
   };
 
   return (
@@ -498,6 +660,113 @@ export default function ProfileScreen() {
                 {profile.children.map((child) => {
                   const age = Math.floor((Date.now() - new Date(child.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
                   const isExpanded = expandedChildId === child.id;
+                  const isEditing = editingChildId === child.id;
+                  
+                  if (isEditing) {
+                    // Show edit form for this child
+                    return (
+                      <View key={child.id} style={styles.addChildForm}>
+                        <Text style={styles.formLabel}>Éditer {child.firstName}</Text>
+                        <TextInput
+                          style={styles.input}
+                          placeholder="Prénom *"
+                          value={editChildFirstName}
+                          onChangeText={setEditChildFirstName}
+                          placeholderTextColor="#9CA3AF"
+                        />
+                        {Platform.OS === 'web' ? (
+                          <TextInput
+                            style={styles.input}
+                            placeholder="AAAA-MM-JJ"
+                            value={editChildBirthDate.toISOString().split('T')[0]}
+                            onChangeText={(text) => {
+                              const d = new Date(text);
+                              if (!isNaN(d.getTime())) setEditChildBirthDate(d);
+                            }}
+                          />
+                        ) : (
+                          <>
+                            <TouchableOpacity
+                              style={styles.dateButton}
+                              onPress={() => setShowEditChildDatePicker(true)}
+                            >
+                              <Feather name="calendar" size={18} color="#2C3E50" />
+                              <Text style={styles.dateButtonText}>
+                                {editChildBirthDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                              </Text>
+                            </TouchableOpacity>
+                            {showEditChildDatePicker && DateTimePicker && (
+                              <DateTimePicker
+                                value={editChildBirthDate}
+                                mode="date"
+                                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                onChange={(event: any, selectedDate?: Date) => {
+                                  setShowEditChildDatePicker(Platform.OS === 'ios');
+                                  if (selectedDate) setEditChildBirthDate(selectedDate);
+                                }}
+                              />
+                            )}
+                          </>
+                        )}
+                        <View style={{ marginTop: 12 }}>
+                          <Text style={styles.optionalLabel}>Informations optionnelles</Text>
+                          <TextInput
+                            style={styles.input}
+                            placeholder="Taille (cm)"
+                            value={editChildHeight}
+                            onChangeText={setEditChildHeight}
+                            keyboardType="numeric"
+                            placeholderTextColor="#9CA3AF"
+                          />
+                          <TextInput
+                            style={[styles.input, { marginTop: 8 }]}
+                            placeholder="Poids (kg)"
+                            value={editChildWeight}
+                            onChangeText={setEditChildWeight}
+                            keyboardType="numeric"
+                            placeholderTextColor="#9CA3AF"
+                          />
+                          <TextInput
+                            style={[styles.input, styles.textArea, { marginTop: 8 }]}
+                            placeholder="Notes"
+                            value={editChildNotes}
+                            onChangeText={setEditChildNotes}
+                            multiline
+                            numberOfLines={3}
+                            placeholderTextColor="#9CA3AF"
+                          />
+                        </View>
+                        
+                        {childFormError && (
+                          <View style={styles.errorBox}>
+                            <Feather name="alert-circle" size={16} color="#DC2626" />
+                            <Text style={styles.errorText}>{childFormError}</Text>
+                          </View>
+                        )}
+                        
+                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                          <TouchableOpacity
+                            style={[styles.button, updatingChild && styles.buttonDisabled, { flex: 1 }]}
+                            onPress={() => handleUpdateChild(child.id)}
+                            disabled={updatingChild}
+                          >
+                            {updatingChild ? (
+                              <ActivityIndicator size="small" color="#FFFFFF" />
+                            ) : (
+                              <Text style={styles.buttonText}>Enregistrer</Text>
+                            )}
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.button, { flex: 1, backgroundColor: '#6E7A84' }]}
+                            onPress={handleCancelEditChild}
+                          >
+                            <Text style={styles.buttonText}>Annuler</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    );
+                  }
+                  
                   return (
                     <View key={child.id}>
                       <TouchableOpacity 
@@ -507,11 +776,14 @@ export default function ProfileScreen() {
                         <View style={styles.childInfo}>
                           <Text style={styles.childName}>{child.firstName}</Text>
                           <Text style={styles.childAge}>
-                            {age} ans · Né(e) le {new Date(child.birthDate).toLocaleDateString('fr-FR')}
+                            {age} ans · Né(e) le {new Date(child.birthDate).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                           </Text>
                         </View>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                           <Feather name={isExpanded ? 'chevron-up' : 'chevron-down'} size={18} color="#6E7A84" />
+                          <TouchableOpacity onPress={(e) => { e.stopPropagation(); handleEditChild(child); }}>
+                            <Feather name="edit-2" size={18} color="#3A82F7" />
+                          </TouchableOpacity>
                           <TouchableOpacity onPress={(e) => { e.stopPropagation(); handleDeleteChild(child.id); }}>
                             <Feather name="trash-2" size={18} color="#DC2626" />
                           </TouchableOpacity>
@@ -646,25 +918,30 @@ onChange={(event: any, selectedDate?: Date) => {
 
             {spouseExpanded && (
               <View>
-                {profile.spouse ? (
+                {profile.spouse && !editingSpouse ? (
                   <View>
                     <View style={styles.spouseInfo}>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.spouseName}>{profile.spouse.firstName}</Text>
                         {profile.spouse.birthDate && (
                           <Text style={styles.spouseBirthDate}>
-                            Né(e) le {new Date(profile.spouse.birthDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                            Né(e) le {new Date(profile.spouse.birthDate).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                           </Text>
                         )}
                       </View>
-                      <TouchableOpacity onPress={handleDeleteSpouse}>
-                        <Feather name="trash-2" size={18} color="#DC2626" />
-                      </TouchableOpacity>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                        <TouchableOpacity onPress={handleEditSpouse}>
+                          <Feather name="edit-2" size={18} color="#3A82F7" />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={handleDeleteSpouse}>
+                          <Feather name="trash-2" size={18} color="#DC2626" />
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </View>
                 ) : (
                   <View>
-                    <Text style={styles.formLabel}>Informations du conjoint</Text>
+                    <Text style={styles.formLabel}>{editingSpouse ? 'Éditer le conjoint' : 'Informations du conjoint'}</Text>
                     <TextInput
                       style={styles.input}
                       placeholder="Prénom *"
@@ -706,17 +983,39 @@ onChange={(event: any, selectedDate?: Date) => {
                         )}
                       </>
                     )}
-                    <TouchableOpacity
-                      style={[styles.button, savingSpouse && styles.buttonDisabled, { marginTop: 12 }]}
-                      onPress={handleSaveSpouse}
-                      disabled={savingSpouse}
-                    >
-                      {savingSpouse ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
-                      ) : (
-                        <Text style={styles.buttonText}>Enregistrer</Text>
-                      )}
-                    </TouchableOpacity>
+                    {editingSpouse ? (
+                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                        <TouchableOpacity
+                          style={[styles.button, savingSpouse && styles.buttonDisabled, { flex: 1 }]}
+                          onPress={handleSaveSpouse}
+                          disabled={savingSpouse}
+                        >
+                          {savingSpouse ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <Text style={styles.buttonText}>Enregistrer</Text>
+                          )}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.button, { flex: 1, backgroundColor: '#6E7A84' }]}
+                          onPress={handleCancelEditSpouse}
+                        >
+                          <Text style={styles.buttonText}>Annuler</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={[styles.button, savingSpouse && styles.buttonDisabled, { marginTop: 12 }]}
+                        onPress={handleSaveSpouse}
+                        disabled={savingSpouse}
+                      >
+                        {savingSpouse ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <Text style={styles.buttonText}>Enregistrer</Text>
+                        )}
+                      </TouchableOpacity>
+                    )}
                   </View>
                 )}
               </View>
@@ -735,14 +1034,19 @@ onChange={(event: any, selectedDate?: Date) => {
 
             {marriageExpanded && (
               <View>
-                {profile.marriageDate ? (
+                {profile.marriageDate && !editingMarriageDate ? (
                   <View style={styles.marriageInfo}>
                     <Text style={styles.marriageDate}>
-                      {new Date(profile.marriageDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                      {new Date(profile.marriageDate).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                     </Text>
-                    <TouchableOpacity onPress={handleDeleteMarriageDate}>
-                      <Feather name="trash-2" size={18} color="#DC2626" />
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <TouchableOpacity onPress={handleEditMarriageDate}>
+                        <Feather name="edit-2" size={18} color="#3A82F7" />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={handleDeleteMarriageDate}>
+                        <Feather name="trash-2" size={18} color="#DC2626" />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 ) : (
                   <View>
@@ -780,17 +1084,39 @@ onChange={(event: any, selectedDate?: Date) => {
                         )}
                       </>
                     )}
-                    <TouchableOpacity
-                      style={[styles.button, savingMarriageDate && styles.buttonDisabled]}
-                      onPress={handleSaveMarriageDate}
-                      disabled={savingMarriageDate}
-                    >
-                      {savingMarriageDate ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
-                      ) : (
-                        <Text style={styles.buttonText}>Enregistrer</Text>
-                      )}
-                    </TouchableOpacity>
+                    {editingMarriageDate ? (
+                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                        <TouchableOpacity
+                          style={[styles.button, savingMarriageDate && styles.buttonDisabled, { flex: 1 }]}
+                          onPress={handleSaveMarriageDate}
+                          disabled={savingMarriageDate}
+                        >
+                          {savingMarriageDate ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <Text style={styles.buttonText}>Enregistrer</Text>
+                          )}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.button, { flex: 1, backgroundColor: '#6E7A84' }]}
+                          onPress={handleCancelEditMarriageDate}
+                        >
+                          <Text style={styles.buttonText}>Annuler</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={[styles.button, savingMarriageDate && styles.buttonDisabled, { marginTop: 12 }]}
+                        onPress={handleSaveMarriageDate}
+                        disabled={savingMarriageDate}
+                      >
+                        {savingMarriageDate ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <Text style={styles.buttonText}>Enregistrer</Text>
+                        )}
+                      </TouchableOpacity>
+                    )}
                   </View>
                 )}
               </View>
