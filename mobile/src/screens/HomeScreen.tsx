@@ -259,42 +259,50 @@ export default function HomeScreen() {
                 }
 
                 return (
-                  <TouchableOpacity 
-                    key={task.id} 
-                    style={styles.taskRow}
-                    onPress={() => toggleTaskStatus(task.id)}
-                    onLongPress={() => {
-                      if (task.description) {
-                        setLongPressedTask(task);
-                        // Auto-hide after 3 seconds
-                        setTimeout(() => setLongPressedTask(null), 3000);
-                      }
-                    }}
-                    delayLongPress={500}
-                    activeOpacity={0.7}
-                  >
-                    <View
-                      style={[
-                        styles.taskCircle,
-                        { borderColor: statusColor, backgroundColor: isFilled ? statusColor : 'transparent' },
-                      ]}
+                  <View key={task.id}>
+                    <TouchableOpacity 
+                      style={styles.taskRow}
+                      onPress={() => toggleTaskStatus(task.id)}
+                      onLongPress={() => {
+                        if (task.description) {
+                          setLongPressedTask(longPressedTask?.id === task.id ? null : task);
+                          if (longPressedTask?.id !== task.id) {
+                            // Auto-hide after 3 seconds
+                            setTimeout(() => setLongPressedTask(null), 3000);
+                          }
+                        }
+                      }}
+                      delayLongPress={500}
+                      activeOpacity={0.7}
                     >
-                      {task.status === 'done' && (
-                        <Feather name="check" size={14} color="#FFFFFF" />
-                      )}
-                    </View>
-                    <View style={styles.taskContent}>
-                      <Text style={[styles.taskTitle, task.status === 'done' && styles.taskTitleDone]}>
-                        {task.title}
-                      </Text>
-                      <View style={styles.taskMeta}>
-                        <Text style={styles.taskDeadline}>{formattedDeadline}</Text>
-                        <View style={styles.taskBadge}>
-                          <Text style={styles.taskBadgeText}>{task.category}</Text>
+                      <View
+                        style={[
+                          styles.taskCircle,
+                          { borderColor: statusColor, backgroundColor: isFilled ? statusColor : 'transparent' },
+                        ]}
+                      >
+                        {task.status === 'done' && (
+                          <Feather name="check" size={14} color="#FFFFFF" />
+                        )}
+                      </View>
+                      <View style={styles.taskContent}>
+                        <Text style={[styles.taskTitle, task.status === 'done' && styles.taskTitleDone]}>
+                          {task.title}
+                        </Text>
+                        <View style={styles.taskMeta}>
+                          <Text style={styles.taskDeadline}>{formattedDeadline}</Text>
+                          <View style={styles.taskBadge}>
+                            <Text style={styles.taskBadgeText}>{task.category}</Text>
+                          </View>
                         </View>
                       </View>
-                    </View>
-                  </TouchableOpacity>
+                    </TouchableOpacity>
+                    {longPressedTask?.id === task.id && task.description && (
+                      <View style={styles.taskDescriptionBox}>
+                        <Text style={styles.taskDescriptionText}>{task.description}</Text>
+                      </View>
+                    )}
+                  </View>
                 );
               })}
             </View>
@@ -344,20 +352,6 @@ export default function HomeScreen() {
       </View>
       </ScrollView>
       
-      {/* Description Modal - shown on long press */}
-      {longPressedTask && longPressedTask.description && (
-        <TouchableOpacity 
-          style={styles.descriptionOverlay}
-          activeOpacity={1}
-          onPress={() => setLongPressedTask(null)}
-        >
-          <View style={styles.descriptionModal}>
-            <Text style={styles.descriptionTitle}>{longPressedTask.title}</Text>
-            <Text style={styles.descriptionText}>{longPressedTask.description}</Text>
-            <Text style={styles.descriptionHint}>Toucher pour fermer</Text>
-          </View>
-        </TouchableOpacity>
-      )}
     </View>
   );
 }
@@ -559,45 +553,19 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginRight: 6,
   },
-  descriptionOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+  taskDescriptionBox: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 8,
+    marginBottom: 4,
+    marginLeft: 32,
+    borderLeftWidth: 3,
+    borderLeftColor: '#3A82F7',
   },
-  descriptionModal: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 20,
-    maxWidth: 400,
-    width: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  descriptionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#2C3E50',
-    marginBottom: 12,
-  },
-  descriptionText: {
-    fontSize: 16,
+  taskDescriptionText: {
+    fontSize: 14,
     color: '#6E7A84',
-    lineHeight: 24,
-    marginBottom: 12,
-  },
-  descriptionHint: {
-    fontSize: 13,
-    color: '#9CA3AF',
-    fontStyle: 'italic',
-    textAlign: 'center',
+    lineHeight: 20,
   },
 });
