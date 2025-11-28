@@ -308,7 +308,7 @@ export default function HomeScreen() {
                       style={styles.newsButton}
                     >
                       <Text style={styles.newsButtonText}>Lire l'article</Text>
-                      <Feather name="external-link" size={16} color="#3A82F7" />
+                      <Feather name="external-link" size={16} color="#FFFFFF" />
                     </TouchableOpacity>
                   </View>
                 );
@@ -476,40 +476,46 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   newsItem: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E9EEF2',
   },
   newsTitle: {
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 17,
+    fontWeight: '600',
     color: '#2C3E50',
-    marginBottom: 6,
+    marginBottom: 8,
+    lineHeight: 24,
   },
   newsMeta: {
     fontSize: 13,
     color: '#6E7A84',
     fontWeight: '400',
-    marginBottom: 6,
+    marginBottom: 10,
   },
   newsSummary: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#6E7A84',
     fontWeight: '400',
-    marginBottom: 8,
+    marginBottom: 12,
+    lineHeight: 22,
   },
   newsButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#EBF5FF',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    backgroundColor: '#3A82F7',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: 8,
     alignSelf: 'flex-start',
-    marginTop: 4,
   },
   newsButtonText: {
     fontSize: 14,
-    color: '#3A82F7',
-    fontWeight: '500',
+    color: '#FFFFFF',
+    fontWeight: '600',
     marginRight: 6,
   },
 });
