@@ -80,7 +80,6 @@ export default function ProfileScreen() {
   const handleUseLocation = async () => {
     console.log('[Geolocation] Button clicked');
     setLoadingLocation(true);
-    setLocationPermissionAsked(true);
     setLocationSuccess(null);
     setLocationError(null);
 
@@ -148,56 +147,23 @@ export default function ProfileScreen() {
               }
             } catch (error) {
               console.error('[Geolocation] Reverse geocoding error:', error);
-              // Fallback to IP-based geolocation
-              try {
-                console.log('[Geolocation] Falling back to IP geolocation...');
-                const byIp = await geolocateByIP();
-                if (byIp.city) {
-                  setCity(byIp.city);
-                  await setStoredCity(byIp.city);
-                  await setStoredWeatherCity(byIp.weatherCity);
-                  if (byIp.coordinates) {
-                    await setCachedLocation(byIp.city, byIp.weatherCity, byIp.coordinates.lat, byIp.coordinates.lon);
-                  }
-                  setLocationSuccess(`Position (IP) enregistrée : ${byIp.city}`);
-                  setTimeout(() => setLocationSuccess(null), 4000);
-                } else {
-                  setLocationError('Impossible de déterminer votre ville.');
-                }
-              } catch {
-                setLocationError('Impossible de récupérer l\'adresse.');
-              }
+              setLocationError('Erreur lors de la récupération de l\'adresse. Vérifiez votre connexion.');
             }
             setLoadingLocation(false);
           },
           async (error) => {
             console.error('[Geolocation] Browser error:', error.code, error.message);
-            // Fallback to IP-based when denied/unavailable/timeout
-            try {
-              const byIp = await geolocateByIP();
-              if (byIp.city) {
-                setCity(byIp.city);
-                await setStoredCity(byIp.city);
-                await setStoredWeatherCity(byIp.weatherCity);
-                if (byIp.coordinates) {
-                  await setCachedLocation(byIp.city, byIp.weatherCity, byIp.coordinates.lat, byIp.coordinates.lon);
-                }
-                setLocationSuccess(`Position (IP) enregistrée : ${byIp.city}`);
-                setTimeout(() => setLocationSuccess(null), 4000);
-              } else {
-                setLocationError('Impossible de déterminer votre ville.');
-              }
-            } catch {
-              let message = 'Impossible d\'obtenir votre position.';
-              if (error.code === error.PERMISSION_DENIED) {
-                message = 'La géolocalisation a été refusée. Vous pouvez saisir votre ville manuellement.';
-              } else if (error.code === error.POSITION_UNAVAILABLE) {
-                message = 'Position non disponible. Vérifiez vos paramètres de localisation.';
-              } else if (error.code === error.TIMEOUT) {
-                message = 'La demande de localisation a expiré. Réessayez.';
-              }
-              setLocationError(message);
+            setLocationPermissionAsked(true);
+            
+            let message = 'Impossible d\'obtenir votre position.';
+            if (error.code === error.PERMISSION_DENIED) {
+              message = 'La géolocalisation a été refusée. Vous pouvez saisir votre ville manuellement.';
+            } else if (error.code === error.POSITION_UNAVAILABLE) {
+              message = 'Position non disponible. Vérifiez vos paramètres de localisation.';
+            } else if (error.code === error.TIMEOUT) {
+              message = 'La demande de localisation a expiré. Réessayez.';
             }
+            setLocationError(message);
             setLoadingLocation(false);
           },
           {
@@ -211,6 +177,7 @@ export default function ProfileScreen() {
         console.log('[Geolocation] Running on mobile platform');
         const { status } = await Location.requestForegroundPermissionsAsync();
         console.log('[Geolocation] Permission status:', status);
+        setLocationPermissionAsked(true);
 
         if (status !== 'granted') {
           console.error('[Geolocation] Permission denied');
@@ -220,7 +187,9 @@ export default function ProfileScreen() {
         }
 
         console.log('[Geolocation] Getting current position...');
-        const location = await Location.getCurrentPositionAsync({});
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
         const { latitude, longitude } = location.coords;
         console.log('[Geolocation] Position obtained:', latitude, longitude);
 

@@ -8,8 +8,8 @@ const STORAGE_KEY_QUOTE = 'parentia_daily_quote';
 const STORAGE_KEY_QUOTE_DATE = 'parentia_quote_date';
 const STORAGE_KEY_QUOTE_TYPE = 'parentia_quote_type';
 
-const LOCATION_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
-const LOCATION_PROXIMITY_THRESHOLD = 0.05; // ~5km radius
+const LOCATION_CACHE_DURATION = 6 * 60 * 60 * 1000; // 6 hours (refresh more frequently)
+const LOCATION_PROXIMITY_THRESHOLD = 0.01; // ~1km radius (much tighter for accuracy)
 
 export async function getStoredCity(): Promise<string | null> {
   try {
