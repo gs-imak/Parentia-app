@@ -61,6 +61,7 @@ export default function TasksScreen() {
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showEditCategoryPicker, setShowEditCategoryPicker] = useState(false);
   const [showEditStatusPicker, setShowEditStatusPicker] = useState(false);
+  const [showFilterPicker, setShowFilterPicker] = useState(false);
 
   const loadTasks = async () => {
     setLoading(true);
@@ -422,36 +423,93 @@ onChange={(event: any, selectedDate?: Date) => {
           <Text style={styles.cardTitle}>Toutes les tâches</Text>
         </View>
         
-        {/* Filter Buttons */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScrollView}>
-          <TouchableOpacity
-            style={[styles.filterButton, filter === 'all' && styles.filterButtonActive]}
-            onPress={() => setFilter('all')}
-          >
-            <Text style={[styles.filterButtonText, filter === 'all' && styles.filterButtonTextActive]}>
-              Toutes
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.filterButton, filter === 'today' && styles.filterButtonActive]}
-            onPress={() => setFilter('today')}
-          >
-            <Text style={[styles.filterButtonText, filter === 'today' && styles.filterButtonTextActive]}>
-              Aujourd'hui
-            </Text>
-          </TouchableOpacity>
-          {CATEGORIES.map((cat) => (
-            <TouchableOpacity
-              key={cat.value}
-              style={[styles.filterButton, filter === cat.value && styles.filterButtonActive]}
-              onPress={() => setFilter(cat.value)}
+        {/* Filter Dropdown */}
+        <View style={{ marginBottom: 16 }}>
+          <Text style={styles.label}>Filtrer par</Text>
+          {Platform.OS === 'web' ? (
+            <select
+              value={filter}
+              onChange={(e: any) => setFilter(e.target.value as FilterType)}
+              style={{
+                backgroundColor: '#F8F9FB',
+                borderWidth: 1,
+                borderColor: '#E9EEF2',
+                borderRadius: 12,
+                paddingLeft: 16,
+                paddingRight: 16,
+                paddingTop: 12,
+                paddingBottom: 12,
+                fontSize: 16,
+                color: '#2C3E50',
+                fontFamily: 'system-ui',
+                width: '100%',
+              }}
             >
-              <Text style={[styles.filterButtonText, filter === cat.value && styles.filterButtonTextActive]}>
-                {cat.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+              <option value="all">Toutes les tâches</option>
+              <option value="today">Tâches du jour</option>
+              {CATEGORIES.map((cat) => (
+                <option key={cat.value} value={cat.value}>
+                  {cat.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <View>
+              <TouchableOpacity
+                style={styles.dropdownButton}
+                onPress={() => setShowFilterPicker(!showFilterPicker)}
+              >
+                <Text style={styles.dropdownButtonText}>
+                  {filter === 'all' ? 'Toutes les tâches' : filter === 'today' ? 'Tâches du jour' : CATEGORIES.find(c => c.value === filter)?.label}
+                </Text>
+                <Feather name={showFilterPicker ? 'chevron-up' : 'chevron-down'} size={20} color="#2C3E50" />
+              </TouchableOpacity>
+              {showFilterPicker && (
+                <View style={styles.dropdownList}>
+                  <TouchableOpacity
+                    style={[styles.dropdownItem, filter === 'all' && styles.dropdownItemActive]}
+                    onPress={() => {
+                      setFilter('all');
+                      setShowFilterPicker(false);
+                    }}
+                  >
+                    <Text style={[styles.dropdownItemText, filter === 'all' && styles.dropdownItemTextActive]}>
+                      Toutes les tâches
+                    </Text>
+                    {filter === 'all' && <Feather name="check" size={18} color="#3A82F7" />}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.dropdownItem, filter === 'today' && styles.dropdownItemActive]}
+                    onPress={() => {
+                      setFilter('today');
+                      setShowFilterPicker(false);
+                    }}
+                  >
+                    <Text style={[styles.dropdownItemText, filter === 'today' && styles.dropdownItemTextActive]}>
+                      Tâches du jour
+                    </Text>
+                    {filter === 'today' && <Feather name="check" size={18} color="#3A82F7" />}
+                  </TouchableOpacity>
+                  {CATEGORIES.map((cat) => (
+                    <TouchableOpacity
+                      key={cat.value}
+                      style={[styles.dropdownItem, filter === cat.value && styles.dropdownItemActive]}
+                      onPress={() => {
+                        setFilter(cat.value);
+                        setShowFilterPicker(false);
+                      }}
+                    >
+                      <Text style={[styles.dropdownItemText, filter === cat.value && styles.dropdownItemTextActive]}>
+                        {cat.label}
+                      </Text>
+                      {filter === cat.value && <Feather name="check" size={18} color="#3A82F7" />}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+        </View>
 
         {loading ? (
           <ActivityIndicator size="large" color="#3A82F7" />

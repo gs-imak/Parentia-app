@@ -195,7 +195,11 @@ export default function HomeScreen() {
                   <Text style={styles.city}>{weather.city}</Text>
                 </View>
                 <Text style={styles.weatherEmoji}>
-                  {weather.isSnowing ? '❄️' : weather.isRaining ? '🌧️' : '☀️'}
+                  {weather.isSnowing ? '❄️' : weather.isRaining ? '🌧️' : (() => {
+                    const hour = new Date().getHours();
+                    const isNight = hour < 6 || hour >= 20;
+                    return isNight ? '🌙' : '☀️';
+                  })()}
                 </Text>
               </View>
               {weather.outfit && weather.outfit.trim() && (

@@ -102,27 +102,32 @@ export async function getTasksForToday(): Promise<Task[]> {
   const sevenDaysFromNow = new Date(today);
   sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
   
-  // Tasks due today
-  const todayTasks = tasks.filter(t => {
-    const deadline = new Date(t.deadline);
-    return deadline >= today && deadline < tomorrow && t.status !== 'done';
-  });
-  
-  // Sort with priority: recurring tasks (birthdays/anniversaries) within 7 days first,
-  // then regular tasks by deadline
-  const sorted = todayTasks.sort((a, b) => {
-    const aDeadline = new Date(a.deadline);
-    const bDeadline = new Date(b.deadline);
-    const aIsUpcomingBirthday = a.isRecurring && aDeadline <= sevenDaysFromNow;
-    const bIsUpcomingBirthday = b.isRecurring && bDeadline <= sevenDaysFromNow;
+  // Get tasks due today OR upcoming birthday/anniversary tasks within 7 days
+  const relevantTasks = tasks.filter(t => {
+    if (t.status === 'done') return false;
     
-    // If both are upcoming birthdays, or neither are, sort by deadline
-    if (aIsUpcomingBirthday === bIsUpcomingBirthday) {
-      return aDeadline.getTime() - bDeadline.getTime();
+    const deadline = new Date(t.deadline);
+    
+    // Include birthday/anniversary tasks if within 7 days (including today)
+    if (t.isRecurring) {
+      return deadline >= today && deadline <= sevenDaysFromNow;
     }
     
-    // Otherwise, upcoming birthdays come first
-    return aIsUpcomingBirthday ? -1 : 1;
+    // Include regular tasks only if due today
+    return deadline >= today && deadline < tomorrow;
+  });
+  
+  // Sort: birthday/anniversary tasks first (by deadline), then regular tasks (by deadline)
+  const sorted = relevantTasks.sort((a, b) => {
+    const aDeadline = new Date(a.deadline);
+    const bDeadline = new Date(b.deadline);
+    
+    // Birthday tasks always come first
+    if (a.isRecurring && !b.isRecurring) return -1;
+    if (!a.isRecurring && b.isRecurring) return 1;
+    
+    // Within same type, sort by deadline
+    return aDeadline.getTime() - bDeadline.getTime();
   });
   
   return sorted.slice(0, 3);

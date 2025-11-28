@@ -674,6 +674,7 @@ export default function ProfileScreen() {
                           onChangeText={setEditChildFirstName}
                           placeholderTextColor="#9CA3AF"
                         />
+                        <Text style={styles.formLabel}>Date de naissance *</Text>
                         {Platform.OS === 'web' ? (
                           <input
                             type="date"
@@ -835,7 +836,8 @@ export default function ProfileScreen() {
                       onChangeText={setChildFirstName}
                       placeholderTextColor="#9CA3AF"
                     />
-{Platform.OS === 'web' ? (
+                    <Text style={styles.formLabel}>Date de naissance *</Text>
+                    {Platform.OS === 'web' ? (
                       <input
                         type="date"
                         style={{

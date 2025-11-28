@@ -101,7 +101,7 @@ function buildOutfitRecommendation(tempC: number, isRaining: boolean, isSnowing:
     parts.push('écharpe');
   }
 
-  return parts.join(' ; ');
+  return parts.join(', ');
 }
 
 // Helper: Check if user has young children (<=15 years old) for outfit recommendations
