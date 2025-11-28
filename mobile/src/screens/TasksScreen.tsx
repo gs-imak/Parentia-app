@@ -10,6 +10,7 @@ import {
   Platform,
   Alert,
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { Feather } from '@expo/vector-icons';
 import { createTask, getAllTasks, deleteTask, type TaskCategory, type Task } from '../api/client';
 
@@ -172,27 +173,44 @@ export default function TasksScreen() {
 
         <View style={styles.formGroup}>
           <Text style={styles.label}>Catégorie *</Text>
-          <View style={styles.categoryGrid}>
-            {CATEGORIES.map((cat) => (
-              <TouchableOpacity
-                key={cat.value}
-                style={[
-                  styles.categoryButton,
-                  category === cat.value && styles.categoryButtonActive,
-                ]}
-                onPress={() => setCategory(cat.value)}
-              >
-                <Text
-                  style={[
-                    styles.categoryButtonText,
-                    category === cat.value && styles.categoryButtonTextActive,
-                  ]}
-                >
+          {Platform.OS === 'web' ? (
+            <select
+              value={category}
+              onChange={(e: any) => setCategory(e.target.value as TaskCategory)}
+              style={{
+                backgroundColor: '#F8F9FB',
+                borderWidth: 1,
+                borderColor: '#E9EEF2',
+                borderRadius: 12,
+                paddingLeft: 16,
+                paddingRight: 16,
+                paddingTop: 12,
+                paddingBottom: 12,
+                fontSize: 16,
+                color: '#2C3E50',
+                fontFamily: 'system-ui',
+                width: '100%',
+              }}
+            >
+              {CATEGORIES.map((cat) => (
+                <option key={cat.value} value={cat.value}>
                   {cat.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+                </option>
+              ))}
+            </select>
+          ) : (
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={category}
+                onValueChange={(value) => setCategory(value)}
+                style={styles.picker}
+              >
+                {CATEGORIES.map((cat) => (
+                  <Picker.Item key={cat.value} label={cat.label} value={cat.value} />
+                ))}
+              </Picker>
+            </View>
+          )}
         </View>
 
         <View style={styles.formGroup}>
@@ -451,31 +469,16 @@ const styles = StyleSheet.create({
     height: 90,
     textAlignVertical: 'top',
   },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  categoryButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1.5,
+  pickerContainer: {
+    backgroundColor: '#F8F9FB',
+    borderWidth: 1,
     borderColor: '#E9EEF2',
-    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    overflow: 'hidden',
   },
-  categoryButtonActive: {
-    backgroundColor: '#3A82F7',
-    borderColor: '#3A82F7',
-  },
-  categoryButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#6E7A84',
-  },
-  categoryButtonTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '600',
+  picker: {
+    backgroundColor: '#F8F9FB',
+    color: '#2C3E50',
   },
   dateButton: {
     flexDirection: 'row',

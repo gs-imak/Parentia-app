@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { RefreshControl, Linking, View, Text, ScrollView, ActivityIndicator, TouchableOpacity, StyleSheet } from 'react-native';
+import { RefreshControl, Linking, View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Modal, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import {
   fetchQuote,
@@ -71,6 +71,8 @@ export default function HomeScreen() {
 
   const [news, setNews] = useState<NewsItem[]>([]);
   const [newsError, setNewsError] = useState<string | null>(null);
+  
+  const [longPressedTask, setLongPressedTask] = useState<Task | null>(null);
 
   const loadData = async () => {
     setQuoteError(null);
@@ -256,6 +258,8 @@ export default function HomeScreen() {
                     key={task.id} 
                     style={styles.taskRow}
                     onPress={() => toggleTaskStatus(task.id)}
+                    onLongPress={() => task.description && setLongPressedTask(task)}
+                    onPressOut={() => setLongPressedTask(null)}
                     activeOpacity={0.7}
                   >
                     <View
@@ -327,6 +331,17 @@ export default function HomeScreen() {
           )}
         </View>
       </View>
+      
+      {/* Description Modal - shown on long press */}
+      {longPressedTask && longPressedTask.description && (
+        <View style={styles.descriptionOverlay}>
+          <View style={styles.descriptionModal}>
+            <Text style={styles.descriptionTitle}>{longPressedTask.title}</Text>
+            <Text style={styles.descriptionText}>{longPressedTask.description}</Text>
+            <Text style={styles.descriptionHint}>Relâchez pour fermer</Text>
+          </View>
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -527,5 +542,46 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '600',
     marginRight: 6,
+  },
+  descriptionOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  descriptionModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 20,
+    maxWidth: 400,
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  descriptionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2C3E50',
+    marginBottom: 12,
+  },
+  descriptionText: {
+    fontSize: 16,
+    color: '#6E7A84',
+    lineHeight: 24,
+    marginBottom: 12,
+  },
+  descriptionHint: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    fontStyle: 'italic',
+    textAlign: 'center',
   },
 });
