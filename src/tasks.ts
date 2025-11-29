@@ -101,24 +101,18 @@ export async function getTasksForToday(): Promise<Task[]> {
   const tasks = await readTasks();
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
   const sevenDaysFromNow = new Date(today);
   sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
   
-  // Get tasks due today OR upcoming birthday/anniversary tasks within 7 days
+  // Get upcoming tasks within the next 7 days (including today)
+  // Birthday/anniversary tasks get priority, regular tasks also included
   const relevantTasks = tasks.filter(t => {
     if (t.status === 'done') return false;
     
     const deadline = new Date(t.deadline);
     
-    // Include birthday/anniversary tasks if within 7 days (including today)
-    if (t.isRecurring) {
-      return deadline >= today && deadline <= sevenDaysFromNow;
-    }
-    
-    // Include regular tasks only if due today
-    return deadline >= today && deadline < tomorrow;
+    // Include all tasks (recurring or not) if within 7 days from today
+    return deadline >= today && deadline <= sevenDaysFromNow;
   });
   
   // Sort: birthday/anniversary tasks first (by deadline), then regular tasks (by deadline)
