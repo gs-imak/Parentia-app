@@ -91,7 +91,12 @@ export async function processIncomingEmail(
   let pdfText: string | null = null;
   let attachmentUrl: string | null = null;
   
+  console.log(`Email has ${email.attachments.length} attachment(s)`);
   if (email.attachments.length > 0) {
+    email.attachments.forEach((att, i) => {
+      console.log(`  Attachment ${i + 1}: ${att.filename} (${att.contentType}, ${att.content.length} bytes)`);
+    });
+    
     // Find first PDF attachment
     const pdfAttachment = email.attachments.find((a) =>
       isPdf(a.contentType, a.filename)
@@ -104,19 +109,32 @@ export async function processIncomingEmail(
       pdfText = await extractPdfText(pdfAttachment.content);
       if (pdfText) {
         console.log(`Extracted ${pdfText.length} chars from PDF`);
+      } else {
+        console.log(`PDF text extraction returned null`);
       }
       
       // Upload to Supabase (non-blocking - failure doesn't stop processing)
       if (isSupabaseConfigured()) {
-        attachmentUrl = await uploadAttachment(
-          pdfAttachment.content,
-          pdfAttachment.filename,
-          pdfAttachment.contentType
-        );
-        if (attachmentUrl) {
-          console.log(`Attachment uploaded: ${attachmentUrl}`);
+        console.log(`Uploading PDF to Supabase...`);
+        try {
+          attachmentUrl = await uploadAttachment(
+            pdfAttachment.content,
+            pdfAttachment.filename,
+            pdfAttachment.contentType
+          );
+          if (attachmentUrl) {
+            console.log(`Attachment uploaded: ${attachmentUrl}`);
+          } else {
+            console.log(`Upload returned null (check Supabase logs)`);
+          }
+        } catch (uploadErr) {
+          console.error(`Upload error:`, uploadErr);
         }
+      } else {
+        console.log(`Supabase not configured, skipping upload`);
       }
+    } else {
+      console.log(`No PDF found in attachments (checked contentType and filename)`);
     }
   }
   
