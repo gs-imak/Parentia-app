@@ -36,9 +36,9 @@ export async function uploadAttachment(
     const sanitizedFilename = filename.replace(/[^a-zA-Z0-9.-]/g, '_');
     const storagePath = `attachments/${timestamp}_${sanitizedFilename}`;
     
-    // Upload to 'email-attachments' bucket
+    // Upload to 'email-attachements' bucket
     const { data, error } = await supabase.storage
-      .from('email-attachments')
+      .from('email-attachements')
       .upload(storagePath, buffer, {
         contentType,
         upsert: false,
@@ -51,7 +51,7 @@ export async function uploadAttachment(
     
     // Get public URL
     const { data: urlData } = supabase.storage
-      .from('email-attachments')
+      .from('email-attachements')
       .getPublicUrl(storagePath);
     
     return urlData.publicUrl;
