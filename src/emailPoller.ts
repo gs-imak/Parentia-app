@@ -124,8 +124,8 @@ async function fetchUnreadEmails(): Promise<void> {
           
           console.log(`Found ${uids.length} unread email(s)`);
           
-          // Process each email
-          const fetch = imap.fetch(uids, { bodies: '', markSeen: true });
+          // Process each email (DON'T mark as seen yet - we'll do it after successful processing)
+          const fetch = imap.fetch(uids, { bodies: '', markSeen: false });
           
           fetch.on('message', (msg, seqno) => {
             let uid = 0;
@@ -153,11 +153,22 @@ async function fetchUnreadEmails(): Promise<void> {
                   
                   if (result.success) {
                     console.log(`✓ Email processed successfully: ${result.task?.title}`);
+                    
+                    // Mark as read ONLY after successful processing
+                    imap.setFlags([uid], ['\\Seen'], (flagErr) => {
+                      if (flagErr) {
+                        console.error(`Failed to mark email ${uid} as read:`, flagErr);
+                      } else {
+                        console.log(`Email ${uid} marked as read`);
+                      }
+                    });
                   } else {
                     console.log(`✗ Email processing failed: ${result.error}`);
+                    console.log(`Email ${uid} left unread for retry on next poll`);
                   }
                 } catch (parseErr) {
                   console.error('Error parsing email:', parseErr);
+                  console.log(`Email ${uid} left unread due to parsing error`);
                 }
               });
             });
