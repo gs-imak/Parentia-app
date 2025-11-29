@@ -40,6 +40,8 @@ export interface Task {
   createdAt: string;
   isRecurring?: boolean;
   recurringSource?: string;
+  source?: 'manual' | 'email' | 'profile';
+  emailId?: string;
 }
 
 export interface NewsItem {
@@ -188,4 +190,54 @@ export async function updateMarriageDate(date: string): Promise<Profile> {
 
 export async function deleteMarriageDate(): Promise<Profile> {
   return fetchApi<Profile>('/profile/marriage-date', { method: 'DELETE' });
+}
+
+// ============================================
+// Inbox Types & API (Milestone 3)
+// ============================================
+
+export interface InboxEntry {
+  id: string;
+  from: string;
+  subject: string;
+  receivedAt: string;
+  status: 'success' | 'error';
+  taskId?: string;
+  taskTitle?: string;
+  errorMessage?: string;
+  attachmentUrl?: string;
+  processedAt: string;
+}
+
+export interface Notification {
+  id: string;
+  type: 'email_task_created' | 'email_error';
+  message: string;
+  read: boolean;
+  createdAt: string;
+  metadata?: {
+    taskId?: string;
+    inboxId?: string;
+  };
+}
+
+// Inbox API
+export async function fetchInbox(): Promise<{ entries: InboxEntry[] }> {
+  return fetchApi<{ entries: InboxEntry[] }>('/inbox');
+}
+
+export async function fetchInboxEntry(id: string): Promise<InboxEntry> {
+  return fetchApi<InboxEntry>(`/inbox/${id}`);
+}
+
+// Notifications API
+export async function fetchNotifications(): Promise<{ 
+  notifications: Notification[]; 
+  unreadCount: number; 
+}> {
+  return fetchApi<{ notifications: Notification[]; unreadCount: number }>('/notifications');
+}
+
+export async function markNotificationAsRead(id: string): Promise<Notification> {
+  return fetchApi<Notification>(`/notifications/${id}/read`, { method: 'PATCH' });
 }

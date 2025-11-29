@@ -8,6 +8,9 @@ import { getWeatherForCity } from './weather.js';
 import { getTopNews } from './news.js';
 import { getTasksForToday, createTask, getTasks, updateTask, deleteTask } from './tasks.js';
 import { getProfile, addChild, updateChild, deleteChild, updateSpouse, deleteSpouse, updateMarriageDate, deleteMarriageDate } from './profile.js';
+import { getInboxEntries, getInboxEntryById } from './inbox.js';
+import { getNotifications, markNotificationRead, getUnreadCount } from './notifications.js';
+import { startEmailPoller, checkEmailsNow, getPollerStatus } from './emailPoller.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -423,6 +426,91 @@ app.get('/geocode/ip', async (req, res) => {
   }
 });
 
+// ============================================
+// Email Polling & Inbox Endpoints (Milestone 3)
+// ============================================
+
+// Get email poller status
+app.get('/email/status', (req, res) => {
+  const status = getPollerStatus();
+  return res.json({ success: true, data: status });
+});
+
+// Manually trigger email check (useful for testing)
+app.post('/email/check', async (req, res) => {
+  console.log('Manual email check triggered');
+  const result = await checkEmailsNow();
+  return res.json({ success: result.success, error: result.error });
+});
+
+// Get all inbox entries
+app.get('/inbox', async (req, res) => {
+  try {
+    const entries = await getInboxEntries();
+    return res.json({ success: true, data: { entries } });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'Impossible de récupérer la boîte de réception.',
+    });
+  }
+});
+
+// Get single inbox entry
+app.get('/inbox/:id', async (req, res) => {
+  try {
+    const entry = await getInboxEntryById(req.params.id);
+    if (!entry) {
+      return res.status(404).json({
+        success: false,
+        error: 'Entrée introuvable.',
+      });
+    }
+    return res.json({ success: true, data: entry });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'Impossible de récupérer l\'entrée.',
+    });
+  }
+});
+
+// Get all notifications
+app.get('/notifications', async (req, res) => {
+  try {
+    const notifications = await getNotifications();
+    const unreadCount = await getUnreadCount();
+    return res.json({ 
+      success: true, 
+      data: { notifications, unreadCount } 
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'Impossible de récupérer les notifications.',
+    });
+  }
+});
+
+// Mark notification as read
+app.patch('/notifications/:id/read', async (req, res) => {
+  try {
+    const notification = await markNotificationRead(req.params.id);
+    if (!notification) {
+      return res.status(404).json({
+        success: false,
+        error: 'Notification introuvable.',
+      });
+    }
+    return res.json({ success: true, data: notification });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'Impossible de mettre à jour la notification.',
+    });
+  }
+});
+
 // Fallback route for client-side routing
 app.get('*', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
@@ -446,4 +534,7 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   console.log(`Mode: ${process.env.OPENAI_API_KEY ? 'REAL AI' : 'MOCK'}`);
+  
+  // Start email polling service
+  startEmailPoller();
 });
