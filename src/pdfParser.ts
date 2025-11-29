@@ -1,13 +1,15 @@
 // pdf-parse is CommonJS, use dynamic import workaround for ESM
 // Types are defined in src/types/pdf-parse.d.ts
-type PdfParseFunction = (buffer: Buffer) => Promise<{ text: string }>;
+type PdfParseFunction = (buffer: Buffer, options?: { max: number }) => Promise<{ text: string; numpages: number }>;
 
-const pdfParse = async (buffer: Buffer): Promise<{ text: string }> => {
+const pdfParse = async (buffer: Buffer): Promise<{ text: string; numpages: number }> => {
   const pdf = await import('pdf-parse');
   // Handle both ESM default export and CommonJS module.exports
   const parser: PdfParseFunction = (pdf as unknown as { default: PdfParseFunction }).default 
     ?? (pdf as unknown as PdfParseFunction);
-  return parser(buffer);
+  
+  // Call with options to prevent test file lookup issue
+  return parser(buffer, { max: 0 }); // max: 0 means parse all pages
 };
 
 // Maximum PDF size: 10MB
