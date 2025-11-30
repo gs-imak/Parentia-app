@@ -2,75 +2,65 @@
 
 ## Vue d'ensemble
 
-Cette fonctionnalité permet de créer automatiquement des tâches à partir d'emails reçus sur une adresse Gmail dédiée. Le système :
+Cette fonctionnalité permet de créer automatiquement des tâches à partir d'emails reçus sur le domaine `hcfamily.app`. Le système :
 
-1. Vérifie la boîte Gmail toutes les 5 minutes (IMAP polling)
+1. Reçoit les emails via SendGrid Inbound Parse (webhook instantané)
 2. Extrait le contenu (sujet, corps, pièces jointes PDF)
 3. Analyse avec l'IA pour extraire les informations structurées
 4. Crée automatiquement une tâche
 5. Notifie l'utilisateur
 6. Affiche l'email traité dans l'Inbox
-7. Marque l'email comme lu dans Gmail
 
 ---
 
-## Configuration Gmail IMAP
+## Configuration SendGrid Inbound Parse
 
-### 1. Prérequis
+### 1. Prérequis (déjà configurés)
 
-- Un compte Gmail dédié (ex: `parentia.inbox@gmail.com`)
-- Activer IMAP dans Gmail
-- Créer un mot de passe d'application
+- ✅ Domaine `hcfamily.app` vérifié dans SendGrid (CNAME + DKIM)
+- ✅ Enregistrement MX pointant vers `mx.sendgrid.net`
+- ✅ Inbound Parse configuré avec webhook URL
 
-### 2. Activer IMAP dans Gmail
+### 2. Configuration actuelle
 
-1. Ouvrir Gmail
-2. Cliquer sur l'engrenage → **Voir tous les paramètres**
-3. Onglet **Transfert et POP/IMAP**
-4. Section IMAP : cocher **Activer IMAP**
-5. Cliquer **Enregistrer les modifications**
+| Paramètre | Valeur |
+|-----------|--------|
+| Domaine | `hcfamily.app` |
+| MX Record | `mx.sendgrid.net` (priorité 10) |
+| Webhook URL | `https://parentia-app-production.up.railway.app/email/inbound` |
+| Send Raw | ON (pour les pièces jointes) |
 
-### 3. Créer un mot de passe d'application
-
-1. Aller sur https://myaccount.google.com/apppasswords
-2. Se connecter avec le compte Gmail
-3. Nom de l'application : `Parentia`
-4. Cliquer **Créer**
-5. **Copier le mot de passe généré** (16 caractères sans espaces)
-
-> **Note** : Si vous ne voyez pas l'option "Mots de passe d'application", vous devez d'abord activer la validation en 2 étapes.
-
-### 4. Variables d'environnement (Railway)
+### 3. Variables d'environnement (Railway)
 
 ```bash
-# Gmail IMAP (obligatoire)
-IMAP_USER=parentia.inbox@gmail.com
-IMAP_PASSWORD=xxxx xxxx xxxx xxxx    # Mot de passe d'application
-
-# Configuration optionnelle
-IMAP_HOST=imap.gmail.com             # Par défaut
-IMAP_PORT=993                         # Par défaut
-EMAIL_POLL_INTERVAL=300000           # 5 minutes en ms (par défaut)
-
 # OpenAI (pour l'analyse IA)
 OPENAI_API_KEY=sk-xxxxx
 
 # Supabase (pour les pièces jointes)
 SUPABASE_URL=https://xxx.supabase.co
 SUPABASE_ANON_KEY=eyJxxx...
+
+# IMAP (optionnel - fallback si SendGrid indisponible)
+# IMAP_USER=
+# IMAP_PASSWORD=
 ```
 
-### 5. Format d'adresse email
+### 4. Format d'adresse email
 
-Utilisez directement l'adresse Gmail configurée :
+Adresse de base :
 ```
-parentia.inbox@gmail.com
+inbox@hcfamily.app
 ```
 
-Ou avec un alias (+) pour catégoriser :
+Adresse avec identifiant utilisateur (pour multi-utilisateurs) :
 ```
-parentia.inbox+factures@gmail.com
-parentia.inbox+ecole@gmail.com
+user+{userId}@hcfamily.app
+```
+
+Exemples :
+```
+user+abc123@hcfamily.app
+user+famille-dupont@hcfamily.app
 ```
 
 ---

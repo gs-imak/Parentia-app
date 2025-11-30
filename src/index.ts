@@ -11,6 +11,7 @@ import { getProfile, addChild, updateChild, deleteChild, updateSpouse, deleteSpo
 import { getInboxEntries, getInboxEntryById } from './inbox.js';
 import { getNotifications, markNotificationRead, getUnreadCount } from './notifications.js';
 import { startEmailPoller, checkEmailsNow, getPollerStatus } from './emailPoller.js';
+import { processSendGridInbound, extractEmailFromMultipart } from './sendgridInbound.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -429,6 +430,47 @@ app.get('/geocode/ip', async (req, res) => {
 // ============================================
 // Email Polling & Inbox Endpoints (Milestone 3)
 // ============================================
+
+// SendGrid Inbound Parse webhook
+// Receives raw MIME email when someone sends to *@hcfamily.app
+app.post('/email/inbound', express.raw({ type: '*/*', limit: '25mb' }), async (req, res) => {
+  console.log('[Webhook] POST /email/inbound received');
+  console.log('[Webhook] Content-Type:', req.headers['content-type']);
+  console.log('[Webhook] Body length:', req.body?.length || 0);
+  
+  try {
+    const contentType = req.headers['content-type'] || '';
+    let rawEmail: string | null = null;
+    
+    if (contentType.includes('multipart/form-data')) {
+      // SendGrid sends multipart form data with "email" field containing raw MIME
+      rawEmail = extractEmailFromMultipart(req.body, contentType);
+    } else {
+      // Fallback: treat entire body as raw email
+      rawEmail = req.body.toString('utf-8');
+    }
+    
+    if (!rawEmail) {
+      console.error('[Webhook] Could not extract email from request');
+      // Return 200 to prevent SendGrid from retrying
+      return res.status(200).json({ success: false, error: 'Could not extract email' });
+    }
+    
+    console.log('[Webhook] Extracted email, length:', rawEmail.length);
+    
+    // Process the email
+    const result = await processSendGridInbound(rawEmail);
+    
+    // Always return 200 to SendGrid to acknowledge receipt
+    // (even on processing errors, we don't want retries for bad emails)
+    return res.status(200).json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[Webhook] Error:', message);
+    // Return 200 to prevent infinite retries
+    return res.status(200).json({ success: false, error: message });
+  }
+});
 
 // Get email poller status
 app.get('/email/status', (req, res) => {
