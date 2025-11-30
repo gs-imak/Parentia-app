@@ -472,10 +472,30 @@ app.post('/email/inbound', express.raw({ type: '*/*', limit: '25mb' }), async (r
   }
 });
 
-// Get email poller status
+// Get email service status
 app.get('/email/status', (req, res) => {
-  const status = getPollerStatus();
-  return res.json({ success: true, data: status });
+  const imapStatus = getPollerStatus();
+  const imapEnabled = process.env.ENABLE_IMAP_POLLER === 'true';
+  
+  return res.json({ 
+    success: true, 
+    data: {
+      // Primary: SendGrid Inbound Parse
+      sendgrid: {
+        enabled: true,
+        domain: 'hcfamily.app',
+        webhook: '/email/inbound',
+      },
+      // Fallback: IMAP polling (disabled by default)
+      imap: {
+        enabled: imapEnabled,
+        running: imapEnabled && imapStatus.running,
+        configured: imapStatus.configured,
+        user: imapStatus.user,
+        host: imapStatus.host,
+      },
+    }
+  });
 });
 
 // Manually trigger email check (useful for testing)
@@ -576,7 +596,12 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   console.log(`Mode: ${process.env.OPENAI_API_KEY ? 'REAL AI' : 'MOCK'}`);
+  console.log(`Email: SendGrid Inbound Parse webhook at /email/inbound`);
   
-  // Start email polling service
-  startEmailPoller();
+  // IMAP polling disabled - now using SendGrid Inbound Parse webhooks
+  // The poller can still be started manually via environment variable if needed as fallback
+  if (process.env.ENABLE_IMAP_POLLER === 'true') {
+    console.log('IMAP poller enabled via ENABLE_IMAP_POLLER=true');
+    startEmailPoller();
+  }
 });
