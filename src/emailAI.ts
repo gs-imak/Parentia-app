@@ -8,6 +8,7 @@ const VALID_CATEGORIES: TaskCategory[] = [
   'enfants-école',
   'santé',
   'finances',
+  'logement',
   'personnel'
 ];
 
@@ -55,22 +56,54 @@ Règles importantes:
    - Sinon de l'email (date mentionnée dans le sujet ou le corps)
    - Si aucune date trouvée: utilise la date du jour + 7 jours
 2. Si la date trouvée est dans le passé, utilise la date du jour + 7 jours
-3. La CATÉGORIE doit être une de: administratif, enfants-école, santé, finances, personnel
+3. La CATÉGORIE doit être une de: administratif, enfants-école, santé, finances, logement, personnel
 4. Le TITRE doit être court et actionnable (max 60 caractères)
 5. La DESCRIPTION doit résumer l'action à faire
 
-Types d'emails courants:
-- École: convocations, réunions parents, sorties scolaires → catégorie "enfants-école"
-- Factures: EDF, eau, téléphone, internet → catégorie "finances"
-- Impôts: avis, déclarations, échéances → catégorie "finances"
-- Santé: rendez-vous, vaccins, ordonnances → catégorie "santé"
-- Administratif: CAF, CPAM, mairie, préfecture → catégorie "administratif"
-- Autre: si incertain → catégorie "administratif"
+Règles de CATÉGORISATION (très important):
+
+1. FINANCES (documents financiers purs):
+   - Impôts (avis d'imposition, déclarations, échéances fiscales)
+   - Banque (relevés, opérations bancaires, virements)
+   - Revenus (fiches de paie, attestations)
+   - Placements, assurance vie, épargne
+   - Prêts, crédits, remboursements bancaires
+
+2. LOGEMENT (vie quotidienne du foyer):
+   - Factures énergie: EDF, Engie, gaz, électricité
+   - Factures eau
+   - Internet, téléphone fixe, box
+   - Assurance habitation
+   - Assurance auto
+   - Courses, abonnements du foyer (Netflix, Spotify, etc.)
+   - Entretien maison, travaux
+   - Loyer, charges de copropriété
+
+3. SANTÉ:
+   - Rendez-vous médicaux
+   - Mutuelle, assurance santé
+   - Ordonnances, remboursements CPAM
+   - Vaccins, examens médicaux
+
+4. ENFANTS-ÉCOLE:
+   - École: convocations, réunions parents, bulletins
+   - Cantine, garderie, périscolaire
+   - Activités extra-scolaires
+   - Factures liées aux enfants
+
+5. ADMINISTRATIF:
+   - CAF, CPAM (hors remboursements santé)
+   - Mairie, préfecture
+   - Documents officiels
+
+6. PERSONNEL:
+   - Tâches personnelles diverses
+   - Informations générales non catégorisables
 
 Réponds UNIQUEMENT avec un JSON valide (pas de texte avant ou après):
 {
   "title": "string (max 60 chars, actionnable)",
-  "category": "administratif|enfants-école|santé|finances|personnel",
+  "category": "administratif|enfants-école|santé|finances|logement|personnel",
   "deadline": "YYYY-MM-DDTHH:mm:ss.sssZ (ISO format)",
   "description": "string (résumé de l'action)",
   "priority": "high|medium|low",

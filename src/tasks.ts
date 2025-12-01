@@ -8,7 +8,7 @@ const __dirname = path.dirname(__filename);
 
 const TASKS_FILE = path.join(__dirname, '..', 'data', 'tasks.json');
 
-export type TaskCategory = 'administratif' | 'enfants-école' | 'santé' | 'finances' | 'personnel';
+export type TaskCategory = 'administratif' | 'enfants-école' | 'santé' | 'finances' | 'logement' | 'personnel';
 export type TaskStatus = 'todo' | 'in_progress' | 'done';
 
 export interface Task {
@@ -28,7 +28,7 @@ export interface Task {
 const TaskSchema = z.object({
   id: z.string(),
   title: z.string().min(1),
-  category: z.enum(['administratif', 'enfants-école', 'santé', 'finances', 'personnel']),
+  category: z.enum(['administratif', 'enfants-école', 'santé', 'finances', 'logement', 'personnel']),
   deadline: z.string(),
   description: z.string().optional(),
   status: z.enum(['todo', 'in_progress', 'done']),

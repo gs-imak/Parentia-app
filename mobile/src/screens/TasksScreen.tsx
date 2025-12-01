@@ -24,6 +24,7 @@ const CATEGORIES: { value: TaskCategory; label: string }[] = [
   { value: 'enfants-école', label: 'Enfants & École' },
   { value: 'santé', label: 'Santé' },
   { value: 'finances', label: 'Finances' },
+  { value: 'logement', label: 'Logement' },
   { value: 'personnel', label: 'Personnel' },
 ];
 

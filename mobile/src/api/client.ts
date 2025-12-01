@@ -27,7 +27,7 @@ export interface WeatherSummary {
   outfit: string;
 }
 
-export type TaskCategory = 'administratif' | 'enfants-école' | 'santé' | 'finances' | 'personnel';
+export type TaskCategory = 'administratif' | 'enfants-école' | 'santé' | 'finances' | 'logement' | 'personnel';
 export type TaskStatus = 'todo' | 'in_progress' | 'done';
 
 export interface Task {
