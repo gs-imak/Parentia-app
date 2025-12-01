@@ -1,4 +1,11 @@
 import { getProfile } from './profile.js';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const QUOTE_STATE_FILE = path.join(__dirname, '..', 'data', 'quote-state.json');
 
 export type QuoteType = 'morning' | 'evening';
 export type QuoteCategory = 'parent' | 'adult' | 'special';
@@ -126,8 +133,26 @@ export const EVENING_QUOTES: string[] = [
   'Demain ne demande rien pour l’instant. Ce soir, repose ton cœur.',
 ];
 
-let lastMorningIndex: number | null = null;
-let lastEveningIndex: number | null = null;
+// Persisted state for quote indices
+interface QuoteState {
+  lastMorningIndex: number | null;
+  lastEveningIndex: number | null;
+  lastMorningDate: string | null;
+  lastEveningDate: string | null;
+}
+
+async function readQuoteState(): Promise<QuoteState> {
+  try {
+    const content = await fs.readFile(QUOTE_STATE_FILE, 'utf-8');
+    return JSON.parse(content) as QuoteState;
+  } catch {
+    return { lastMorningIndex: null, lastEveningIndex: null, lastMorningDate: null, lastEveningDate: null };
+  }
+}
+
+async function writeQuoteState(state: QuoteState): Promise<void> {
+  await fs.writeFile(QUOTE_STATE_FILE, JSON.stringify(state, null, 2), 'utf-8');
+}
 
 export interface QuoteResult {
   type: QuoteType;
@@ -185,7 +210,17 @@ export async function getRandomQuote(now: Date = new Date()): Promise<QuoteResul
       : ADULT_EVENING_QUOTES; // Adult only
   }
   
-  const lastIndex = type === 'morning' ? lastMorningIndex : lastEveningIndex;
+  // Read persisted state
+  const state = await readQuoteState();
+  const todayStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
+  
+  // Determine last index based on type and date
+  let lastIndex: number | null = null;
+  if (type === 'morning' && state.lastMorningDate === todayStr) {
+    lastIndex = state.lastMorningIndex;
+  } else if (type === 'evening' && state.lastEveningDate === todayStr) {
+    lastIndex = state.lastEveningIndex;
+  }
 
   if (pool.length === 0) {
     throw new Error('Aucune citation définie');
@@ -196,11 +231,15 @@ export async function getRandomQuote(now: Date = new Date()): Promise<QuoteResul
     index = (index + 1) % pool.length;
   }
 
+  // Persist the new state
   if (type === 'morning') {
-    lastMorningIndex = index;
+    state.lastMorningIndex = index;
+    state.lastMorningDate = todayStr;
   } else {
-    lastEveningIndex = index;
+    state.lastEveningIndex = index;
+    state.lastEveningDate = todayStr;
   }
+  await writeQuoteState(state);
 
   return { type, text: pool[index] };
 }

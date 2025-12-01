@@ -78,22 +78,32 @@ async function fetchCurrentWeather(lat: number, lon: number) {
 function buildOutfitRecommendation(tempC: number, isRaining: boolean, isSnowing: boolean, windSpeedKmh: number): string {
   const parts: string[] = [];
 
+  // Base outfit based on temperature
   if (tempC < 5) {
     parts.push('manteau épais, bonnet, gants');
   } else if (tempC >= 5 && tempC < 12) {
     parts.push('manteau chaud + pull');
-  } else if (tempC >= 12 && tempC < 18) {
+  } else if (tempC >= 12 && tempC < 15) {
     parts.push('manteau léger + pull');
+  } else if (tempC >= 15 && tempC < 18) {
+    parts.push('pull + veste légère');
   } else if (tempC >= 18 && tempC < 22) {
     parts.push('t-shirt + petite veste');
   } else {
     parts.push('t-shirt léger');
   }
 
+  // Rain/snow gear - avoid duplicate coat recommendations
   if (isSnowing) {
     parts.push('combinaison + bottes neige + gants imperméables');
   } else if (isRaining) {
-    parts.push('pantalon étanche + bottes + manteau imperméable');
+    if (tempC < 15) {
+      // Cold + rain: already have warm coat, just add waterproof pants/boots
+      parts.push('pantalon étanche + bottes de pluie');
+    } else {
+      // Warm + rain: need raincoat (no warm coat recommended)
+      parts.push('imperméable + pantalon étanche + bottes de pluie');
+    }
   }
 
   // Add scarf recommendation for cold weather

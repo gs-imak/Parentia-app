@@ -107,3 +107,16 @@ export async function getInboxStats(): Promise<{
     error: entries.filter(e => e.status === 'error').length,
   };
 }
+
+/**
+ * Delete inbox entries associated with a task ID
+ */
+export async function deleteInboxEntriesByTaskId(taskId: string): Promise<number> {
+  const entries = await readInbox();
+  const filtered = entries.filter(e => e.taskId !== taskId);
+  const deleted = entries.length - filtered.length;
+  if (deleted > 0) {
+    await writeInbox(filtered);
+  }
+  return deleted;
+}

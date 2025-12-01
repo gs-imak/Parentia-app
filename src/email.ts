@@ -159,6 +159,23 @@ export async function processIncomingEmail(
     console.log(`AI analysis complete: ${aiOutput.title} (${aiOutput.category})`);
   }
   
+  // Step 6b: Check if AI flagged this as a newsletter/promo to skip
+  if (aiOutput.skip) {
+    console.log('Email flagged as newsletter/promo - skipping task creation');
+    const entry = await createInboxEntry({
+      from: aiOutput.originalSender || email.from,
+      subject: email.subject || 'Sans sujet',
+      receivedAt: email.receivedAt,
+      status: 'success',
+      taskTitle: '(Newsletter/Promo - ignoré)',
+      attachmentUrl: attachmentUrl || undefined,
+    });
+    return { success: true, inboxEntry: entry };
+  }
+  
+  // Use original sender if AI detected a forwarded email
+  const effectiveSender = aiOutput.originalSender || email.from;
+  
   // Step 7: Create task
   let task: Task;
   try {
@@ -187,7 +204,7 @@ export async function processIncomingEmail(
   
   // Step 8: Create inbox entry (success)
   const inboxEntry = await createInboxEntry({
-    from: email.from,
+    from: effectiveSender,
     subject: email.subject || 'Sans sujet',
     receivedAt: email.receivedAt,
     status: 'success',

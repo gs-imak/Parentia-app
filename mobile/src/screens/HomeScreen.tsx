@@ -242,8 +242,8 @@ export default function HomeScreen() {
               {tasks.map((task) => {
                 const deadline = new Date(task.deadline);
                 const formattedDeadline = deadline.toLocaleString('fr-FR', {
-                  day: '2-digit',
-                  month: '2-digit',
+                  day: 'numeric',
+                  month: 'long',
                   year: 'numeric',
                   hour: '2-digit',
                   minute: '2-digit',
@@ -260,19 +260,37 @@ export default function HomeScreen() {
 
                 return (
                   <View key={task.id}>
+                    {/* Description box ABOVE the task (shown on long press) */}
+                    {longPressedTask?.id === task.id && task.description && (
+                      <TouchableOpacity 
+                        style={styles.taskDescriptionBox}
+                        onPress={() => setLongPressedTask(null)}
+                        activeOpacity={0.9}
+                      >
+                        <Text style={styles.taskDescriptionText}>{task.description}</Text>
+                        <Text style={styles.taskDescriptionHint}>Appuyez pour fermer</Text>
+                      </TouchableOpacity>
+                    )}
                     <TouchableOpacity 
                       style={styles.taskRow}
-                      onPress={() => toggleTaskStatus(task.id)}
+                      onPress={() => {
+                        // If description is showing, tap anywhere to dismiss
+                        if (longPressedTask?.id === task.id) {
+                          setLongPressedTask(null);
+                        } else {
+                          toggleTaskStatus(task.id);
+                        }
+                      }}
                       onLongPress={() => {
                         if (task.description) {
                           setLongPressedTask(longPressedTask?.id === task.id ? null : task);
+                          // Auto-hide after 5 seconds (longer timeout)
                           if (longPressedTask?.id !== task.id) {
-                            // Auto-hide after 1.5 seconds for snappier feel
-                            setTimeout(() => setLongPressedTask(null), 1500);
+                            setTimeout(() => setLongPressedTask(null), 5000);
                           }
                         }
                       }}
-                      delayLongPress={500}
+                      delayLongPress={400}
                       activeOpacity={0.7}
                     >
                       <View
@@ -297,11 +315,6 @@ export default function HomeScreen() {
                         </View>
                       </View>
                     </TouchableOpacity>
-                    {longPressedTask?.id === task.id && task.description && (
-                      <View style={styles.taskDescriptionBox}>
-                        <Text style={styles.taskDescriptionText}>{task.description}</Text>
-                      </View>
-                    )}
                   </View>
                 );
               })}
@@ -324,8 +337,8 @@ export default function HomeScreen() {
               {news.map((item, index) => {
                 const publishedDate = new Date(item.publishedAt);
                 const formattedDate = publishedDate.toLocaleString('fr-FR', {
-                  day: '2-digit',
-                  month: '2-digit',
+                  day: 'numeric',
+                  month: 'long',
                   year: 'numeric',
                   hour: '2-digit',
                   minute: '2-digit',
@@ -338,10 +351,10 @@ export default function HomeScreen() {
                     <Text style={styles.newsSummary}>{item.summary || 'Résumé non disponible.'}</Text>
                     <TouchableOpacity
                       onPress={() => Linking.openURL(item.link).catch(() => {})}
-                      style={styles.newsButton}
+                      style={styles.newsLink}
                     >
-                      <Text style={styles.newsButtonText}>Lire l'article</Text>
-                      <Feather name="external-link" size={16} color="#FFFFFF" />
+                      <Text style={styles.newsLinkText}>Lire l'article</Text>
+                      <Feather name="external-link" size={12} color="#6E7A84" />
                     </TouchableOpacity>
                   </View>
                 );
@@ -538,28 +551,24 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     lineHeight: 22,
   },
-  newsButton: {
+  newsLink: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#3A82F7',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
     alignSelf: 'flex-start',
+    paddingVertical: 4,
   },
-  newsButtonText: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    fontWeight: '600',
-    marginRight: 6,
+  newsLinkText: {
+    fontSize: 13,
+    color: '#6E7A84',
+    fontWeight: '400',
+    marginRight: 4,
+    textDecorationLine: 'underline',
   },
   taskDescriptionBox: {
     backgroundColor: '#F9FAFB',
     borderRadius: 8,
     padding: 12,
-    marginTop: 8,
-    marginBottom: 4,
-    marginLeft: 32,
+    marginBottom: 8,
     borderLeftWidth: 3,
     borderLeftColor: '#3A82F7',
   },
@@ -567,5 +576,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6E7A84',
     lineHeight: 20,
+  },
+  taskDescriptionHint: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginTop: 6,
+    fontStyle: 'italic',
   },
 });

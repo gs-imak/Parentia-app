@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Platform,
   Alert,
+  Modal,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { createTask, getAllTasks, deleteTask, updateTask, type TaskCategory, type Task } from '../api/client';
@@ -63,6 +64,9 @@ export default function TasksScreen() {
   const [showEditCategoryPicker, setShowEditCategoryPicker] = useState(false);
   const [showEditStatusPicker, setShowEditStatusPicker] = useState(false);
   const [showFilterPicker, setShowFilterPicker] = useState(false);
+  
+  // Delete confirmation state (for web)
+  const [deleteConfirmTaskId, setDeleteConfirmTaskId] = useState<string | null>(null);
 
   const loadTasks = async () => {
     setLoading(true);
@@ -123,14 +127,9 @@ export default function TasksScreen() {
   };
 
   const handleDelete = async (taskId: string) => {
-    // On web, skip confirmation and delete directly (or implement custom modal later)
+    // On web, show confirmation dialog
     if (Platform.OS === 'web') {
-      try {
-        await deleteTask(taskId);
-        await loadTasks();
-      } catch (error) {
-        setFormError('Impossible de supprimer la tâche.');
-      }
+      setDeleteConfirmTaskId(taskId);
       return;
     }
     
@@ -150,6 +149,20 @@ export default function TasksScreen() {
         },
       },
     ]);
+  };
+  
+  const confirmDeleteTask = async () => {
+    if (!deleteConfirmTaskId) return;
+    try {
+      await deleteTask(deleteConfirmTaskId);
+      await loadTasks();
+      setSuccessMessage('Tâche supprimée avec succès.');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (error) {
+      setFormError('Impossible de supprimer la tâche.');
+    } finally {
+      setDeleteConfirmTaskId(null);
+    }
   };
   
   const handleEditTask = (task: Task) => {
@@ -368,8 +381,8 @@ export default function TasksScreen() {
                 <Feather name="calendar" size={18} color="#2C3E50" />
                 <Text style={styles.dateButtonText}>
                   {deadline.toLocaleDateString('fr-FR', {
-                    day: '2-digit',
-                    month: '2-digit',
+                    day: 'numeric',
+                    month: 'long',
                     year: 'numeric',
                     hour: '2-digit',
                     minute: '2-digit',
@@ -642,8 +655,8 @@ onChange={(event: any, selectedDate?: Date) => {
                             >
                               <Text style={{ color: '#2C3E50' }}>
                                 {editDeadline.toLocaleDateString('fr-FR', {
-                                  day: '2-digit',
-                                  month: '2-digit',
+                                  day: 'numeric',
+                                  month: 'long',
                                   year: 'numeric',
                                   hour: '2-digit',
                                   minute: '2-digit',
@@ -823,8 +836,8 @@ onChange={(event: any, selectedDate?: Date) => {
                         <Feather name="clock" size={14} color={isOverdue ? '#DC2626' : '#6E7A84'} />
                         <Text style={[styles.taskDeadlineText, isOverdue && styles.overdueText]}>
                           {deadlineDate.toLocaleString('fr-FR', {
-                            day: '2-digit',
-                            month: '2-digit',
+                            day: 'numeric',
+                            month: 'long',
                             year: 'numeric',
                             hour: '2-digit',
                             minute: '2-digit',
@@ -844,6 +857,39 @@ onChange={(event: any, selectedDate?: Date) => {
         )}
       </View>
     </ScrollView>
+    
+    {/* Delete Confirmation Modal (Web) */}
+    {Platform.OS === 'web' && deleteConfirmTaskId && (
+      <Modal
+        transparent={true}
+        visible={true}
+        onRequestClose={() => setDeleteConfirmTaskId(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Feather name="alert-triangle" size={32} color="#DC2626" style={{ marginBottom: 12 }} />
+            <Text style={styles.modalTitle}>Supprimer cette tâche ?</Text>
+            <Text style={styles.modalText}>
+              Cette action supprimera également l'entrée associée dans la boîte de réception.
+            </Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => setDeleteConfirmTaskId(null)}
+              >
+                <Text style={styles.modalButtonCancelText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonDelete]}
+                onPress={confirmDeleteTask}
+              >
+                <Text style={styles.modalButtonDeleteText}>Supprimer</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    )}
   );
 }
 
@@ -1125,5 +1171,60 @@ const styles = StyleSheet.create({
   dropdownItemTextActive: {
     color: '#3A82F7',
     fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '90%',
+    maxWidth: 400,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2C3E50',
+    marginBottom: 8,
+  },
+  modalText: {
+    fontSize: 14,
+    color: '#6E7A84',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalButtonCancel: {
+    backgroundColor: '#F5F7FA',
+    borderWidth: 1,
+    borderColor: '#E9EEF2',
+  },
+  modalButtonCancelText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6E7A84',
+  },
+  modalButtonDelete: {
+    backgroundColor: '#DC2626',
+  },
+  modalButtonDeleteText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });

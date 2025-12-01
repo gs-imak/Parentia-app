@@ -26,6 +26,8 @@ export interface EmailAIOutput {
   deadline: string; // ISO date
   description: string;
   priority: 'high' | 'medium' | 'low';
+  skip?: boolean; // true if email is newsletter/promo with no action required
+  originalSender?: string; // original sender if forwarded email
   metadata: {
     emailType: string;
     confidence: number;
@@ -51,64 +53,87 @@ ${input.body}${pdfSection}
 --- FIN DE L'EMAIL ---
 
 Règles importantes:
-1. La DATE LIMITE (deadline) doit être extraite en priorité:
-   - Du PDF si présent (date d'échéance, date limite de paiement, date de convocation)
+
+1. EMAILS TRANSFÉRÉS (Fwd: / Tr:):
+   - Si le sujet commence par "Fwd:", "Tr:", "TR:" ou "FW:", c'est un email transféré
+   - Cherche l'expéditeur ORIGINAL dans le corps ("De:", "From:", "Expéditeur:")
+   - Utilise cet expéditeur original, pas celui qui a transféré
+
+2. DATE LIMITE (deadline):
+   - Extraire en priorité du PDF (date d'échéance, date limite de paiement, date de convocation)
    - Sinon de l'email (date mentionnée dans le sujet ou le corps)
-   - Si aucune date trouvée: utilise la date du jour + 7 jours
-2. Si la date trouvée est dans le passé, utilise la date du jour + 7 jours
-3. La CATÉGORIE doit être une de: administratif, enfants-école, santé, finances, logement, personnel
-4. Le TITRE doit être court et actionnable (max 60 caractères)
-5. La DESCRIPTION doit résumer l'action à faire
+   - IMPORTANT: Si une date explicite est trouvée (ex: "échéance 15 novembre 2025"), GARDE CETTE DATE même si elle est dans le passé
+   - Si aucune date explicite trouvée: utilise la date du jour + 7 jours
 
-Règles de CATÉGORISATION (très important):
+3. DESCRIPTION:
+   - Résume l'action à faire
+   - IMPORTANT: Inclure la date trouvée dans la description (ex: "Échéance au 15 novembre 2025")
+   - Mentionner le montant si applicable
 
-1. FINANCES (documents financiers purs):
+4. PRÉLÈVEMENT AUTOMATIQUE / Auto-paiement:
+   - Si l'email mentionne "prélèvement automatique", "prélevé automatiquement", "sera débité", "auto-débit"
+   - Le titre doit être INFORMATIF (ex: "Prélèvement Orange - 25,99€"), PAS une action (ne pas mettre "Payer")
+   - La priorité doit être "low" (juste pour information)
+
+5. NEWSLETTERS et EMAILS PROMOTIONNELS:
+   - Si l'email est une newsletter, promotion, publicité, ou information générale sans action requise
+   - Retourne "skip": true dans le JSON au lieu de créer une tâche
+   - Exemples: newsletters d'actualité, offres commerciales, confirmations d'abonnement sans action
+
+6. CATÉGORIE (doit être une de: administratif, enfants-école, santé, finances, logement, personnel):
+
+   FINANCES (documents financiers purs):
    - Impôts (avis d'imposition, déclarations, échéances fiscales)
    - Banque (relevés, opérations bancaires, virements)
    - Revenus (fiches de paie, attestations)
    - Placements, assurance vie, épargne
    - Prêts, crédits, remboursements bancaires
 
-2. LOGEMENT (vie quotidienne du foyer):
+   LOGEMENT (vie quotidienne du foyer):
    - Factures énergie: EDF, Engie, gaz, électricité
    - Factures eau
-   - Internet, téléphone fixe, box
-   - Assurance habitation
-   - Assurance auto
-   - Courses, abonnements du foyer (Netflix, Spotify, etc.)
+   - Internet, téléphone fixe, box, mobile (Orange, SFR, Free, Bouygues)
+   - Assurance habitation, assurance auto
+   - Abonnements du foyer (Netflix, Spotify, etc.)
    - Entretien maison, travaux
    - Loyer, charges de copropriété
+   - Garde-meuble, self-stockage (Selfbox, Homebox, etc.)
+   - Déménagement, stockage
 
-3. SANTÉ:
+   SANTÉ:
    - Rendez-vous médicaux
    - Mutuelle, assurance santé
    - Ordonnances, remboursements CPAM
    - Vaccins, examens médicaux
 
-4. ENFANTS-ÉCOLE:
+   ENFANTS-ÉCOLE:
    - École: convocations, réunions parents, bulletins
    - Cantine, garderie, périscolaire
    - Activités extra-scolaires
    - Factures liées aux enfants
 
-5. ADMINISTRATIF:
+   ADMINISTRATIF:
    - CAF, CPAM (hors remboursements santé)
    - Mairie, préfecture
    - Documents officiels
 
-6. PERSONNEL:
+   PERSONNEL:
    - Tâches personnelles diverses
    - Informations générales non catégorisables
 
+7. TITRE: court et actionnable (max 60 caractères)
+
 Réponds UNIQUEMENT avec un JSON valide (pas de texte avant ou après):
 {
+  "skip": boolean (true si newsletter/promo sans action, sinon false ou omis),
   "title": "string (max 60 chars, actionnable)",
   "category": "administratif|enfants-école|santé|finances|logement|personnel",
   "deadline": "YYYY-MM-DDTHH:mm:ss.sssZ (ISO format)",
-  "description": "string (résumé de l'action)",
+  "description": "string (résumé de l'action + date trouvée si applicable)",
   "priority": "high|medium|low",
+  "originalSender": "string (expéditeur original si email transféré, sinon omis)",
   "metadata": {
-    "emailType": "string (ex: facture, convocation, rdv, impôts)",
+    "emailType": "string (ex: facture, convocation, rdv, impôts, newsletter, promo)",
     "confidence": number (0-1, confiance dans l'analyse)
   }
 }`;
@@ -189,6 +214,9 @@ export function normalizeAIOutput(raw: unknown): EmailAIOutput | null {
 
   const obj = raw as Record<string, unknown>;
 
+  // Check if AI flagged this as a newsletter/promo to skip
+  const skip = obj.skip === true;
+
   // Validate and normalize category
   let category: TaskCategory = 'administratif';
   if (typeof obj.category === 'string' && VALID_CATEGORIES.includes(obj.category as TaskCategory)) {
@@ -196,15 +224,16 @@ export function normalizeAIOutput(raw: unknown): EmailAIOutput | null {
   }
 
   // Validate and normalize deadline
+  // IMPORTANT: Keep explicit past dates (AI is instructed to preserve them)
   let deadline: string;
   try {
     if (typeof obj.deadline === 'string') {
       const parsed = new Date(obj.deadline);
-      const now = new Date();
-      if (isNaN(parsed.getTime()) || parsed < now) {
-        // Invalid or past date: use J+7
+      if (isNaN(parsed.getTime())) {
+        // Invalid date: use J+7
         deadline = getDefaultDeadline();
       } else {
+        // Keep the date as-is (even if in past)
         deadline = parsed.toISOString();
       }
     } else {
@@ -225,12 +254,17 @@ export function normalizeAIOutput(raw: unknown): EmailAIOutput | null {
     ? obj.metadata as Record<string, unknown>
     : {};
 
+  // Extract original sender if present (for forwarded emails)
+  const originalSender = typeof obj.originalSender === 'string' ? obj.originalSender : undefined;
+
   return {
     title: String(obj.title || 'Tâche à vérifier').slice(0, 100),
     category,
     deadline,
     description: String(obj.description || ''),
     priority,
+    skip,
+    originalSender,
     metadata: {
       emailType: String(metadataObj.emailType || 'unknown'),
       confidence: typeof metadataObj.confidence === 'number' 

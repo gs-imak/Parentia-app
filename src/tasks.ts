@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+import { deleteInboxEntriesByTaskId } from './inbox.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -94,6 +95,18 @@ export async function deleteTask(id: string): Promise<boolean> {
   if (filtered.length === tasks.length) return false; // Task not found
   
   await writeTasks(filtered);
+  
+  // Cascade: delete associated inbox entries
+  try {
+    const deletedInbox = await deleteInboxEntriesByTaskId(id);
+    if (deletedInbox > 0) {
+      console.log(`Deleted ${deletedInbox} inbox entry/entries for task ${id}`);
+    }
+  } catch (error) {
+    console.error('Failed to delete inbox entries:', error);
+    // Non-blocking: task already deleted
+  }
+  
   return true;
 }
 
@@ -148,11 +161,15 @@ export function getNextOccurrence(dateString: string): Date {
   const now = new Date();
   const year = now.getFullYear();
   
-  // Create date for this year with same month/day
-  const nextDate = new Date(year, date.getMonth(), date.getDate());
+  // Create date for this year with same month/day at start of day
+  const nextDate = new Date(year, date.getMonth(), date.getDate(), 0, 0, 0, 0);
   
-  // If already passed this year, use next year
-  if (nextDate < now) {
+  // Create today's date at start of day for comparison (date only, ignore time)
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  
+  // If the date has already PASSED this year (strictly before today), use next year
+  // This ensures same-day birthdays appear TODAY, not next year
+  if (nextDate < today) {
     nextDate.setFullYear(year + 1);
   }
   
