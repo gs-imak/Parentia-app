@@ -184,6 +184,7 @@ export default function InboxScreen() {
         title: taskTitle.trim(),
         category: taskCategory,
         deadline: taskDeadline.toISOString(),
+        description: `Créé manuellement depuis l'email: ${selectedEntry?.subject || 'Sans sujet'}`,
       });
       setShowModal(false);
       Alert.alert('Succès', 'Tâche créée avec succès');
@@ -643,6 +644,17 @@ const styles = StyleSheet.create({
     borderColor: '#E9EEF2',
     borderRadius: 8,
     marginBottom: 12,
+    backgroundColor: '#FFFFFF',
+    position: 'absolute',
+    top: 60,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
   categoryOption: {
     padding: 12,
@@ -664,6 +676,7 @@ const styles = StyleSheet.create({
   },
   modalButtonDelete: {
     backgroundColor: '#F5F5F5',
+    marginTop: 0,
   },
   modalButtonDisabled: {
     opacity: 0.5,
@@ -681,7 +694,8 @@ const styles = StyleSheet.create({
   modalDivider: {
     height: 1,
     backgroundColor: '#E9EEF2',
-    marginVertical: 16,
+    marginTop: 24,
+    marginBottom: 16,
   },
   sectionLabel: {
     fontSize: 14,

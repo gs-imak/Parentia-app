@@ -62,15 +62,20 @@ Règles importantes:
 2. FICHIERS PDF JOINTS:
    - Si un PDF est joint, son contenu sera fourni dans la section "CONTENU DU PDF JOINT"
    - Analyser le PDF pour détecter: factures, relevés, convocations, documents officiels
-   - Si le PDF contient une FACTURE (mots-clés: "Facture", "Invoice", "Montant à payer", "Total TTC", "Date limite de paiement"):
-     * IMPORTANT: Extraire le MONTANT exact du PDF (chercher: "Total TTC", "Montant à payer", "Total à régler", chiffres suivis de "€" ou "EUR")
-     * IMPORTANT: Extraire la DATE LIMITE du PDF (chercher: "Date limite", "Échéance", "Date de paiement", "Paiement avant le", formats: JJ/MM/AAAA, DD-MM-YYYY)
+   - Si le PDF contient une FACTURE (mots-clés: "Facture", "Invoice", "Montant à payer", "Total TTC", "Date limite de paiement", "MONTANT À RÉGLER"):
+     * IMPORTANT: Extraire le MONTANT exact du PDF:
+       - Chercher: "Total TTC", "Montant à payer", "Total à régler", "MONTANT À RÉGLER", "TOTAL HT"
+       - Formats montants: "99,99€", "99.99€", "99,99 €", "99.99 €", "99.00 EUR" (AVEC ou SANS espace avant devise)
+       - Extraire le nombre même s'il y a un espace: "98.00 €" = 98.00€
+     * IMPORTANT: Extraire la DATE LIMITE du PDF:
+       - Chercher: "Date limite", "Échéance", "Date de paiement", "Paiement avant le", "Date 23/11/2025"
+       - Formats: JJ/MM/AAAA, DD-MM-YYYY, "le JJ/MM/AAAA"
      * Créer une tâche de paiement avec le montant ET l'échéance extraits
-     * Titre: "Payer facture [fournisseur] - [montant]€" (ex: "Payer facture Selfbox - 29,99€")
+     * Titre: "Payer facture [fournisseur] - [montant]€" (ex: "Payer facture Selfbox - 98,00€")
      * Description: Inclure le montant exact ET la date limite trouvée dans le PDF
    - Si le PDF contient des chiffres mais PAS assez de contexte:
-     * Chercher TOUS les montants (chiffres avec "," ou "." suivis de "€")
-     * Utiliser le montant le plus élevé ou celui mentionné près de "Total" / "Montant"
+     * Chercher TOUS les montants (chiffres avec "," ou "." suivis optionnellement d'un espace puis "€" ou "EUR")
+     * Utiliser le montant le plus élevé ou celui mentionné près de "Total" / "Montant" / "TTC" / "RÉGLER"
 
 3. DATE LIMITE (deadline):
    - Extraire en priorité du PDF (date d'échéance, date limite de paiement, date de convocation)
