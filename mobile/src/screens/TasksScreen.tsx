@@ -237,7 +237,8 @@ export default function TasksScreen() {
   const filteredTasks = getFilteredTasks();
 
   return (
-    <ScrollView ref={scrollViewRef} style={styles.container}>
+    <View style={{ flex: 1 }}>
+      <ScrollView ref={scrollViewRef} style={styles.container}>
       {/* Success Message */}
       {successMessage && (
         <View style={styles.successBanner}>
@@ -856,40 +857,41 @@ onChange={(event: any, selectedDate?: Date) => {
           </View>
         )}
       </View>
-    </ScrollView>
-    
-    {/* Delete Confirmation Modal (Web) */}
-    {Platform.OS === 'web' && deleteConfirmTaskId && (
-      <Modal
-        transparent={true}
-        visible={true}
-        onRequestClose={() => setDeleteConfirmTaskId(null)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Feather name="alert-triangle" size={32} color="#DC2626" style={{ marginBottom: 12 }} />
-            <Text style={styles.modalTitle}>Supprimer cette tâche ?</Text>
-            <Text style={styles.modalText}>
-              Cette action supprimera également l'entrée associée dans la boîte de réception.
-            </Text>
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonCancel]}
-                onPress={() => setDeleteConfirmTaskId(null)}
-              >
-                <Text style={styles.modalButtonCancelText}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonDelete]}
-                onPress={confirmDeleteTask}
-              >
-                <Text style={styles.modalButtonDeleteText}>Supprimer</Text>
-              </TouchableOpacity>
+      </ScrollView>
+      
+      {/* Delete Confirmation Modal (Web) */}
+      {Platform.OS === 'web' && deleteConfirmTaskId && (
+        <Modal
+          transparent={true}
+          visible={true}
+          onRequestClose={() => setDeleteConfirmTaskId(null)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Feather name="alert-triangle" size={32} color="#DC2626" style={{ marginBottom: 12 }} />
+              <Text style={styles.modalTitle}>Supprimer cette tâche ?</Text>
+              <Text style={styles.modalText}>
+                Cette action supprimera également l'entrée associée dans la boîte de réception.
+              </Text>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonCancel]}
+                  onPress={() => setDeleteConfirmTaskId(null)}
+                >
+                  <Text style={styles.modalButtonCancelText}>Annuler</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonDelete]}
+                  onPress={confirmDeleteTask}
+                >
+                  <Text style={styles.modalButtonDeleteText}>Supprimer</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
-      </Modal>
-    )}
+        </Modal>
+      )}
+    </View>
   );
 }
 
