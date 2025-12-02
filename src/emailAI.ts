@@ -59,28 +59,37 @@ Règles importantes:
    - Cherche l'expéditeur ORIGINAL dans le corps ("De:", "From:", "Expéditeur:")
    - Utilise cet expéditeur original, pas celui qui a transféré
 
-2. DATE LIMITE (deadline):
+2. FICHIERS PDF JOINTS:
+   - Si un PDF est joint, son contenu sera fourni dans la section "CONTENU DU PDF JOINT"
+   - Analyser le PDF pour détecter: factures, relevés, convocations, documents officiels
+   - Si le PDF contient une FACTURE (mots-clés: "Facture", "Invoice", "Montant à payer", "Total TTC", "Date limite de paiement"):
+     * Créer une tâche de paiement avec le montant et l'échéance extraits du PDF
+     * Titre: "Payer facture [fournisseur] - [montant]€"
+     * Extraire la date limite du PDF en priorité
+
+3. DATE LIMITE (deadline):
    - Extraire en priorité du PDF (date d'échéance, date limite de paiement, date de convocation)
    - Sinon de l'email (date mentionnée dans le sujet ou le corps)
    - IMPORTANT: Si une date explicite est trouvée (ex: "échéance 15 novembre 2025"), GARDE CETTE DATE même si elle est dans le passé
    - Si aucune date explicite trouvée: utilise la date du jour + 7 jours
 
-3. DESCRIPTION:
+4. DESCRIPTION:
    - Résume l'action à faire
    - IMPORTANT: Inclure la date trouvée dans la description (ex: "Échéance au 15 novembre 2025")
    - Mentionner le montant si applicable
+   - Pour les factures PDF: mentionner qu'une facture est jointe
 
-4. PRÉLÈVEMENT AUTOMATIQUE / Auto-paiement:
+5. PRÉLÈVEMENT AUTOMATIQUE / Auto-paiement:
    - Si l'email mentionne "prélèvement automatique", "prélevé automatiquement", "sera débité", "auto-débit"
    - Le titre doit être INFORMATIF (ex: "Prélèvement Orange - 25,99€"), PAS une action (ne pas mettre "Payer")
    - La priorité doit être "low" (juste pour information)
 
-5. NEWSLETTERS et EMAILS PROMOTIONNELS:
+6. NEWSLETTERS et EMAILS PROMOTIONNELS:
    - Si l'email est une newsletter, promotion, publicité, ou information générale sans action requise
    - Retourne "skip": true dans le JSON au lieu de créer une tâche
    - Exemples: newsletters d'actualité, offres commerciales, confirmations d'abonnement sans action
 
-6. CATÉGORIE (doit être une de: administratif, enfants-école, santé, finances, logement, personnel):
+7. CATÉGORIE (doit être une de: administratif, enfants-école, santé, finances, logement, personnel):
 
    FINANCES (documents financiers purs):
    - Impôts (avis d'imposition, déclarations, échéances fiscales)
@@ -94,7 +103,7 @@ Règles importantes:
    - Factures eau
    - Internet, téléphone fixe, box, mobile (Orange, SFR, Free, Bouygues)
    - Assurance habitation, assurance auto
-   - Abonnements du foyer (Netflix, Spotify, etc.)
+   - Abonnements du foyer (streaming: Netflix, CANAL+, Disney+, Prime Video, OCS; musique: Spotify, Deezer; autres services du foyer)
    - Entretien maison, travaux
    - Loyer, charges de copropriété
    - Garde-meuble, self-stockage (Selfbox, Homebox, etc.)
@@ -121,7 +130,7 @@ Règles importantes:
    - Tâches personnelles diverses
    - Informations générales non catégorisables
 
-7. TITRE: court et actionnable (max 60 caractères)
+8. TITRE: court et actionnable (max 60 caractères)
 
 Réponds UNIQUEMENT avec un JSON valide (pas de texte avant ou après):
 {

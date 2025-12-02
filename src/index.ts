@@ -537,6 +537,26 @@ app.get('/inbox/:id', async (req, res) => {
   }
 });
 
+// Delete inbox entry
+app.delete('/inbox/:id', async (req, res) => {
+  try {
+    const { deleteInboxEntry } = await import('./inbox.js');
+    const deleted = await deleteInboxEntry(req.params.id);
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        error: 'Entrée introuvable.',
+      });
+    }
+    return res.json({ success: true, message: 'Entrée supprimée avec succès.' });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'Impossible de supprimer l\'entrée.',
+    });
+  }
+});
+
 // Get all notifications
 app.get('/notifications', async (req, res) => {
   try {

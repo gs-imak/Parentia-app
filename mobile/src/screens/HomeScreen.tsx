@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { RefreshControl, Linking, View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Modal, StyleSheet } from 'react-native';
+import { formatDateFrench } from '../utils/dateFormat';
 import { Feather } from '@expo/vector-icons';
 import {
   fetchQuote,
@@ -241,13 +242,7 @@ export default function HomeScreen() {
             <View>
               {tasks.map((task) => {
                 const deadline = new Date(task.deadline);
-                const formattedDeadline = deadline.toLocaleString('fr-FR', {
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                });
+                const formattedDeadline = formatDateFrench(deadline);
 
                 let statusColor = '#6E7A84';
                 let isFilled = false;
@@ -260,34 +255,12 @@ export default function HomeScreen() {
 
                 return (
                   <View key={task.id}>
-                    {/* Description box ABOVE the task (shown on long press) */}
-                    {longPressedTask?.id === task.id && task.description && (
-                      <TouchableOpacity 
-                        style={styles.taskDescriptionBox}
-                        onPress={() => setLongPressedTask(null)}
-                        activeOpacity={0.9}
-                      >
-                        <Text style={styles.taskDescriptionText}>{task.description}</Text>
-                        <Text style={styles.taskDescriptionHint}>Appuyez pour fermer</Text>
-                      </TouchableOpacity>
-                    )}
                     <TouchableOpacity 
                       style={styles.taskRow}
-                      onPress={() => {
-                        // If description is showing, tap anywhere to dismiss
-                        if (longPressedTask?.id === task.id) {
-                          setLongPressedTask(null);
-                        } else {
-                          toggleTaskStatus(task.id);
-                        }
-                      }}
+                      onPress={() => toggleTaskStatus(task.id)}
                       onLongPress={() => {
                         if (task.description) {
-                          setLongPressedTask(longPressedTask?.id === task.id ? null : task);
-                          // Auto-hide after 5 seconds (longer timeout)
-                          if (longPressedTask?.id !== task.id) {
-                            setTimeout(() => setLongPressedTask(null), 5000);
-                          }
+                          setLongPressedTask(task);
                         }
                       }}
                       delayLongPress={400}
@@ -336,13 +309,7 @@ export default function HomeScreen() {
             <View>
               {news.map((item, index) => {
                 const publishedDate = new Date(item.publishedAt);
-                const formattedDate = publishedDate.toLocaleString('fr-FR', {
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                });
+                const formattedDate = formatDateFrench(publishedDate);
 
                 return (
                   <View key={index} style={styles.newsItem}>
@@ -365,6 +332,27 @@ export default function HomeScreen() {
       </View>
       </ScrollView>
       
+      {/* Description Modal */}
+      {longPressedTask && (
+        <Modal
+          transparent={true}
+          visible={true}
+          animationType="fade"
+          onRequestClose={() => setLongPressedTask(null)}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setLongPressedTask(null)}
+          >
+            <View style={styles.descriptionModal}>
+              <Text style={styles.descriptionModalTitle}>{longPressedTask.title}</Text>
+              <Text style={styles.descriptionModalText}>{longPressedTask.description}</Text>
+              <Text style={styles.descriptionModalHint}>Appuyez n'importe où pour fermer</Text>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -564,23 +552,41 @@ const styles = StyleSheet.create({
     marginRight: 4,
     textDecorationLine: 'underline',
   },
-  taskDescriptionBox: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: '#3A82F7',
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
-  taskDescriptionText: {
-    fontSize: 14,
+  descriptionModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    maxWidth: 400,
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  descriptionModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2C3E50',
+    marginBottom: 12,
+  },
+  descriptionModalText: {
+    fontSize: 15,
     color: '#6E7A84',
-    lineHeight: 20,
+    lineHeight: 22,
+    marginBottom: 16,
   },
-  taskDescriptionHint: {
-    fontSize: 11,
+  descriptionModalHint: {
+    fontSize: 12,
     color: '#9CA3AF',
-    marginTop: 6,
     fontStyle: 'italic',
+    textAlign: 'center',
   },
 });

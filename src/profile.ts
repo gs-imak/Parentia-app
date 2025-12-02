@@ -91,10 +91,8 @@ export async function addChild(childData: Omit<Child, 'id'>): Promise<Child> {
   await writeProfile(profile);
   
   // Auto-create birthday task
-  const birthDate = new Date(newChild.birthDate);
-  const formattedDate = birthDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' });
   await createRecurringTask({
-    title: `Anniversaire de ${newChild.firstName} - le ${formattedDate}`,
+    title: `Anniversaire de ${newChild.firstName}`,
     category: 'enfants-école',
     birthDate: newChild.birthDate,
     recurringSource: `child:${newChild.id}`,
@@ -125,11 +123,9 @@ export async function updateChild(id: string, updates: Partial<Omit<Child, 'id'>
     await deleteTasksByRecurringSource(`child:${id}`);
     
     // Create new birthday task with updated date
-    const birthDate = new Date(updates.birthDate);
-    const formattedDate = birthDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' });
     const firstName = updates.firstName || oldChild.firstName;
     await createRecurringTask({
-      title: `Anniversaire de ${firstName} - le ${formattedDate}`,
+      title: `Anniversaire de ${firstName}`,
       category: 'enfants-école',
       birthDate: updates.birthDate,
       recurringSource: `child:${id}`,
@@ -169,10 +165,8 @@ export async function updateSpouse(spouse: Spouse): Promise<Profile> {
       await deleteTasksByRecurringSource('spouse');
     }
     
-    const birthDate = new Date(spouse.birthDate);
-    const formattedDate = birthDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' });
     await createRecurringTask({
-      title: `Anniversaire de ${spouse.firstName} - le ${formattedDate}`,
+      title: `Anniversaire de ${spouse.firstName}`,
       category: 'personnel',
       birthDate: spouse.birthDate,
       recurringSource: 'spouse',
@@ -206,10 +200,8 @@ export async function updateMarriageDate(date: string): Promise<Profile> {
   }
   
   // Create new anniversary task with updated date
-  const marriageDate = new Date(date);
-  const formattedDate = marriageDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' });
   await createRecurringTask({
-    title: `Anniversaire de mariage - le ${formattedDate}`,
+    title: `Anniversaire de mariage`,
     category: 'personnel',
     birthDate: date,
     recurringSource: 'marriage',

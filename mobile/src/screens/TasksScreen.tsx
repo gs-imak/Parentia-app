@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { createTask, getAllTasks, deleteTask, updateTask, type TaskCategory, type Task } from '../api/client';
+import { formatDateFrench } from '../utils/dateFormat';
 
 // Conditionally import DateTimePicker only for mobile
 let DateTimePicker: any = null;
@@ -836,13 +837,7 @@ onChange={(event: any, selectedDate?: Date) => {
                       <View style={styles.taskDeadlineRow}>
                         <Feather name="clock" size={14} color={isOverdue ? '#DC2626' : '#6E7A84'} />
                         <Text style={[styles.taskDeadlineText, isOverdue && styles.overdueText]}>
-                          {deadlineDate.toLocaleString('fr-FR', {
-                            day: 'numeric',
-                            month: 'long',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                          {formatDateFrench(deadlineDate)}
                           {isOverdue && ' (en retard)'}
                         </Text>
                       </View>

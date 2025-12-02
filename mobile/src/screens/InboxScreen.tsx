@@ -7,10 +7,14 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
-  Linking
+  Linking,
+  Modal,
+  TextInput,
+  ScrollView,
+  Alert
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { fetchInbox, type InboxEntry } from '../api/client';
+import { fetchInbox, deleteInboxEntry, createTask, type InboxEntry, type TaskCategory } from '../api/client';
 
 // Format date for display
 function formatDate(isoString: string): string {
@@ -43,6 +47,7 @@ interface InboxItemProps {
 
 function InboxItem({ entry, onPress }: InboxItemProps) {
   const isSuccess = entry.status === 'success';
+  const isIgnored = entry.taskTitle === '(Newsletter/Promo - ignoré)';
   
   return (
     <TouchableOpacity 
@@ -53,9 +58,9 @@ function InboxItem({ entry, onPress }: InboxItemProps) {
       <View style={styles.entryHeader}>
         <View style={styles.entryIconContainer}>
           <Feather 
-            name={isSuccess ? 'check-circle' : 'alert-circle'} 
+            name={isSuccess ? (isIgnored ? 'slash' : 'check-circle') : 'alert-circle'} 
             size={18} 
-            color={isSuccess ? '#27AE60' : '#E74C3C'} 
+            color={isSuccess ? (isIgnored ? '#95A5A6' : '#27AE60') : '#E74C3C'} 
           />
         </View>
         <View style={styles.entryContent}>
@@ -72,9 +77,9 @@ function InboxItem({ entry, onPress }: InboxItemProps) {
       </View>
       
       {isSuccess && entry.taskTitle && (
-        <View style={styles.taskBadge}>
-          <Feather name="check-square" size={12} color="#3498DB" />
-          <Text style={styles.taskBadgeText} numberOfLines={1}>
+        <View style={[styles.taskBadge, isIgnored && styles.taskBadgeIgnored]}>
+          <Feather name={isIgnored ? 'slash' : 'check-square'} size={12} color={isIgnored ? '#95A5A6' : '#3498DB'} />
+          <Text style={[styles.taskBadgeText, isIgnored && styles.taskBadgeTextIgnored]} numberOfLines={1}>
             {truncate(entry.taskTitle, 40)}
           </Text>
         </View>
@@ -101,11 +106,29 @@ function InboxItem({ entry, onPress }: InboxItemProps) {
   );
 }
 
+const CATEGORIES: { value: TaskCategory; label: string }[] = [
+  { value: 'administratif', label: 'Administratif' },
+  { value: 'enfants-école', label: 'Enfants & École' },
+  { value: 'santé', label: 'Santé' },
+  { value: 'finances', label: 'Finances' },
+  { value: 'logement', label: 'Logement' },
+  { value: 'personnel', label: 'Personnel' },
+];
+
 export default function InboxScreen() {
   const [entries, setEntries] = useState<InboxEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Modal state for ignored entries
+  const [selectedEntry, setSelectedEntry] = useState<InboxEntry | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskCategory, setTaskCategory] = useState<TaskCategory>('personnel');
+  const [taskDeadline, setTaskDeadline] = useState(new Date());
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const loadInbox = useCallback(async (isRefresh = false) => {
     try {
@@ -132,10 +155,52 @@ export default function InboxScreen() {
   }, [loadInbox]);
 
   const handleEntryPress = useCallback((entry: InboxEntry) => {
-    // For now, just log the entry
-    // In future: navigate to task details or show modal
-    console.log('Entry pressed:', entry.id);
+    const isIgnored = entry.taskTitle === '(Newsletter/Promo - ignoré)';
+    
+    if (isIgnored) {
+      // Show modal for ignored entries
+      setSelectedEntry(entry);
+      setTaskTitle(entry.subject || '');
+      setTaskCategory('personnel');
+      setTaskDeadline(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)); // 7 days from now
+      setShowModal(true);
+    }
   }, []);
+  
+  const handleCreateTask = async () => {
+    if (!taskTitle.trim()) return;
+    
+    setSubmitting(true);
+    try {
+      await createTask({
+        title: taskTitle.trim(),
+        category: taskCategory,
+        deadline: taskDeadline.toISOString(),
+      });
+      setShowModal(false);
+      Alert.alert('Succès', 'Tâche créée avec succès');
+      await loadInbox();
+    } catch (error) {
+      Alert.alert('Erreur', 'Impossible de créer la tâche');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  
+  const handleDeleteEntry = async () => {
+    if (!selectedEntry) return;
+    
+    setSubmitting(true);
+    try {
+      await deleteInboxEntry(selectedEntry.id);
+      setShowModal(false);
+      await loadInbox();
+    } catch (error) {
+      Alert.alert('Erreur', 'Impossible de supprimer l\'entrée');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const renderItem = useCallback(({ item }: { item: InboxEntry }) => (
     <InboxItem entry={item} onPress={handleEntryPress} />
@@ -196,6 +261,89 @@ export default function InboxScreen() {
         }
         showsVerticalScrollIndicator={false}
       />
+      
+      {/* Modal for ignored emails */}
+      {showModal && selectedEntry && (
+        <Modal
+          transparent={true}
+          visible={true}
+          animationType="fade"
+          onRequestClose={() => setShowModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Email ignoré</Text>
+                <TouchableOpacity onPress={() => setShowModal(false)}>
+                  <Feather name="x" size={24} color="#6E7A84" />
+                </TouchableOpacity>
+              </View>
+              
+              <Text style={styles.modalSubtitle}>Cet email a été classé comme newsletter/promo. Vous pouvez :</Text>
+              
+              <View style={styles.modalSection}>
+                <Text style={styles.sectionTitle}>Créer une tâche manuellement</Text>
+                
+                <TextInput
+                  style={styles.input}
+                  placeholder="Titre de la tâche"
+                  value={taskTitle}
+                  onChangeText={setTaskTitle}
+                />
+                
+                <TouchableOpacity
+                  style={styles.pickerButton}
+                  onPress={() => setShowCategoryPicker(!showCategoryPicker)}
+                >
+                  <Text style={styles.pickerButtonText}>
+                    {CATEGORIES.find(c => c.value === taskCategory)?.label || 'Catégorie'}
+                  </Text>
+                  <Feather name="chevron-down" size={18} color="#6E7A84" />
+                </TouchableOpacity>
+                
+                {showCategoryPicker && (
+                  <View style={styles.categoryPicker}>
+                    {CATEGORIES.map((cat) => (
+                      <TouchableOpacity
+                        key={cat.value}
+                        style={styles.categoryOption}
+                        onPress={() => {
+                          setTaskCategory(cat.value);
+                          setShowCategoryPicker(false);
+                        }}
+                      >
+                        <Text style={styles.categoryOptionText}>{cat.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+                
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonPrimary, submitting && styles.modalButtonDisabled]}
+                  onPress={handleCreateTask}
+                  disabled={submitting}
+                >
+                  {submitting ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.modalButtonTextPrimary}>Créer la tâche</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.modalDivider} />
+              
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonDelete]}
+                onPress={handleDeleteEntry}
+                disabled={submitting}
+              >
+                <Text style={styles.modalButtonTextDelete}>Supprimer cet email</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -350,5 +498,120 @@ const styles = StyleSheet.create({
     color: '#3498DB',
     fontWeight: '600',
     marginLeft: 12,
+  },
+  taskBadgeIgnored: {
+    backgroundColor: '#F5F5F5',
+  },
+  taskBadgeTextIgnored: {
+    color: '#95A5A6',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    maxWidth: 500,
+    width: '100%',
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#2C3E50',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#6E7A84',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  modalSection: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#2C3E50',
+    marginBottom: 12,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#E9EEF2',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 15,
+    color: '#2C3E50',
+    marginBottom: 12,
+  },
+  pickerButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E9EEF2',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+  },
+  pickerButtonText: {
+    fontSize: 15,
+    color: '#2C3E50',
+  },
+  categoryPicker: {
+    borderWidth: 1,
+    borderColor: '#E9EEF2',
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  categoryOption: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E9EEF2',
+  },
+  categoryOptionText: {
+    fontSize: 15,
+    color: '#2C3E50',
+  },
+  modalButton: {
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  modalButtonPrimary: {
+    backgroundColor: '#3498DB',
+  },
+  modalButtonDelete: {
+    backgroundColor: '#F5F5F5',
+  },
+  modalButtonDisabled: {
+    opacity: 0.5,
+  },
+  modalButtonTextPrimary: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  modalButtonTextDelete: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#DC2626',
+  },
+  modalDivider: {
+    height: 1,
+    backgroundColor: '#E9EEF2',
+    marginVertical: 16,
   },
 });

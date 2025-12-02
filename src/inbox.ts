@@ -120,3 +120,16 @@ export async function deleteInboxEntriesByTaskId(taskId: string): Promise<number
   }
   return deleted;
 }
+
+/**
+ * Delete a single inbox entry by ID
+ */
+export async function deleteInboxEntry(id: string): Promise<boolean> {
+  const entries = await readInbox();
+  const filtered = entries.filter(e => e.id !== id);
+  const wasDeleted = filtered.length < entries.length;
+  if (wasDeleted) {
+    await writeInbox(filtered);
+  }
+  return wasDeleted;
+}

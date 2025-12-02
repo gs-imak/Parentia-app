@@ -230,6 +230,10 @@ export async function fetchInboxEntry(id: string): Promise<InboxEntry> {
   return fetchApi<InboxEntry>(`/inbox/${id}`);
 }
 
+export async function deleteInboxEntry(id: string): Promise<void> {
+  await fetch(`${BACKEND_URL}/inbox/${id}`, { method: 'DELETE' });
+}
+
 // Notifications API
 export async function fetchNotifications(): Promise<{ 
   notifications: Notification[]; 
