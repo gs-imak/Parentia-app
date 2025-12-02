@@ -11,10 +11,17 @@ import {
   Modal,
   TextInput,
   ScrollView,
-  Alert
+  Alert,
+  Platform
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { fetchInbox, deleteInboxEntry, createTask, type InboxEntry, type TaskCategory } from '../api/client';
+
+// Conditionally import DateTimePicker only for mobile
+let DateTimePicker: any = null;
+if (Platform.OS !== 'web') {
+  DateTimePicker = require('@react-native-community/datetimepicker').default;
+}
 
 // Format date for display
 function formatDate(isoString: string): string {
@@ -128,6 +135,7 @@ export default function InboxScreen() {
   const [taskCategory, setTaskCategory] = useState<TaskCategory>('personnel');
   const [taskDeadline, setTaskDeadline] = useState(new Date());
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const loadInbox = useCallback(async (isRefresh = false) => {
@@ -316,6 +324,67 @@ export default function InboxScreen() {
                       </TouchableOpacity>
                     ))}
                   </View>
+                )}
+                
+                <Text style={styles.sectionLabel}>Échéance</Text>
+                {Platform.OS === 'web' ? (
+                  <input
+                    type="datetime-local"
+                    style={{
+                      borderWidth: 1,
+                      borderColor: '#E9EEF2',
+                      borderRadius: 8,
+                      paddingLeft: 12,
+                      paddingRight: 12,
+                      paddingTop: 12,
+                      paddingBottom: 12,
+                      fontSize: 15,
+                      color: '#2C3E50',
+                      backgroundColor: '#FFFFFF',
+                      width: '100%',
+                      fontFamily: 'system-ui',
+                      marginBottom: 12,
+                    }}
+                    value={new Date(taskDeadline.getTime() - taskDeadline.getTimezoneOffset() * 60000)
+                      .toISOString()
+                      .slice(0, 16)}
+                    onChange={(e: any) => {
+                      const value = e.target.value;
+                      if (value) {
+                        const d = new Date(value);
+                        if (!isNaN(d.getTime())) setTaskDeadline(d);
+                      }
+                    }}
+                  />
+                ) : (
+                  <>
+                    <TouchableOpacity 
+                      style={styles.datePickerButton} 
+                      onPress={() => setShowDatePicker(true)}
+                    >
+                      <Feather name="calendar" size={16} color="#6E7A84" />
+                      <Text style={styles.datePickerText}>
+                        {taskDeadline.toLocaleDateString('fr-FR', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </Text>
+                    </TouchableOpacity>
+                    {showDatePicker && DateTimePicker && (
+                      <DateTimePicker
+                        value={taskDeadline}
+                        mode="datetime"
+                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                        onChange={(event: any, selectedDate?: Date) => {
+                          setShowDatePicker(Platform.OS === 'ios');
+                          if (selectedDate) setTaskDeadline(selectedDate);
+                        }}
+                      />
+                    )}
+                  </>
                 )}
                 
                 <TouchableOpacity
@@ -613,5 +682,26 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#E9EEF2',
     marginVertical: 16,
+  },
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2C3E50',
+    marginBottom: 8,
+  },
+  datePickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E9EEF2',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    backgroundColor: '#FFFFFF',
+  },
+  datePickerText: {
+    fontSize: 15,
+    color: '#2C3E50',
+    marginLeft: 8,
   },
 });

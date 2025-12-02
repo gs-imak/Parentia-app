@@ -16,7 +16,8 @@ const pdfParse = async (buffer: Buffer): Promise<{ text: string; numpages: numbe
 const MAX_PDF_SIZE = 10 * 1024 * 1024;
 
 // Minimum text length to consider PDF as text-based (not scanned)
-const MIN_TEXT_LENGTH = 20;
+// Lowered to 10 to catch PDFs with minimal text (e.g., amounts/dates only)
+const MIN_TEXT_LENGTH = 10;
 
 // Maximum text length to return (avoid token limits)
 const MAX_TEXT_LENGTH = 10000;
