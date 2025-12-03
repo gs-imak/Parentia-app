@@ -708,8 +708,8 @@ const styles = StyleSheet.create({
   modalDivider: {
     height: 1,
     backgroundColor: '#E9EEF2',
-    marginTop: 24,
-    marginBottom: 20,
+    marginTop: 16,
+    marginBottom: 12,
   },
   sectionLabel: {
     fontSize: 14,
