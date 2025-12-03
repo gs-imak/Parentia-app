@@ -312,10 +312,14 @@ export default function InboxScreen() {
                 
                 {showCategoryPicker && (
                   <View style={styles.categoryPicker}>
-                    {CATEGORIES.map((cat) => (
+                {CATEGORIES.map((cat, index) => (
                       <TouchableOpacity
                         key={cat.value}
-                        style={styles.categoryOption}
+                        style={[
+                          styles.categoryOption,
+                          index === 0 && styles.categoryOptionFirst,
+                          index === CATEGORIES.length - 1 && styles.categoryOptionLast
+                        ]}
                         onPress={() => {
                           setTaskCategory(cat.value);
                           setShowCategoryPicker(false);
@@ -655,11 +659,21 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
+    overflow: 'hidden',
+  },
+  categoryOptionFirst: {
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
   },
   categoryOption: {
     padding: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#E9EEF2',
+  },
+  categoryOptionLast: {
+    borderBottomWidth: 0,
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
   },
   categoryOptionText: {
     fontSize: 15,
@@ -676,7 +690,7 @@ const styles = StyleSheet.create({
   },
   modalButtonDelete: {
     backgroundColor: '#F5F5F5',
-    marginTop: 0,
+    marginTop: 4,
   },
   modalButtonDisabled: {
     opacity: 0.5,
@@ -695,7 +709,7 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#E9EEF2',
     marginTop: 24,
-    marginBottom: 16,
+    marginBottom: 20,
   },
   sectionLabel: {
     fontSize: 14,

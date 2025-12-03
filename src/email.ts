@@ -139,12 +139,21 @@ export async function processIncomingEmail(
   }
   
   // Step 4: Prepare AI input
+  // If a PDF was attached but text extraction failed, still notify the AI
+  const hasPdfAttachment = email.attachments.some((a) => isPdf(a.contentType, a.filename));
+  let pdfTextForAI = pdfText || undefined;
+  if (hasPdfAttachment && !pdfText) {
+    // PDF exists but couldn't be read (probably scanned/image-based)
+    console.log('PDF attachment exists but text extraction failed - notifying AI');
+    pdfTextForAI = '[PDF JOINT: Impossible d\'extraire le texte - document probablement scanné/image. Veuillez créer une tâche de vérification manuelle pour ce document.]';
+  }
+  
   const aiInput: EmailAIInput = {
     subject: email.subject || 'Sans sujet',
     body: email.text || email.html || '',
     sender: email.from,
     receivedAt: email.receivedAt,
-    pdfText: pdfText || undefined,
+    pdfText: pdfTextForAI,
   };
   
   // Step 5: AI Analysis (with retry)

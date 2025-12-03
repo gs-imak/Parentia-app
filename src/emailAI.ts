@@ -61,6 +61,12 @@ Règles importantes:
 
 2. FICHIERS PDF JOINTS:
    - Si un PDF est joint, son contenu sera fourni dans la section "CONTENU DU PDF JOINT"
+   - Si le PDF ne peut pas être lu (message "[PDF JOINT: Impossible d'extraire le texte...]"):
+     * Créer une tâche avec titre: "Vérifier document PDF - [expéditeur ou sujet]"
+     * Catégorie: déduire du sujet/expéditeur (logement si fournisseur, finances si banque, etc.)
+     * Priorité: "medium"
+     * Description: "Document PDF joint nécessitant une vérification manuelle"
+     * NE JAMAIS mettre skip: true
    - Analyser le PDF pour détecter: factures, relevés, convocations, documents officiels
    - Si le PDF contient une FACTURE (mots-clés: "Facture", "Invoice", "Montant à payer", "Total TTC", "Date limite de paiement", "MONTANT À RÉGLER"):
      * IMPORTANT: Extraire le MONTANT exact du PDF:
@@ -98,6 +104,8 @@ Règles importantes:
    - Si l'email est une newsletter, promotion, publicité, ou information générale sans action requise
    - Retourne "skip": true dans le JSON au lieu de créer une tâche
    - Exemples: newsletters d'actualité, offres commerciales, confirmations d'abonnement sans action
+   - ⚠️ IMPORTANT: Si un PDF est joint (section "CONTENU DU PDF JOINT" présente), NE JAMAIS mettre skip: true
+   - Les emails avec PDF contiennent généralement des factures ou documents importants, même si le corps semble promotionnel
 
 7. CATÉGORIE (doit être une de: administratif, enfants-école, santé, finances, logement, personnel):
 
@@ -300,7 +308,19 @@ export function normalizeAIOutput(raw: unknown): EmailAIOutput | null {
 export async function analyzeEmail(input: EmailAIInput): Promise<EmailAIOutput | null> {
   try {
     const prompt = buildEmailPrompt(input);
+    
+    // Debug: Log PDF text if present (first 500 chars)
+    if (input.pdfText) {
+      console.log(`[AI DEBUG] PDF text received (${input.pdfText.length} chars):`);
+      console.log(`[AI DEBUG] PDF preview: ${input.pdfText.slice(0, 500)}...`);
+    } else {
+      console.log(`[AI DEBUG] No PDF text provided to AI`);
+    }
+    
     const aiResponse = await callOpenAI(prompt);
+    
+    // Debug: Log raw AI response
+    console.log(`[AI DEBUG] Raw AI response: ${aiResponse}`);
 
     let parsed: unknown;
     try {
@@ -310,7 +330,15 @@ export async function analyzeEmail(input: EmailAIInput): Promise<EmailAIOutput |
       return null;
     }
 
-    return normalizeAIOutput(parsed);
+    const result = normalizeAIOutput(parsed);
+    
+    // Debug: Log extracted title specifically
+    if (result) {
+      console.log(`[AI DEBUG] Extracted title: "${result.title}"`);
+      console.log(`[AI DEBUG] Skip flag: ${result.skip}`);
+    }
+    
+    return result;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('Email AI analysis failed:', message);
