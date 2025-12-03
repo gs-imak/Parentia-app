@@ -612,7 +612,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   modalSection: {
-    marginBottom: 20,
+    marginBottom: 8,
   },
   sectionTitle: {
     fontSize: 15,
