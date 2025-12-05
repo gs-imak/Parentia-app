@@ -15,7 +15,7 @@ import {
   Platform
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { fetchInbox, deleteInboxEntry, createTask, type InboxEntry, type TaskCategory } from '../api/client';
+import { fetchInbox, deleteInboxEntry, createTask, updateTask, getTaskById, type InboxEntry, type TaskCategory, type Task } from '../api/client';
 
 // Conditionally import DateTimePicker only for mobile
 let DateTimePicker: any = null;
@@ -128,15 +128,21 @@ export default function InboxScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Modal state for ignored entries
+  // Modal state for entries
   const [selectedEntry, setSelectedEntry] = useState<InboxEntry | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [taskTitle, setTaskTitle] = useState('');
   const [taskCategory, setTaskCategory] = useState<TaskCategory>('personnel');
   const [taskDeadline, setTaskDeadline] = useState(new Date());
+  const [taskDescription, setTaskDescription] = useState('');
+  const [taskStatus, setTaskStatus] = useState<'todo' | 'in_progress' | 'done'>('todo');
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [showStatusPicker, setShowStatusPicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [loadingTask, setLoadingTask] = useState(false);
 
   const loadInbox = useCallback(async (isRefresh = false) => {
     try {
@@ -162,15 +168,42 @@ export default function InboxScreen() {
     loadInbox();
   }, [loadInbox]);
 
-  const handleEntryPress = useCallback((entry: InboxEntry) => {
+  const handleEntryPress = useCallback(async (entry: InboxEntry) => {
     const isIgnored = entry.taskTitle === '(Newsletter/Promo - ignoré)';
+    const hasTask = entry.status === 'success' && entry.taskId && !isIgnored;
     
-    if (isIgnored) {
-      // Show modal for ignored entries
-      setSelectedEntry(entry);
+    setSelectedEntry(entry);
+    
+    if (hasTask && entry.taskId) {
+      // Edit existing task
+      setLoadingTask(true);
+      setShowModal(true);
+      setIsEditMode(true);
+      
+      try {
+        const task = await getTaskById(entry.taskId);
+        setEditingTask(task);
+        setTaskTitle(task.title);
+        setTaskCategory(task.category);
+        setTaskDeadline(new Date(task.deadline));
+        setTaskDescription(task.description || '');
+        setTaskStatus(task.status);
+      } catch (error) {
+        Alert.alert('Erreur', 'Impossible de charger la tâche');
+        setShowModal(false);
+        setIsEditMode(false);
+      } finally {
+        setLoadingTask(false);
+      }
+    } else if (isIgnored) {
+      // Show modal for ignored entries (create new task)
+      setIsEditMode(false);
+      setEditingTask(null);
       setTaskTitle(entry.subject || '');
       setTaskCategory('personnel');
       setTaskDeadline(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)); // 7 days from now
+      setTaskDescription('');
+      setTaskStatus('todo');
       setShowModal(true);
     }
   }, []);
@@ -184,7 +217,7 @@ export default function InboxScreen() {
         title: taskTitle.trim(),
         category: taskCategory,
         deadline: taskDeadline.toISOString(),
-        description: `Créé manuellement depuis l'email: ${selectedEntry?.subject || 'Sans sujet'}`,
+        description: taskDescription.trim() || `Créé manuellement depuis l'email: ${selectedEntry?.subject || 'Sans sujet'}`,
       });
       setShowModal(false);
       Alert.alert('Succès', 'Tâche créée avec succès');
@@ -194,6 +227,38 @@ export default function InboxScreen() {
     } finally {
       setSubmitting(false);
     }
+  };
+  
+  const handleUpdateTask = async () => {
+    if (!taskTitle.trim() || !editingTask) return;
+    
+    setSubmitting(true);
+    try {
+      await updateTask(editingTask.id, {
+        title: taskTitle.trim(),
+        category: taskCategory,
+        deadline: taskDeadline.toISOString(),
+        description: taskDescription.trim() || undefined,
+        status: taskStatus,
+      });
+      setShowModal(false);
+      setIsEditMode(false);
+      setEditingTask(null);
+      Alert.alert('Succès', 'Tâche mise à jour avec succès');
+      await loadInbox();
+    } catch (error) {
+      Alert.alert('Erreur', 'Impossible de mettre à jour la tâche');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setIsEditMode(false);
+    setEditingTask(null);
+    setShowCategoryPicker(false);
+    setShowStatusPicker(false);
   };
   
   const handleDeleteEntry = async () => {
@@ -271,27 +336,43 @@ export default function InboxScreen() {
         showsVerticalScrollIndicator={false}
       />
       
-      {/* Modal for ignored emails */}
+      {/* Modal for editing/creating tasks */}
       {showModal && selectedEntry && (
         <Modal
           transparent={true}
           visible={true}
           animationType="fade"
-          onRequestClose={() => setShowModal(false)}
+          onRequestClose={handleCloseModal}
         >
           <View style={styles.modalOverlay}>
+            <ScrollView style={{ maxHeight: '90%' }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Email ignoré</Text>
-                <TouchableOpacity onPress={() => setShowModal(false)}>
+                <Text style={styles.modalTitle}>
+                  {isEditMode ? 'Modifier la tâche' : 'Email ignoré'}
+                </Text>
+                <TouchableOpacity onPress={handleCloseModal}>
                   <Feather name="x" size={24} color="#6E7A84" />
                 </TouchableOpacity>
               </View>
               
-              <Text style={styles.modalSubtitle}>Cet email a été classé comme newsletter/promo. Vous pouvez :</Text>
+              {loadingTask ? (
+                <View style={{ padding: 40, alignItems: 'center' }}>
+                  <ActivityIndicator size="large" color="#3498DB" />
+                  <Text style={{ marginTop: 12, color: '#6E7A84' }}>Chargement de la tâche...</Text>
+                </View>
+              ) : (
+                <>
+              <Text style={styles.modalSubtitle}>
+                {isEditMode 
+                  ? `Tâche créée depuis : ${selectedEntry.subject || 'Sans sujet'}`
+                  : 'Cet email a été classé comme newsletter/promo. Vous pouvez :'}
+              </Text>
               
               <View style={styles.modalSection}>
-                <Text style={styles.sectionTitle}>Créer une tâche manuellement</Text>
+                <Text style={styles.sectionTitle}>
+                  {isEditMode ? 'Informations de la tâche' : 'Créer une tâche manuellement'}
+                </Text>
                 
                 <TextInput
                   style={styles.input}
@@ -392,29 +473,90 @@ export default function InboxScreen() {
                   </>
                 )}
                 
+                {/* Status picker for edit mode */}
+                {isEditMode && (
+                  <>
+                    <Text style={styles.sectionLabel}>Statut</Text>
+                    <TouchableOpacity
+                      style={styles.pickerButton}
+                      onPress={() => setShowStatusPicker(!showStatusPicker)}
+                    >
+                      <Text style={styles.pickerButtonText}>
+                        {taskStatus === 'todo' ? 'À faire' : taskStatus === 'in_progress' ? 'En cours' : 'Terminé'}
+                      </Text>
+                      <Feather name="chevron-down" size={18} color="#6E7A84" />
+                    </TouchableOpacity>
+                    
+                    {showStatusPicker && (
+                      <View style={[styles.categoryPicker, { top: 60 }]}>
+                        {[
+                          { value: 'todo', label: 'À faire' },
+                          { value: 'in_progress', label: 'En cours' },
+                          { value: 'done', label: 'Terminé' },
+                        ].map((status, index) => (
+                          <TouchableOpacity
+                            key={status.value}
+                            style={[
+                              styles.categoryOption,
+                              index === 0 && styles.categoryOptionFirst,
+                              index === 2 && styles.categoryOptionLast
+                            ]}
+                            onPress={() => {
+                              setTaskStatus(status.value as 'todo' | 'in_progress' | 'done');
+                              setShowStatusPicker(false);
+                            }}
+                          >
+                            <Text style={styles.categoryOptionText}>{status.label}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </>
+                )}
+                
+                {/* Description field */}
+                <Text style={styles.sectionLabel}>Description (optionnel)</Text>
+                <TextInput
+                  style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+                  placeholder="Détails supplémentaires..."
+                  value={taskDescription}
+                  onChangeText={setTaskDescription}
+                  multiline
+                  numberOfLines={3}
+                />
+
                 <TouchableOpacity
                   style={[styles.modalButton, styles.modalButtonPrimary, submitting && styles.modalButtonDisabled]}
-                  onPress={handleCreateTask}
+                  onPress={isEditMode ? handleUpdateTask : handleCreateTask}
                   disabled={submitting}
                 >
                   {submitting ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
-                    <Text style={styles.modalButtonTextPrimary}>Créer la tâche</Text>
+                    <Text style={styles.modalButtonTextPrimary}>
+                      {isEditMode ? 'Enregistrer' : 'Créer la tâche'}
+                    </Text>
                   )}
                 </TouchableOpacity>
               </View>
               
-              <View style={styles.modalDivider} />
-              
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonDelete]}
-                onPress={handleDeleteEntry}
-                disabled={submitting}
-              >
-                <Text style={styles.modalButtonTextDelete}>Supprimer cet email</Text>
-              </TouchableOpacity>
+              {!isEditMode && (
+                <>
+                  <View style={styles.modalDivider} />
+                  
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.modalButtonDelete]}
+                    onPress={handleDeleteEntry}
+                    disabled={submitting}
+                  >
+                    <Text style={styles.modalButtonTextDelete}>Supprimer cet email</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+              </>
+              )}
             </View>
+            </ScrollView>
           </View>
         </Modal>
       )}

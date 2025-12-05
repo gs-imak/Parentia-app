@@ -310,6 +310,26 @@ app.get('/tasks', async (req, res) => {
   }
 });
 
+app.get('/tasks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { getTaskById } = await import('./tasks.js');
+    const task = await getTaskById(id);
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: 'Tâche introuvable.',
+      });
+    }
+    return res.json({ success: true, data: task });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'Impossible de récupérer la tâche.',
+    });
+  }
+});
+
 app.patch('/tasks/:id', async (req, res) => {
   try {
     const { id } = req.params;

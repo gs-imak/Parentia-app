@@ -111,6 +111,10 @@ export async function getAllTasks(): Promise<{ tasks: Task[] }> {
   return fetchApi<{ tasks: Task[] }>('/tasks');
 }
 
+export async function getTaskById(id: string): Promise<Task> {
+  return fetchApi<Task>(`/tasks/${id}`);
+}
+
 export async function updateTask(id: string, updates: Partial<Omit<Task, 'id' | 'createdAt'>>): Promise<Task> {
   return fetchApi<Task>(`/tasks/${id}`, {
     method: 'PATCH',
