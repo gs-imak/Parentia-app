@@ -22,8 +22,9 @@ export interface Task {
   createdAt: string; // ISO date string
   isRecurring?: boolean; // For birthday/anniversary tasks
   recurringSource?: string; // e.g., "child:123" or "spouse" or "marriage"
-  source?: 'manual' | 'email' | 'profile'; // How the task was created
+  source?: 'manual' | 'email' | 'profile' | 'photo'; // How the task was created
   emailId?: string; // Link back to inbox entry (if source === 'email')
+  imageUrl?: string; // Link to source image (if source === 'photo')
 }
 
 const TaskSchema = z.object({
@@ -36,8 +37,9 @@ const TaskSchema = z.object({
   createdAt: z.string(),
   isRecurring: z.boolean().optional(),
   recurringSource: z.string().optional(),
-  source: z.enum(['manual', 'email', 'profile']).optional(),
+  source: z.enum(['manual', 'email', 'profile', 'photo']).optional(),
   emailId: z.string().optional(),
+  imageUrl: z.string().optional(),
 });
 
 async function readTasks(): Promise<Task[]> {

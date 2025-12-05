@@ -12,7 +12,8 @@ import {
   Modal,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { createTask, getAllTasks, deleteTask, updateTask, type TaskCategory, type Task } from '../api/client';
+import * as ImagePicker from 'expo-image-picker';
+import { createTask, getAllTasks, deleteTask, updateTask, createTaskFromImage, type TaskCategory, type Task } from '../api/client';
 import { formatDateFrench } from '../utils/dateFormat';
 
 // Conditionally import DateTimePicker only for mobile
@@ -68,6 +69,10 @@ export default function TasksScreen() {
   
   // Delete confirmation state (for web)
   const [deleteConfirmTaskId, setDeleteConfirmTaskId] = useState<string | null>(null);
+  
+  // Image picker state (Milestone 4)
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [showImageSourcePicker, setShowImageSourcePicker] = useState(false);
 
   const loadTasks = async () => {
     setLoading(true);
@@ -183,6 +188,106 @@ export default function TasksScreen() {
     setEditDeadline(new Date());
     setEditDescription('');
     setEditStatus('todo');
+  };
+  
+  // ============================================
+  // Image Picker Functions (Milestone 4)
+  // ============================================
+  
+  const requestCameraPermission = async (): Promise<boolean> => {
+    if (Platform.OS === 'web') return true;
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(
+        'Permission requise',
+        'Autorisez l\'accès à l\'appareil photo pour prendre une photo.',
+        [{ text: 'OK' }]
+      );
+      return false;
+    }
+    return true;
+  };
+  
+  const requestMediaLibraryPermission = async (): Promise<boolean> => {
+    if (Platform.OS === 'web') return true;
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(
+        'Permission requise',
+        'Autorisez l\'accès à vos photos pour sélectionner une image.',
+        [{ text: 'OK' }]
+      );
+      return false;
+    }
+    return true;
+  };
+  
+  const handlePickFromCamera = async () => {
+    setShowImageSourcePicker(false);
+    
+    const hasPermission = await requestCameraPermission();
+    if (!hasPermission) return;
+    
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: false,
+      quality: 0.8,
+      base64: true,
+    });
+    
+    if (!result.canceled && result.assets[0]) {
+      await processImage(result.assets[0]);
+    }
+  };
+  
+  const handlePickFromGallery = async () => {
+    setShowImageSourcePicker(false);
+    
+    const hasPermission = await requestMediaLibraryPermission();
+    if (!hasPermission) return;
+    
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: false,
+      quality: 0.8,
+      base64: true,
+    });
+    
+    if (!result.canceled && result.assets[0]) {
+      await processImage(result.assets[0]);
+    }
+  };
+  
+  const processImage = async (asset: ImagePicker.ImagePickerAsset) => {
+    if (!asset.base64) {
+      setFormError('Impossible de lire l\'image.');
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
+    
+    setIsProcessingImage(true);
+    setFormError(null);
+    
+    try {
+      // Determine MIME type from URI
+      const uri = asset.uri.toLowerCase();
+      const mimeType = uri.includes('.png') ? 'image/png' : 'image/jpeg';
+      const filename = `photo_${Date.now()}.${mimeType === 'image/png' ? 'png' : 'jpg'}`;
+      
+      const response = await createTaskFromImage(asset.base64, mimeType, filename);
+      
+      setSuccessMessage(`Tâche créée : ${response.task.title}`);
+      setTimeout(() => setSuccessMessage(null), 4000);
+      
+      // Reload tasks
+      await loadTasks();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue';
+      setFormError(message);
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+    } finally {
+      setIsProcessingImage(false);
+    }
   };
   
   const handleUpdateTask = async () => {
@@ -430,6 +535,35 @@ onChange={(event: any, selectedDate?: Date) => {
             <Text style={styles.submitButtonText}>Créer la tâche</Text>
           )}
         </TouchableOpacity>
+        
+        {/* Divider */}
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>ou</Text>
+          <View style={styles.dividerLine} />
+        </View>
+        
+        {/* Photo Button */}
+        <TouchableOpacity
+          style={[styles.photoButton, isProcessingImage && styles.photoButtonDisabled]}
+          onPress={() => setShowImageSourcePicker(true)}
+          disabled={isProcessingImage}
+        >
+          {isProcessingImage ? (
+            <>
+              <ActivityIndicator size="small" color="#3A82F7" style={{ marginRight: 8 }} />
+              <Text style={styles.photoButtonText}>Analyse en cours...</Text>
+            </>
+          ) : (
+            <>
+              <Feather name="camera" size={18} color="#3A82F7" style={{ marginRight: 8 }} />
+              <Text style={styles.photoButtonText}>Créer depuis une photo</Text>
+            </>
+          )}
+        </TouchableOpacity>
+        <Text style={styles.photoHint}>
+          Prenez en photo un courrier, une facture, ou une capture d'écran
+        </Text>
       </View>
 
       {/* Task List Card */}
@@ -886,6 +1020,59 @@ onChange={(event: any, selectedDate?: Date) => {
           </View>
         </Modal>
       )}
+      
+      {/* Image Source Picker Modal */}
+      <Modal
+        transparent={true}
+        visible={showImageSourcePicker}
+        animationType="fade"
+        onRequestClose={() => setShowImageSourcePicker(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowImageSourcePicker(false)}
+        >
+          <View style={styles.imageSourceModal}>
+            <Text style={styles.imageSourceTitle}>Choisir une source</Text>
+            
+            <TouchableOpacity
+              style={styles.imageSourceOption}
+              onPress={handlePickFromCamera}
+            >
+              <View style={styles.imageSourceIconContainer}>
+                <Feather name="camera" size={24} color="#3A82F7" />
+              </View>
+              <View style={styles.imageSourceTextContainer}>
+                <Text style={styles.imageSourceOptionTitle}>Appareil photo</Text>
+                <Text style={styles.imageSourceOptionSubtitle}>Prendre une photo d'un document</Text>
+              </View>
+              <Feather name="chevron-right" size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.imageSourceOption}
+              onPress={handlePickFromGallery}
+            >
+              <View style={styles.imageSourceIconContainer}>
+                <Feather name="image" size={24} color="#3A82F7" />
+              </View>
+              <View style={styles.imageSourceTextContainer}>
+                <Text style={styles.imageSourceOptionTitle}>Galerie</Text>
+                <Text style={styles.imageSourceOptionSubtitle}>Sélectionner une photo ou capture d'écran</Text>
+              </View>
+              <Feather name="chevron-right" size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.imageSourceCancelButton}
+              onPress={() => setShowImageSourcePicker(false)}
+            >
+              <Text style={styles.imageSourceCancelText}>Annuler</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -1018,16 +1205,106 @@ const styles = StyleSheet.create({
   submitButtonDisabled: {
     opacity: 0.6,
   },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 16,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E9EEF2',
+  },
+  dividerText: {
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: '#9CA3AF',
+    fontWeight: '500',
+  },
+  photoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EBF5FF',
+    borderRadius: 12,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: '#3A82F7',
+    borderStyle: 'dashed',
+  },
+  photoButtonDisabled: {
+    opacity: 0.7,
+  },
+  photoButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#3A82F7',
+  },
+  photoHint: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  imageSourceModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    width: '90%',
+    maxWidth: 400,
+  },
+  imageSourceTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2C3E50',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  imageSourceOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F2F5',
+  },
+  imageSourceIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#EBF5FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  imageSourceTextContainer: {
+    flex: 1,
+  },
+  imageSourceOptionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2C3E50',
+    marginBottom: 2,
+  },
+  imageSourceOptionSubtitle: {
+    fontSize: 13,
+    color: '#9CA3AF',
+  },
+  imageSourceCancelButton: {
+    marginTop: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  imageSourceCancelText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#6E7A84',
+  },
   submitButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
     letterSpacing: 0.5,
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#DC2626',
-    fontWeight: '400',
   },
   placeholderText: {
     fontSize: 16,

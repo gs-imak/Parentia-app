@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import multer from 'multer';
 import { processPipeline } from './pipeline.js';
 import { getRandomQuote } from './quotes.js';
 import { getWeatherForCity } from './weather.js';
@@ -9,9 +10,11 @@ import { getTopNews } from './news.js';
 import { getTasksForToday, createTask, getTasks, updateTask, deleteTask } from './tasks.js';
 import { getProfile, addChild, updateChild, deleteChild, updateSpouse, deleteSpouse, updateMarriageDate, deleteMarriageDate } from './profile.js';
 import { getInboxEntries, getInboxEntryById } from './inbox.js';
-import { getNotifications, markNotificationRead, getUnreadCount } from './notifications.js';
+import { getNotifications, markNotificationRead, getUnreadCount, createNotification } from './notifications.js';
 import { startEmailPoller, checkEmailsNow, getPollerStatus } from './emailPoller.js';
 import { processSendGridInbound, extractEmailFromMultipart } from './sendgridInbound.js';
+import { analyzeImageWithRetry } from './imageAI.js';
+import { uploadAttachment, isSupabaseConfigured } from './supabase.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -23,6 +26,23 @@ const __dirname = path.dirname(__filename);
 app.use(cors());
 
 app.use(express.json());
+
+// Multer configuration for image uploads
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10 MB max
+    files: 1,
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Format non supporté. Utilisez JPG ou PNG.'));
+    }
+  },
+});
 
 // Serve React Native web build with proper MIME types and caching
 app.use(express.static(path.join(__dirname, '..', 'mobile', 'dist'), {
@@ -161,6 +181,119 @@ app.post('/tasks', async (req, res) => {
     return res.status(500).json({
       success: false,
       error: 'Impossible de créer la tâche.',
+    });
+  }
+});
+
+// ============================================
+// Image to Task Endpoint (Milestone 4)
+// ============================================
+app.post('/tasks/from-image', imageUpload.single('image'), async (req, res) => {
+  console.log('[Image] POST /tasks/from-image received');
+  
+  try {
+    // Check if file was uploaded
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'Aucune image fournie.',
+      });
+    }
+    
+    const { buffer, mimetype, originalname } = req.file;
+    console.log(`[Image] File received: ${originalname}, ${mimetype}, ${buffer.length} bytes`);
+    
+    // Convert buffer to base64
+    const imageBase64 = buffer.toString('base64');
+    
+    // Upload to Supabase (non-blocking, we continue even if it fails)
+    let imageUrl: string | null = null;
+    if (isSupabaseConfigured()) {
+      try {
+        imageUrl = await uploadAttachment(buffer, originalname, mimetype);
+        if (imageUrl) {
+          console.log(`[Image] Uploaded to Supabase: ${imageUrl}`);
+        }
+      } catch (uploadErr) {
+        console.error('[Image] Supabase upload failed:', uploadErr);
+        // Continue without imageUrl
+      }
+    }
+    
+    // Analyze image with GPT-4 Vision
+    console.log('[Image] Analyzing with GPT-4 Vision...');
+    const aiResult = await analyzeImageWithRetry({
+      imageBase64,
+      mimeType: mimetype,
+      filename: originalname,
+    });
+    
+    if (!aiResult) {
+      console.error('[Image] AI analysis failed completely');
+      return res.status(500).json({
+        success: false,
+        error: "Impossible d'analyser l'image. Veuillez réessayer.",
+      });
+    }
+    
+    // Check if AI couldn't process the image
+    if (!aiResult.canProcess) {
+      console.log(`[Image] AI cannot process: ${aiResult.errorReason}`);
+      return res.status(422).json({
+        success: false,
+        error: aiResult.errorReason || "Image illisible ou non exploitable.",
+      });
+    }
+    
+    // Create task
+    console.log(`[Image] Creating task: ${aiResult.title}`);
+    const task = await createTask({
+      title: aiResult.title,
+      category: aiResult.category,
+      deadline: aiResult.deadline,
+      description: aiResult.description,
+      source: 'photo',
+      imageUrl: imageUrl || undefined,
+    });
+    
+    console.log(`[Image] Task created: ${task.id}`);
+    
+    // Create notification (non-blocking)
+    try {
+      await createNotification({
+        type: 'email_task_created', // Reuse existing type
+        message: `Nouvelle tâche créée depuis une photo : ${task.title}`,
+        metadata: { taskId: task.id },
+      });
+    } catch (notifErr) {
+      console.error('[Image] Notification creation failed:', notifErr);
+      // Non-blocking
+    }
+    
+    return res.status(201).json({
+      success: true,
+      data: {
+        task,
+        imageUrl,
+        imageType: aiResult.imageType,
+        confidence: aiResult.confidence,
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[Image] Error:', message);
+    
+    // Handle multer errors
+    if (message.includes('Format non supporté')) {
+      return res.status(400).json({
+        success: false,
+        error: message,
+      });
+    }
+    
+    return res.status(500).json({
+      success: false,
+      error: "Une erreur est survenue lors du traitement de l'image.",
     });
   }
 });

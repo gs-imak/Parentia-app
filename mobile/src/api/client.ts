@@ -40,8 +40,9 @@ export interface Task {
   createdAt: string;
   isRecurring?: boolean;
   recurringSource?: string;
-  source?: 'manual' | 'email' | 'profile';
+  source?: 'manual' | 'email' | 'profile' | 'photo';
   emailId?: string;
+  imageUrl?: string;
 }
 
 export interface NewsItem {
@@ -244,4 +245,60 @@ export async function fetchNotifications(): Promise<{
 
 export async function markNotificationAsRead(id: string): Promise<Notification> {
   return fetchApi<Notification>(`/notifications/${id}/read`, { method: 'PATCH' });
+}
+
+// ============================================
+// Image to Task API (Milestone 4)
+// ============================================
+
+export interface CreateTaskFromImageResponse {
+  task: Task;
+  imageUrl: string | null;
+  imageType: 'photo' | 'capture_ecran';
+  confidence: number;
+}
+
+/**
+ * Create a task from an image (photo or screenshot)
+ * @param imageBase64 - Base64 encoded image data
+ * @param mimeType - Image MIME type ('image/jpeg' or 'image/png')
+ * @param filename - Original filename
+ */
+export async function createTaskFromImage(
+  imageBase64: string,
+  mimeType: string,
+  filename: string
+): Promise<CreateTaskFromImageResponse> {
+  // Create FormData with the image
+  const formData = new FormData();
+  
+  // Convert base64 to blob for FormData
+  const byteCharacters = atob(imageBase64);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  const blob = new Blob([byteArray], { type: mimeType });
+  
+  // Append as 'image' field (matching multer config on backend)
+  formData.append('image', blob, filename);
+  
+  const response = await fetch(`${BACKEND_URL}/tasks/from-image`, {
+    method: 'POST',
+    body: formData,
+    // Note: Don't set Content-Type header, let browser set it with boundary
+  });
+  
+  if (!response.ok) {
+    const json = await response.json().catch(() => ({ error: 'Erreur inconnue' }));
+    throw new Error(json.error || `Erreur ${response.status}`);
+  }
+  
+  const json: ApiResponse<CreateTaskFromImageResponse> = await response.json();
+  if (!json.success || !json.data) {
+    throw new Error(json.error || 'Échec de la création de tâche');
+  }
+  
+  return json.data;
 }
