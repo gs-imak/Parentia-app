@@ -690,10 +690,24 @@ app.get('/inbox/:id', async (req, res) => {
   }
 });
 
-// Delete inbox entry
+// Delete inbox entry (with optional cascade delete of associated task)
 app.delete('/inbox/:id', async (req, res) => {
   try {
-    const { deleteInboxEntry } = await import('./inbox.js');
+    const { deleteInboxEntry, getInboxEntryById } = await import('./inbox.js');
+    const { deleteTask } = await import('./tasks.js');
+    
+    const shouldDeleteTask = req.query.deleteTask === 'true';
+    
+    // If cascade delete requested, first get the entry to find taskId
+    if (shouldDeleteTask) {
+      const entry = await getInboxEntryById(req.params.id);
+      if (entry && entry.taskId) {
+        // Delete the associated task first
+        await deleteTask(entry.taskId);
+        console.log(`[Inbox] Cascade deleted task ${entry.taskId} for inbox entry ${req.params.id}`);
+      }
+    }
+    
     const deleted = await deleteInboxEntry(req.params.id);
     if (!deleted) {
       return res.status(404).json({
@@ -701,8 +715,13 @@ app.delete('/inbox/:id', async (req, res) => {
         error: 'Entrée introuvable.',
       });
     }
-    return res.json({ success: true, message: 'Entrée supprimée avec succès.' });
+    return res.json({ 
+      success: true, 
+      message: shouldDeleteTask ? 'Entrée et tâche associée supprimées.' : 'Entrée supprimée avec succès.' 
+    });
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[Inbox] Delete error:', message);
     return res.status(500).json({
       success: false,
       error: 'Impossible de supprimer l\'entrée.',

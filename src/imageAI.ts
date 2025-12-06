@@ -91,9 +91,12 @@ Règles importantes :
    - Tout le reste
 
 5. DATE LIMITE (deadline) :
-   - Si une date explicite est visible (échéance, rendez-vous, "avant le JJ/MM/AAAA") → utilise cette date
+   - IMPORTANT: Nous sommes en 2025. Si tu vois une date avec jour/mois mais année ambiguë ou passée (2023, 2024), utilise 2025.
+   - Si une date explicite est visible (échéance, rendez-vous, "avant le JJ/MM/AAAA") → utilise cette date avec l'année 2025 si l'année n'est pas claire
+   - Si la date visible est clairement dans le futur proche (ex: 15 décembre) → utilise décembre 2025
    - Si le message implique une urgence ("urgent", "rapidement", "dès que possible") → aujourd'hui + 3 jours
    - Sinon → aujourd'hui + 7 jours
+   - NE JAMAIS retourner une date en 2023 ou 2024
 
 6. PRIORITÉ :
    - high : facture avec échéance proche, convocation, message urgent
@@ -132,6 +135,55 @@ function getDefaultDeadline(): string {
   date.setDate(date.getDate() + 7);
   date.setHours(12, 0, 0, 0); // Noon
   return date.toISOString();
+}
+
+/**
+ * Correct deadline if AI returned a past year or clearly wrong date
+ * Rules:
+ * - If year < current year: try same day/month in current year, if that's in past use D+7
+ * - If date is more than 1 year in the past: use D+7
+ */
+function correctDeadline(aiDeadline: string): string {
+  try {
+    const parsed = new Date(aiDeadline);
+    if (isNaN(parsed.getTime())) {
+      return getDefaultDeadline();
+    }
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const aiYear = parsed.getFullYear();
+
+    // If AI returned a past year (2023, 2024, etc.)
+    if (aiYear < currentYear) {
+      // Try same day/month in current year
+      const corrected = new Date(currentYear, parsed.getMonth(), parsed.getDate(), 12, 0, 0, 0);
+      
+      // If that date is still in the past (or within last 7 days), use next year or D+7
+      const sevenDaysAgo = new Date(now);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      if (corrected < sevenDaysAgo) {
+        // Date already passed this year too, use D+7
+        return getDefaultDeadline();
+      }
+      
+      console.log(`[Date Correction] Fixed past year: ${aiDeadline} → ${corrected.toISOString()}`);
+      return corrected.toISOString();
+    }
+
+    // If date is more than 1 year in the past
+    const oneYearAgo = new Date(now);
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    if (parsed < oneYearAgo) {
+      console.log(`[Date Correction] Date too old, using D+7: ${aiDeadline}`);
+      return getDefaultDeadline();
+    }
+
+    return parsed.toISOString();
+  } catch {
+    return getDefaultDeadline();
+  }
 }
 
 /**
@@ -241,8 +293,9 @@ export function normalizeImageAIOutput(raw: unknown): ImageAIOutput | null {
     category = obj.category as TaskCategory;
   }
 
-  // Validate and normalize deadline
-  const deadline = validateDeadline(obj.deadline) || getDefaultDeadline();
+  // Validate and normalize deadline with correction for past years
+  const rawDeadline = validateDeadline(obj.deadline);
+  const deadline = rawDeadline ? correctDeadline(rawDeadline) : getDefaultDeadline();
 
   // Validate priority
   const validPriorities = ['high', 'medium', 'low'];

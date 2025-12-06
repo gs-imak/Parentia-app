@@ -72,7 +72,6 @@ export default function TasksScreen() {
   
   // Image picker state (Milestone 4)
   const [isProcessingImage, setIsProcessingImage] = useState(false);
-  const [showImageSourcePicker, setShowImageSourcePicker] = useState(false);
 
   const loadTasks = async () => {
     setLoading(true);
@@ -223,8 +222,6 @@ export default function TasksScreen() {
   };
   
   const handlePickFromCamera = async () => {
-    setShowImageSourcePicker(false);
-    
     const hasPermission = await requestCameraPermission();
     if (!hasPermission) return;
     
@@ -241,8 +238,6 @@ export default function TasksScreen() {
   };
   
   const handlePickFromGallery = async () => {
-    setShowImageSourcePicker(false);
-    
     const hasPermission = await requestMediaLibraryPermission();
     if (!hasPermission) return;
     
@@ -543,26 +538,32 @@ onChange={(event: any, selectedDate?: Date) => {
           <View style={styles.dividerLine} />
         </View>
         
-        {/* Photo Button */}
-        <TouchableOpacity
-          style={[styles.photoButton, isProcessingImage && styles.photoButtonDisabled]}
-          onPress={() => setShowImageSourcePicker(true)}
-          disabled={isProcessingImage}
-        >
-          {isProcessingImage ? (
-            <>
-              <ActivityIndicator size="small" color="#3A82F7" style={{ marginRight: 8 }} />
-              <Text style={styles.photoButtonText}>Analyse en cours...</Text>
-            </>
-          ) : (
-            <>
-              <Feather name="camera" size={18} color="#3A82F7" style={{ marginRight: 8 }} />
-              <Text style={styles.photoButtonText}>Créer depuis une photo</Text>
-            </>
-          )}
-        </TouchableOpacity>
+        {/* Photo Buttons - Camera and Gallery */}
+        {isProcessingImage ? (
+          <View style={[styles.photoButton, styles.photoButtonDisabled]}>
+            <ActivityIndicator size="small" color="#3A82F7" style={{ marginRight: 8 }} />
+            <Text style={styles.photoButtonText}>Analyse en cours...</Text>
+          </View>
+        ) : (
+          <View style={styles.photoButtonsRow}>
+            <TouchableOpacity
+              style={[styles.photoButtonSmall]}
+              onPress={handlePickFromCamera}
+            >
+              <Feather name="camera" size={18} color="#3A82F7" />
+              <Text style={styles.photoButtonSmallText}>Appareil photo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.photoButtonSmall]}
+              onPress={handlePickFromGallery}
+            >
+              <Feather name="image" size={18} color="#3A82F7" />
+              <Text style={styles.photoButtonSmallText}>Galerie</Text>
+            </TouchableOpacity>
+          </View>
+        )}
         <Text style={styles.photoHint}>
-          Prenez en photo un courrier, une facture, ou une capture d'écran
+          Créez une tâche depuis un courrier, une facture, ou une capture d'écran
         </Text>
       </View>
 
@@ -975,6 +976,21 @@ onChange={(event: any, selectedDate?: Date) => {
                           {isOverdue && ' (en retard)'}
                         </Text>
                       </View>
+                      {/* Source indicator */}
+                      {task.source && (
+                        <View style={styles.sourceRow}>
+                          <Feather 
+                            name={task.source === 'email' ? 'mail' : task.source === 'photo' ? 'camera' : task.source === 'profile' ? 'user' : 'edit-3'} 
+                            size={12} 
+                            color="#9CA3AF" 
+                          />
+                          <Text style={styles.sourceText}>
+                            {task.source === 'email' ? 'Créée depuis un email' : 
+                             task.source === 'photo' ? 'Créée depuis une photo' : 
+                             task.source === 'profile' ? 'Rappel automatique' : 'Créée manuellement'}
+                          </Text>
+                        </View>
+                      )}
                       {task.description && (
                         <Text style={styles.taskDescription}>{task.description}</Text>
                       )}
@@ -1020,59 +1036,6 @@ onChange={(event: any, selectedDate?: Date) => {
           </View>
         </Modal>
       )}
-      
-      {/* Image Source Picker Modal */}
-      <Modal
-        transparent={true}
-        visible={showImageSourcePicker}
-        animationType="fade"
-        onRequestClose={() => setShowImageSourcePicker(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowImageSourcePicker(false)}
-        >
-          <View style={styles.imageSourceModal}>
-            <Text style={styles.imageSourceTitle}>Choisir une source</Text>
-            
-            <TouchableOpacity
-              style={styles.imageSourceOption}
-              onPress={handlePickFromCamera}
-            >
-              <View style={styles.imageSourceIconContainer}>
-                <Feather name="camera" size={24} color="#3A82F7" />
-              </View>
-              <View style={styles.imageSourceTextContainer}>
-                <Text style={styles.imageSourceOptionTitle}>Appareil photo</Text>
-                <Text style={styles.imageSourceOptionSubtitle}>Prendre une photo d'un document</Text>
-              </View>
-              <Feather name="chevron-right" size={20} color="#9CA3AF" />
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={styles.imageSourceOption}
-              onPress={handlePickFromGallery}
-            >
-              <View style={styles.imageSourceIconContainer}>
-                <Feather name="image" size={24} color="#3A82F7" />
-              </View>
-              <View style={styles.imageSourceTextContainer}>
-                <Text style={styles.imageSourceOptionTitle}>Galerie</Text>
-                <Text style={styles.imageSourceOptionSubtitle}>Sélectionner une photo ou capture d'écran</Text>
-              </View>
-              <Feather name="chevron-right" size={20} color="#9CA3AF" />
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={styles.imageSourceCancelButton}
-              onPress={() => setShowImageSourcePicker(false)}
-            >
-              <Text style={styles.imageSourceCancelText}>Annuler</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
     </View>
   );
 }
@@ -1240,6 +1203,28 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#3A82F7',
   },
+  photoButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  photoButtonSmall: {
+    flex: 1,
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EBF5FF',
+    borderRadius: 12,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: '#3A82F7',
+    borderStyle: 'dashed',
+    gap: 6,
+  },
+  photoButtonSmallText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#3A82F7',
+  },
   photoHint: {
     fontSize: 13,
     color: '#9CA3AF',
@@ -1376,6 +1361,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6E7A84',
     marginTop: 4,
+  },
+  sourceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  sourceText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginLeft: 4,
+    fontStyle: 'italic',
   },
   filterScrollView: {
     marginBottom: 16,

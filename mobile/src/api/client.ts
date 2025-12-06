@@ -235,8 +235,11 @@ export async function fetchInboxEntry(id: string): Promise<InboxEntry> {
   return fetchApi<InboxEntry>(`/inbox/${id}`);
 }
 
-export async function deleteInboxEntry(id: string): Promise<void> {
-  await fetch(`${BACKEND_URL}/inbox/${id}`, { method: 'DELETE' });
+export async function deleteInboxEntry(id: string, deleteTask: boolean = false): Promise<void> {
+  const url = deleteTask 
+    ? `${BACKEND_URL}/inbox/${id}?deleteTask=true`
+    : `${BACKEND_URL}/inbox/${id}`;
+  await fetch(url, { method: 'DELETE' });
 }
 
 // Notifications API

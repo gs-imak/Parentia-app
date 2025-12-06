@@ -84,10 +84,12 @@ Règles importantes:
      * Utiliser le montant le plus élevé ou celui mentionné près de "Total" / "Montant" / "TTC" / "RÉGLER"
 
 3. DATE LIMITE (deadline):
+   - IMPORTANT: Nous sommes en 2025. Si tu vois une date avec jour/mois mais année ambiguë ou passée (2023, 2024), utilise 2025.
    - Extraire en priorité du PDF (date d'échéance, date limite de paiement, date de convocation)
    - Sinon de l'email (date mentionnée dans le sujet ou le corps)
-   - IMPORTANT: Si une date explicite est trouvée (ex: "échéance 15 novembre 2025"), GARDE CETTE DATE même si elle est dans le passé
+   - Si la date visible est dans le futur proche (ex: 31 décembre) → utilise décembre 2025
    - Si aucune date explicite trouvée: utilise la date du jour + 7 jours
+   - NE JAMAIS retourner une date en 2023 ou 2024
 
 4. DESCRIPTION:
    - Résume l'action à faire
@@ -232,6 +234,51 @@ function getDefaultDeadline(): string {
 }
 
 /**
+ * Correct deadline if AI returned a past year or clearly wrong date
+ */
+function correctDeadline(aiDeadline: string): string {
+  try {
+    const parsed = new Date(aiDeadline);
+    if (isNaN(parsed.getTime())) {
+      return getDefaultDeadline();
+    }
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const aiYear = parsed.getFullYear();
+
+    // If AI returned a past year (2023, 2024, etc.)
+    if (aiYear < currentYear) {
+      // Try same day/month in current year
+      const corrected = new Date(currentYear, parsed.getMonth(), parsed.getDate(), 12, 0, 0, 0);
+      
+      // If that date is still in the past (or within last 7 days), use D+7
+      const sevenDaysAgo = new Date(now);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      if (corrected < sevenDaysAgo) {
+        return getDefaultDeadline();
+      }
+      
+      console.log(`[Date Correction] Fixed past year: ${aiDeadline} → ${corrected.toISOString()}`);
+      return corrected.toISOString();
+    }
+
+    // If date is more than 1 year in the past
+    const oneYearAgo = new Date(now);
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    if (parsed < oneYearAgo) {
+      console.log(`[Date Correction] Date too old, using D+7: ${aiDeadline}`);
+      return getDefaultDeadline();
+    }
+
+    return parsed.toISOString();
+  } catch {
+    return getDefaultDeadline();
+  }
+}
+
+/**
  * Validate and normalize AI output
  */
 export function normalizeAIOutput(raw: unknown): EmailAIOutput | null {
@@ -250,18 +297,16 @@ export function normalizeAIOutput(raw: unknown): EmailAIOutput | null {
     category = obj.category as TaskCategory;
   }
 
-  // Validate and normalize deadline
-  // IMPORTANT: Keep explicit past dates (AI is instructed to preserve them)
+  // Validate and normalize deadline with correction for past years
   let deadline: string;
   try {
     if (typeof obj.deadline === 'string') {
       const parsed = new Date(obj.deadline);
       if (isNaN(parsed.getTime())) {
-        // Invalid date: use J+7
         deadline = getDefaultDeadline();
       } else {
-        // Keep the date as-is (even if in past)
-        deadline = parsed.toISOString();
+        // Apply date correction for past years
+        deadline = correctDeadline(parsed.toISOString());
       }
     } else {
       deadline = getDefaultDeadline();

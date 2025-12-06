@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { RefreshControl, Linking, View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Modal, StyleSheet } from 'react-native';
+import { RefreshControl, Linking, View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Modal, StyleSheet, Dimensions, type GestureResponderEvent } from 'react-native';
 import { formatDateFrench } from '../utils/dateFormat';
 import { Feather } from '@expo/vector-icons';
 import {
@@ -74,6 +74,7 @@ export default function HomeScreen() {
   const [newsError, setNewsError] = useState<string | null>(null);
   
   const [longPressedTask, setLongPressedTask] = useState<Task | null>(null);
+  const [pressPosition, setPressPosition] = useState<'top' | 'bottom'>('bottom');
 
   const loadData = async () => {
     setQuoteError(null);
@@ -258,8 +259,13 @@ export default function HomeScreen() {
                     <TouchableOpacity 
                       style={styles.taskRow}
                       onPress={() => toggleTaskStatus(task.id)}
-                      onLongPress={() => {
+                      onLongPress={(e: GestureResponderEvent) => {
                         if (task.description) {
+                          // Get screen height and press Y position
+                          const screenHeight = Dimensions.get('window').height;
+                          const pressY = e.nativeEvent.pageY;
+                          // If press is in lower half of screen, show popup above
+                          setPressPosition(pressY > screenHeight / 2 ? 'top' : 'bottom');
                           setLongPressedTask(task);
                         }
                       }}
@@ -332,7 +338,7 @@ export default function HomeScreen() {
       </View>
       </ScrollView>
       
-      {/* Description Modal */}
+      {/* Description Modal - positioned dynamically */}
       {longPressedTask && (
         <Modal
           transparent={true}
@@ -341,7 +347,12 @@ export default function HomeScreen() {
           onRequestClose={() => setLongPressedTask(null)}
         >
           <TouchableOpacity
-            style={styles.modalOverlay}
+            style={[
+              styles.modalOverlay,
+              pressPosition === 'top' 
+                ? { justifyContent: 'flex-start', paddingTop: 80 }
+                : { justifyContent: 'flex-end', paddingBottom: 80 }
+            ]}
             activeOpacity={1}
             onPress={() => setLongPressedTask(null)}
           >

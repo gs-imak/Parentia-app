@@ -50,9 +50,10 @@ function truncate(str: string, maxLen: number): string {
 interface InboxItemProps {
   entry: InboxEntry;
   onPress: (entry: InboxEntry) => void;
+  onDelete: (entry: InboxEntry) => void;
 }
 
-function InboxItem({ entry, onPress }: InboxItemProps) {
+function InboxItem({ entry, onPress, onDelete }: InboxItemProps) {
   const isSuccess = entry.status === 'success';
   const isIgnored = entry.taskTitle === '(Newsletter/Promo - ignoré)';
   
@@ -78,6 +79,15 @@ function InboxItem({ entry, onPress }: InboxItemProps) {
             {truncate(entry.from, 35)}
           </Text>
         </View>
+        <TouchableOpacity 
+          style={styles.deleteButton}
+          onPress={(e) => {
+            e.stopPropagation();
+            onDelete(entry);
+          }}
+        >
+          <Feather name="trash-2" size={16} color="#DC2626" />
+        </TouchableOpacity>
         <Text style={styles.entryDate}>
           {formatDate(entry.receivedAt)}
         </Text>
@@ -266,7 +276,8 @@ export default function InboxScreen() {
     
     setSubmitting(true);
     try {
-      await deleteInboxEntry(selectedEntry.id);
+      const hasTask = !!(selectedEntry.taskId && selectedEntry.taskTitle !== '(Newsletter/Promo - ignoré)');
+      await deleteInboxEntry(selectedEntry.id, hasTask);
       setShowModal(false);
       await loadInbox();
     } catch (error) {
@@ -275,10 +286,42 @@ export default function InboxScreen() {
       setSubmitting(false);
     }
   };
+  
+  const handleDeleteFromList = useCallback((entry: InboxEntry) => {
+    const hasTask = !!(entry.taskId && entry.taskTitle !== '(Newsletter/Promo - ignoré)');
+    const title = 'Supprimer cet email ?';
+    const message = hasTask 
+      ? 'Attention : la tâche associée sera également supprimée.'
+      : 'Cette action est irréversible.';
+    
+    if (Platform.OS === 'web') {
+      // Web: use confirm
+      if (window.confirm(`${title}\n\n${message}`)) {
+        deleteInboxEntry(entry.id, hasTask).then(() => loadInbox());
+      }
+    } else {
+      // Native: use Alert
+      Alert.alert(title, message, [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteInboxEntry(entry.id, hasTask);
+              await loadInbox();
+            } catch (error) {
+              Alert.alert('Erreur', 'Impossible de supprimer l\'entrée');
+            }
+          },
+        },
+      ]);
+    }
+  }, [loadInbox]);
 
   const renderItem = useCallback(({ item }: { item: InboxEntry }) => (
-    <InboxItem entry={item} onPress={handleEntryPress} />
-  ), [handleEntryPress]);
+    <InboxItem entry={item} onPress={handleEntryPress} onDelete={handleDeleteFromList} />
+  ), [handleEntryPress, handleDeleteFromList]);
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
@@ -638,6 +681,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#95A5A6',
     marginLeft: 8,
+  },
+  deleteButton: {
+    padding: 6,
+    marginRight: 4,
   },
   taskBadge: {
     flexDirection: 'row',
