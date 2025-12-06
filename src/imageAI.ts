@@ -91,14 +91,14 @@ Règles importantes :
    - Tout le reste
 
 5. DATE LIMITE (deadline) :
-   - CRITIQUE: Utilise la date EXACTE visible sur le document. Ne modifie PAS le jour ou le mois.
+   - CRITIQUE: Utilise la date EXACTE visible sur le document comme deadline. NE JAMAIS ajouter de jours.
+   - Si un courrier est daté du "7 décembre" → deadline = 7 décembre 2025 (PAS le 8, PAS le 14)
    - Si tu vois "6 décembre" → deadline = 6 décembre 2025 (PAS le 3, PAS le 7)
    - Si tu vois "31 décembre" ou "31/12" → deadline = 31 décembre 2025 (PAS le 1er janvier)
-   - Si tu vois "19 septembre" → deadline = 19 septembre 2025 (PAS le 22)
+   - La date du document EST la deadline. N'ajoute JAMAIS +1, +3, ou +7 jours à une date visible.
    - Nous sommes en décembre 2025. Pour les années ambiguës ou passées (2023, 2024), utilise 2025.
-   - Si AUCUNE date n'est visible dans le document → aujourd'hui + 7 jours
-   - Si le message implique une urgence ("urgent", "rapidement") → aujourd'hui + 3 jours
-   - NE JAMAIS inventer ou modifier une date visible. Utilise EXACTEMENT ce qui est écrit.
+   - UNIQUEMENT si AUCUNE date n'est visible dans le document → aujourd'hui + 7 jours
+   - NE JAMAIS inventer, arrondir, ou modifier une date visible. Utilise EXACTEMENT le jour écrit.
 
 6. PRIORITÉ :
    - high : facture avec échéance proche, convocation, message urgent
