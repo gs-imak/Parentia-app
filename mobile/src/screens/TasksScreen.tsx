@@ -608,29 +608,20 @@ onChange={(event: any, selectedDate?: Date) => {
           <View style={styles.dividerLine} />
         </View>
         
-        {/* Photo Buttons - Camera and Gallery */}
+        {/* Single photo button - lets user choose camera or gallery */}
         {isProcessingImage ? (
           <View style={[styles.photoButton, styles.photoButtonDisabled]}>
             <ActivityIndicator size="small" color="#3A82F7" style={{ marginRight: 8 }} />
             <Text style={styles.photoButtonText}>Analyse en cours...</Text>
           </View>
         ) : (
-          <View style={styles.photoButtonsRow}>
-            <TouchableOpacity
-              style={[styles.photoButtonSmall]}
-              onPress={handlePickFromCamera}
-            >
-              <Feather name="camera" size={18} color="#3A82F7" />
-              <Text style={styles.photoButtonSmallText}>Appareil photo</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.photoButtonSmall]}
-              onPress={handlePickFromGallery}
-            >
-              <Feather name="image" size={18} color="#3A82F7" />
-              <Text style={styles.photoButtonSmallText}>Galerie</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={styles.photoButton}
+            onPress={handlePickFromGallery}
+          >
+            <Feather name="image" size={20} color="#3A82F7" />
+            <Text style={styles.photoButtonText}>Ajouter une image</Text>
+          </TouchableOpacity>
         )}
         <Text style={styles.photoHint}>
           Créez une tâche depuis un courrier, une facture, ou une capture d'écran
@@ -1270,6 +1261,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#3A82F7',
+    marginLeft: 8,
   },
   photoButtonsRow: {
     flexDirection: 'row',
