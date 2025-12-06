@@ -193,6 +193,9 @@ export default function TasksScreen() {
   // Image Picker Functions (Milestone 4)
   // ============================================
   
+  // Hidden file input ref for web gallery picker (to avoid "Take Photo" option)
+  const webFileInputRef = useRef<HTMLInputElement | null>(null);
+  
   const requestCameraPermission = async (): Promise<boolean> => {
     if (Platform.OS === 'web') return true;
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -237,7 +240,64 @@ export default function TasksScreen() {
     }
   };
   
+  // Web-specific: handle file input change for gallery
+  const handleWebFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    // Reset input so same file can be selected again
+    event.target.value = '';
+    
+    // Read file as base64
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      // Extract base64 part (remove "data:image/...;base64," prefix)
+      const base64Match = dataUrl.match(/^data:image\/\w+;base64,(.+)$/);
+      if (!base64Match) {
+        setFormError('Format d\'image non supporté.');
+        return;
+      }
+      const base64 = base64Match[1];
+      const mimeType = file.type || 'image/jpeg';
+      
+      // Create a fake asset object to reuse processImage
+      await processImageFromWeb(base64, mimeType, file.name);
+    };
+    reader.onerror = () => {
+      setFormError('Impossible de lire l\'image.');
+    };
+    reader.readAsDataURL(file);
+  };
+  
+  // Process image from web file input
+  const processImageFromWeb = async (base64: string, mimeType: string, filename: string) => {
+    setIsProcessingImage(true);
+    setFormError(null);
+    
+    try {
+      const response = await createTaskFromImage(base64, mimeType, filename);
+      
+      setSuccessMessage(`Tâche créée : ${response.task.title}`);
+      setTimeout(() => setSuccessMessage(null), 4000);
+      
+      await loadTasks();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue';
+      setFormError(message);
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+    } finally {
+      setIsProcessingImage(false);
+    }
+  };
+  
   const handlePickFromGallery = async () => {
+    // On web, use native file input to avoid "Take Photo" option
+    if (Platform.OS === 'web') {
+      webFileInputRef.current?.click();
+      return;
+    }
+    
     const hasPermission = await requestMediaLibraryPermission();
     if (!hasPermission) return;
     
@@ -246,10 +306,6 @@ export default function TasksScreen() {
       allowsEditing: false,
       quality: 0.8,
       base64: true,
-      // Prevent "Take Photo" option from appearing in gallery picker
-      presentationStyle: Platform.OS === 'ios' 
-        ? ImagePicker.UIImagePickerPresentationStyle.FULL_SCREEN 
-        : undefined,
     });
     
     if (!result.canceled && result.assets[0]) {
@@ -343,6 +399,16 @@ export default function TasksScreen() {
 
   return (
     <View style={{ flex: 1 }}>
+      {/* Hidden file input for web gallery picker - no "Take Photo" option */}
+      {Platform.OS === 'web' && (
+        <input
+          ref={webFileInputRef as any}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={handleWebFileSelect as any}
+        />
+      )}
       <ScrollView ref={scrollViewRef} style={styles.container}>
       {/* Success Message */}
       {successMessage && (
