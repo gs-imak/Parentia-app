@@ -91,12 +91,14 @@ Règles importantes :
    - Tout le reste
 
 5. DATE LIMITE (deadline) :
-   - IMPORTANT: Nous sommes en 2025. Si tu vois une date avec jour/mois mais année ambiguë ou passée (2023, 2024), utilise 2025.
-   - Si une date explicite est visible (échéance, rendez-vous, "avant le JJ/MM/AAAA") → utilise cette date avec l'année 2025 si l'année n'est pas claire
-   - Si la date visible est clairement dans le futur proche (ex: 15 décembre) → utilise décembre 2025
-   - Si le message implique une urgence ("urgent", "rapidement", "dès que possible") → aujourd'hui + 3 jours
-   - Sinon → aujourd'hui + 7 jours
-   - NE JAMAIS retourner une date en 2023 ou 2024
+   - CRITIQUE: Utilise la date EXACTE visible sur le document. Ne modifie PAS le jour ou le mois.
+   - Si tu vois "6 décembre" → deadline = 6 décembre 2025 (PAS le 3, PAS le 7)
+   - Si tu vois "31 décembre" ou "31/12" → deadline = 31 décembre 2025 (PAS le 1er janvier)
+   - Si tu vois "19 septembre" → deadline = 19 septembre 2025 (PAS le 22)
+   - Nous sommes en décembre 2025. Pour les années ambiguës ou passées (2023, 2024), utilise 2025.
+   - Si AUCUNE date n'est visible dans le document → aujourd'hui + 7 jours
+   - Si le message implique une urgence ("urgent", "rapidement") → aujourd'hui + 3 jours
+   - NE JAMAIS inventer ou modifier une date visible. Utilise EXACTEMENT ce qui est écrit.
 
 6. PRIORITÉ :
    - high : facture avec échéance proche, convocation, message urgent

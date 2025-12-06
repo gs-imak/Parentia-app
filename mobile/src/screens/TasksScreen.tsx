@@ -246,6 +246,10 @@ export default function TasksScreen() {
       allowsEditing: false,
       quality: 0.8,
       base64: true,
+      // Prevent "Take Photo" option from appearing in gallery picker
+      presentationStyle: Platform.OS === 'ios' 
+        ? ImagePicker.UIImagePickerPresentationStyle.FULL_SCREEN 
+        : undefined,
     });
     
     if (!result.canceled && result.assets[0]) {
@@ -976,8 +980,7 @@ onChange={(event: any, selectedDate?: Date) => {
                           {isOverdue && ' (en retard)'}
                         </Text>
                       </View>
-                      {/* Source indicator */}
-                      {task.source && (
+                      {/* Source indicator - always show, default to manual */}
                         <View style={styles.sourceRow}>
                           <Feather 
                             name={task.source === 'email' ? 'mail' : task.source === 'photo' ? 'camera' : task.source === 'profile' ? 'user' : 'edit-3'} 
@@ -990,7 +993,6 @@ onChange={(event: any, selectedDate?: Date) => {
                              task.source === 'profile' ? 'Rappel automatique' : 'Créée manuellement'}
                           </Text>
                         </View>
-                      )}
                       {task.description && (
                         <Text style={styles.taskDescription}>{task.description}</Text>
                       )}

@@ -84,12 +84,14 @@ Règles importantes:
      * Utiliser le montant le plus élevé ou celui mentionné près de "Total" / "Montant" / "TTC" / "RÉGLER"
 
 3. DATE LIMITE (deadline):
-   - IMPORTANT: Nous sommes en 2025. Si tu vois une date avec jour/mois mais année ambiguë ou passée (2023, 2024), utilise 2025.
+   - CRITIQUE: Utilise la date EXACTE visible dans l'email ou le PDF. Ne modifie PAS le jour ou le mois.
+   - Si tu vois "6 décembre" → deadline = 6 décembre 2025 (PAS le 3, PAS le 7)
+   - Si tu vois "31 décembre" ou "31/12" → deadline = 31 décembre 2025 (PAS le 1er janvier)
+   - Si tu vois "7 décembre" dans un courrier → deadline = 7 décembre 2025 minimum (pas avant)
+   - Nous sommes en décembre 2025. Pour les années ambiguës ou passées (2023, 2024), utilise 2025.
    - Extraire en priorité du PDF (date d'échéance, date limite de paiement, date de convocation)
-   - Sinon de l'email (date mentionnée dans le sujet ou le corps)
-   - Si la date visible est dans le futur proche (ex: 31 décembre) → utilise décembre 2025
-   - Si aucune date explicite trouvée: utilise la date du jour + 7 jours
-   - NE JAMAIS retourner une date en 2023 ou 2024
+   - Si AUCUNE date n'est visible → aujourd'hui + 7 jours
+   - NE JAMAIS inventer ou modifier une date visible. Utilise EXACTEMENT ce qui est écrit.
 
 4. DESCRIPTION:
    - Résume l'action à faire
