@@ -172,12 +172,25 @@ export default function TaskDetailScreen({
     }
     
     try {
-      const canOpen = await Linking.canOpenURL(url);
-      if (canOpen) {
-        await Linking.openURL(url);
+      // On web, directly open URLs without canOpenURL check (it's unreliable on web)
+      if (Platform.OS === 'web') {
+        // For web, use window.open for mailto/sms and direct navigation for WhatsApp
+        if (messageChannel === 'whatsapp') {
+          window.open(url, '_blank');
+        } else {
+          // For mailto/sms, create temporary link and click it
+          window.location.href = url;
+        }
         setShowMessageModal(false);
       } else {
-        Alert.alert('Erreur', 'Impossible d\'ouvrir l\'application de messagerie.');
+        // Native platforms: check if URL can be opened first
+        const canOpen = await Linking.canOpenURL(url);
+        if (canOpen) {
+          await Linking.openURL(url);
+          setShowMessageModal(false);
+        } else {
+          Alert.alert('Erreur', 'Impossible d\'ouvrir l\'application de messagerie.');
+        }
       }
     } catch (error) {
       console.error('Failed to open messaging app:', error);
