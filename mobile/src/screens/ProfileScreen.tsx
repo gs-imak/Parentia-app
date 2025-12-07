@@ -1242,6 +1242,27 @@ onChange={(event: any, selectedDate?: Date) => {
               <Feather name={addressExpanded ? 'chevron-up' : 'chevron-down'} size={20} color="#6E7A84" />
             </TouchableOpacity>
 
+            {/* Show summary when collapsed and data exists */}
+            {!addressExpanded && (profile.lastName || profile.address || profile.postalCode || profile.city) && (
+              <View style={{ marginTop: 12, padding: 12, backgroundColor: '#F5F7FA', borderRadius: 8 }}>
+                {profile.lastName && (
+                  <Text style={{ fontSize: 15, color: '#2C3E50', marginBottom: 4 }}>
+                    <Text style={{ fontWeight: '600' }}>Nom :</Text> {profile.lastName}
+                  </Text>
+                )}
+                {profile.address && (
+                  <Text style={{ fontSize: 15, color: '#2C3E50', marginBottom: 4 }}>
+                    <Text style={{ fontWeight: '600' }}>Adresse :</Text> {profile.address}
+                  </Text>
+                )}
+                {(profile.postalCode || profile.city) && (
+                  <Text style={{ fontSize: 15, color: '#2C3E50' }}>
+                    <Text style={{ fontWeight: '600' }}>Ville :</Text> {profile.postalCode ? `${profile.postalCode} ` : ''}{profile.city || ''}
+                  </Text>
+                )}
+              </View>
+            )}
+
             {addressExpanded && (
               <View style={{ marginTop: 12 }}>
                 <Text style={styles.hint}>Ces informations seront utilisées pour pré-remplir vos documents PDF.</Text>
