@@ -80,6 +80,7 @@ export default function ProfileScreen() {
   const [addressPostalCode, setAddressPostalCode] = useState('');
   const [addressCity, setAddressCity] = useState('');
   const [savingAddress, setSavingAddress] = useState(false);
+  const [addressJustSaved, setAddressJustSaved] = useState(false);
 
   useEffect(() => {
     getStoredCity().then((storedCity) => {
@@ -590,9 +591,9 @@ export default function ProfileScreen() {
         city: addressCity.trim() || undefined,
       });
       await loadProfile();
-      if (Platform.OS === 'web') {
-        // No alert needed, profile reloads
-      } else {
+      setAddressJustSaved(true);
+      setTimeout(() => setAddressJustSaved(false), 3000);
+      if (Platform.OS !== 'web') {
         Alert.alert('Succès', 'Adresse enregistrée.');
       }
     } catch (error) {
@@ -1292,14 +1293,14 @@ onChange={(event: any, selectedDate?: Date) => {
                 </View>
 
                 <TouchableOpacity
-                  style={[styles.button, savingAddress && styles.buttonDisabled, { marginTop: 16 }]}
+                  style={[styles.button, addressJustSaved && styles.buttonSuccess, (savingAddress || addressJustSaved) && styles.buttonDisabled, { marginTop: 16 }]}
                   onPress={handleSaveAddress}
-                  disabled={savingAddress}
+                  disabled={savingAddress || addressJustSaved}
                 >
                   {savingAddress ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
-                    <Text style={styles.buttonText}>Enregistrer</Text>
+                    <Text style={styles.buttonText}>{addressJustSaved ? '✓ Enregistré !' : 'Enregistrer l\'adresse'}</Text>
                   )}
                 </TouchableOpacity>
               </View>
