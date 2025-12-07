@@ -33,9 +33,10 @@ const CATEGORIES: { value: TaskCategory; label: string }[] = [
 
 interface TasksScreenProps {
   onOpenTaskDetail?: (task: Task) => void;
+  refreshTrigger?: number;
 }
 
-export default function TasksScreen({ onOpenTaskDetail }: TasksScreenProps) {
+export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksScreenProps) {
   const scrollViewRef = useRef<ScrollView>(null);
   const [loading, setLoading] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -93,6 +94,13 @@ export default function TasksScreen({ onOpenTaskDetail }: TasksScreenProps) {
   useEffect(() => {
     loadTasks();
   }, []);
+
+  // Reload tasks when refreshTrigger changes (e.g., after task deletion from detail screen)
+  useEffect(() => {
+    if (refreshTrigger !== undefined && refreshTrigger > 0) {
+      loadTasks();
+    }
+  }, [refreshTrigger]);
 
   const handleSubmit = async () => {
     // Clear previous errors

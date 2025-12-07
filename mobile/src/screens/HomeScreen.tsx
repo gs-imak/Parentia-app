@@ -18,9 +18,10 @@ import { AppEvents, EVENTS } from '../utils/events';
 
 interface HomeScreenProps {
   onOpenTaskDetail?: (task: Task) => void;
+  refreshTrigger?: number;
 }
 
-export default function HomeScreen({ onOpenTaskDetail }: HomeScreenProps) {
+export default function HomeScreen({ onOpenTaskDetail, refreshTrigger }: HomeScreenProps) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -161,6 +162,13 @@ export default function HomeScreen({ onOpenTaskDetail }: HomeScreenProps) {
       AppEvents.removeEventListener(EVENTS.CITY_UPDATED, handler);
     };
   }, []);
+
+  // Reload tasks when refreshTrigger changes (e.g., after task deletion)
+  useEffect(() => {
+    if (refreshTrigger !== undefined && refreshTrigger > 0) {
+      loadData();
+    }
+  }, [refreshTrigger]);
 
   const onRefresh = async () => {
     setRefreshing(true);

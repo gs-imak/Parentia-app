@@ -134,9 +134,10 @@ const CATEGORIES: { value: TaskCategory; label: string }[] = [
 
 interface InboxScreenProps {
   onOpenTaskDetail?: (task: Task) => void;
+  refreshTrigger?: number;
 }
 
-export default function InboxScreen({ onOpenTaskDetail }: InboxScreenProps) {
+export default function InboxScreen({ onOpenTaskDetail, refreshTrigger }: InboxScreenProps) {
   const [entries, setEntries] = useState<InboxEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -181,6 +182,13 @@ export default function InboxScreen({ onOpenTaskDetail }: InboxScreenProps) {
   useEffect(() => {
     loadInbox();
   }, [loadInbox]);
+
+  // Reload inbox when refreshTrigger changes (e.g., after task deletion from detail screen)
+  useEffect(() => {
+    if (refreshTrigger !== undefined && refreshTrigger > 0) {
+      loadInbox();
+    }
+  }, [refreshTrigger, loadInbox]);
 
   const handleEntryPress = useCallback(async (entry: InboxEntry) => {
     const isIgnored = entry.taskTitle === '(Newsletter/Promo - ignoré)';

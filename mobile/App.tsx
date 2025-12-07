@@ -11,6 +11,7 @@ import { type Task } from './src/api/client';
 export default function App() {
   const [activeTab, setActiveTab] = useState('Home');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const handleOpenTaskDetail = useCallback((task: Task) => {
     setSelectedTask(task);
@@ -22,24 +23,28 @@ export default function App() {
 
   const handleTaskUpdated = useCallback((updatedTask: Task) => {
     setSelectedTask(updatedTask);
+    // Trigger refresh in background screens
+    setRefreshTrigger(prev => prev + 1);
   }, []);
 
   const handleTaskDeleted = useCallback((taskId: string) => {
     setSelectedTask(null);
+    // Trigger refresh in background screens
+    setRefreshTrigger(prev => prev + 1);
   }, []);
 
   const renderScreen = () => {
     switch (activeTab) {
       case 'Home':
-        return <HomeScreen onOpenTaskDetail={handleOpenTaskDetail} />;
+        return <HomeScreen onOpenTaskDetail={handleOpenTaskDetail} refreshTrigger={refreshTrigger} />;
       case 'Tasks':
-        return <TasksScreen onOpenTaskDetail={handleOpenTaskDetail} />;
+        return <TasksScreen onOpenTaskDetail={handleOpenTaskDetail} refreshTrigger={refreshTrigger} />;
       case 'Inbox':
-        return <InboxScreen onOpenTaskDetail={handleOpenTaskDetail} />;
+        return <InboxScreen onOpenTaskDetail={handleOpenTaskDetail} refreshTrigger={refreshTrigger} />;
       case 'Profile':
         return <ProfileScreen />;
       default:
-        return <HomeScreen onOpenTaskDetail={handleOpenTaskDetail} />;
+        return <HomeScreen onOpenTaskDetail={handleOpenTaskDetail} refreshTrigger={refreshTrigger} />;
     }
   };
 
