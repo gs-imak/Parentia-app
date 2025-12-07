@@ -132,7 +132,11 @@ const CATEGORIES: { value: TaskCategory; label: string }[] = [
   { value: 'personnel', label: 'Personnel' },
 ];
 
-export default function InboxScreen() {
+interface InboxScreenProps {
+  onOpenTaskDetail?: (task: Task) => void;
+}
+
+export default function InboxScreen({ onOpenTaskDetail }: InboxScreenProps) {
   const [entries, setEntries] = useState<InboxEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -185,7 +189,18 @@ export default function InboxScreen() {
     setSelectedEntry(entry);
     
     if (hasTask && entry.taskId) {
-      // Edit existing task
+      // Open task detail screen if handler is provided
+      if (onOpenTaskDetail) {
+        try {
+          const task = await getTaskById(entry.taskId);
+          onOpenTaskDetail(task);
+        } catch (error) {
+          Alert.alert('Erreur', 'Impossible de charger la tâche');
+        }
+        return;
+      }
+      
+      // Fallback: edit existing task in modal
       setLoadingTask(true);
       setShowModal(true);
       setIsEditMode(true);
@@ -216,7 +231,7 @@ export default function InboxScreen() {
       setTaskStatus('todo');
       setShowModal(true);
     }
-  }, []);
+  }, [onOpenTaskDetail]);
   
   const handleCreateTask = async () => {
     if (!taskTitle.trim()) return;

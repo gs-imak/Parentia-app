@@ -25,6 +25,11 @@ export interface Task {
   source?: 'manual' | 'email' | 'profile' | 'photo'; // How the task was created
   emailId?: string; // Link back to inbox entry (if source === 'email')
   imageUrl?: string; // Link to source image (if source === 'photo')
+  // Milestone 5: Contact info and PDF suggestions
+  contactEmail?: string; // Extracted contact email
+  contactPhone?: string; // Extracted phone number
+  contactName?: string; // Contact name if found
+  suggestedTemplates?: string[]; // AI-suggested PDF template IDs
 }
 
 const TaskSchema = z.object({
@@ -40,6 +45,11 @@ const TaskSchema = z.object({
   source: z.enum(['manual', 'email', 'profile', 'photo']).optional(),
   emailId: z.string().optional(),
   imageUrl: z.string().optional(),
+  // Milestone 5
+  contactEmail: z.string().optional(),
+  contactPhone: z.string().optional(),
+  contactName: z.string().optional(),
+  suggestedTemplates: z.array(z.string()).optional(),
 });
 
 async function readTasks(): Promise<Task[]> {

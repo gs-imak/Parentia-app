@@ -28,6 +28,11 @@ export interface ImageAIOutput {
   priority: 'high' | 'medium' | 'low';
   imageType: 'photo' | 'capture_ecran';  // Detected by AI
   confidence: number;       // 0-1
+  // Milestone 5: Contact info and template suggestions
+  contactEmail?: string;    // Extracted email if visible
+  contactPhone?: string;    // Extracted phone number if visible
+  contactName?: string;     // Organization/sender name
+  suggestedTemplates?: string[]; // Suggested PDF template IDs
 }
 
 /**
@@ -115,6 +120,23 @@ Règles importantes :
    - WhatsApp/SMS : identifie qui envoie le message et ce qu'il demande
    - Le titre doit refléter l'action demandée, pas juste "Message de X"
 
+9. EXTRACTION CONTACT :
+   - Si une adresse email est visible dans le document, l'extraire
+   - Si un numéro de téléphone est visible, l'extraire (format: 0X XX XX XX XX ou +33...)
+   - Extraire le nom de l'expéditeur ou de l'organisation
+
+10. TEMPLATES PDF SUGGÉRÉS :
+   - Basé sur le type de document, suggérer des IDs de templates pertinents
+   - Templates disponibles:
+     * École: ecole_absence, ecole_autorisation_sortie, ecole_derogation, ecole_inscription, ecole_cantine, ecole_changement_adresse
+     * Crèche: creche_inscription
+     * Santé: sante_demande_remboursement, sante_rdv_medical, sante_certificat_medical, sante_resiliation_mutuelle
+     * Attestations: attestation_hebergement, attestation_honneur, attestation_employeur, attestation_assurance, attestation_domicile, attestation_revenus
+     * Logement: logement_preavis, contrat_resiliation, facture_contestation
+     * Documents: documents_procuration, documents_reclamation
+     * Travail: travail_conges
+   - Suggérer 1 à 3 templates maximum, uniquement si pertinents
+
 Réponds UNIQUEMENT avec un JSON valide (pas de texte avant ou après) :
 {
   "canProcess": boolean (false si image illisible, sinon true),
@@ -125,7 +147,11 @@ Réponds UNIQUEMENT avec un JSON valide (pas de texte avant ou après) :
   "description": "string (résumé + action + date/montant si applicable)",
   "priority": "high|medium|low",
   "imageType": "photo|capture_ecran",
-  "confidence": number (0-1, confiance dans l'analyse)
+  "confidence": number (0-1, confiance dans l'analyse),
+  "contactEmail": "string (email extrait si visible, sinon omis)",
+  "contactPhone": "string (téléphone extrait si visible, sinon omis)",
+  "contactName": "string (nom de l'organisation/expéditeur, sinon omis)",
+  "suggestedTemplates": ["template_id1", "template_id2"] (IDs des templates pertinents, max 3, ou omis)
 }`;
 }
 
@@ -312,6 +338,20 @@ export function normalizeImageAIOutput(raw: unknown): ImageAIOutput | null {
   const confidence = typeof obj.confidence === 'number'
     ? Math.min(1, Math.max(0, obj.confidence))
     : 0.5;
+  
+  // Milestone 5: Extract contact info
+  const contactEmail = typeof obj.contactEmail === 'string' ? obj.contactEmail : undefined;
+  const contactPhone = typeof obj.contactPhone === 'string' ? obj.contactPhone : undefined;
+  const contactName = typeof obj.contactName === 'string' ? obj.contactName : undefined;
+  
+  // Extract suggested templates
+  let suggestedTemplates: string[] | undefined;
+  if (Array.isArray(obj.suggestedTemplates)) {
+    suggestedTemplates = obj.suggestedTemplates
+      .filter((t: unknown) => typeof t === 'string')
+      .slice(0, 3) as string[];
+    if (suggestedTemplates.length === 0) suggestedTemplates = undefined;
+  }
 
   return {
     canProcess: true,
@@ -322,6 +362,10 @@ export function normalizeImageAIOutput(raw: unknown): ImageAIOutput | null {
     priority,
     imageType,
     confidence,
+    contactEmail,
+    contactPhone,
+    contactName,
+    suggestedTemplates,
   };
 }
 

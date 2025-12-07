@@ -8,13 +8,16 @@ import { getRandomQuote } from './quotes.js';
 import { getWeatherForCity } from './weather.js';
 import { getTopNews } from './news.js';
 import { getTasksForToday, createTask, getTasks, updateTask, deleteTask } from './tasks.js';
-import { getProfile, addChild, updateChild, deleteChild, updateSpouse, deleteSpouse, updateMarriageDate, deleteMarriageDate } from './profile.js';
+import { getProfile, addChild, updateChild, deleteChild, updateSpouse, deleteSpouse, updateMarriageDate, deleteMarriageDate, updateProfileAddress } from './profile.js';
 import { getInboxEntries, getInboxEntryById } from './inbox.js';
 import { getNotifications, markNotificationRead, getUnreadCount, createNotification } from './notifications.js';
 import { startEmailPoller, checkEmailsNow, getPollerStatus } from './emailPoller.js';
 import { processSendGridInbound, extractEmailFromMultipart } from './sendgridInbound.js';
 import { analyzeImageWithRetry } from './imageAI.js';
 import { uploadAttachment, isSupabaseConfigured } from './supabase.js';
+import { generatePDF, previewFilledTemplate } from './pdfGenerator.js';
+import { getAllTemplates, getTemplateById, getTemplatesForTaskCategory } from './pdfTemplates.js';
+import { getTaskById } from './tasks.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -254,6 +257,11 @@ app.post('/tasks/from-image', imageUpload.single('image'), async (req, res) => {
       description: aiResult.description,
       source: 'photo',
       imageUrl: imageUrl || undefined,
+      // Milestone 5: Contact info and template suggestions
+      contactEmail: aiResult.contactEmail,
+      contactPhone: aiResult.contactPhone,
+      contactName: aiResult.contactName,
+      suggestedTemplates: aiResult.suggestedTemplates,
     });
     
     console.log(`[Image] Task created: ${task.id}`);
@@ -761,6 +769,285 @@ app.patch('/notifications/:id/read', async (req, res) => {
     return res.status(500).json({
       success: false,
       error: 'Impossible de mettre à jour la notification.',
+    });
+  }
+});
+
+// ============================================
+// Profile Address Endpoints (Milestone 5)
+// ============================================
+app.put('/profile/address', async (req, res) => {
+  try {
+    const { lastName, address, postalCode, city } = req.body;
+    const profile = await updateProfileAddress({ lastName, address, postalCode, city });
+    return res.json({ success: true, data: profile });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'Impossible de mettre à jour l\'adresse.',
+    });
+  }
+});
+
+// ============================================
+// PDF Templates & Generation Endpoints (Milestone 5)
+// ============================================
+
+// Get all PDF templates
+app.get('/pdf/templates', async (req, res) => {
+  try {
+    const category = req.query.category as string | undefined;
+    const taskCategory = req.query.taskCategory as string | undefined;
+    
+    let templates;
+    if (taskCategory) {
+      templates = getTemplatesForTaskCategory(taskCategory);
+    } else {
+      templates = getAllTemplates();
+    }
+    
+    // If category filter, further filter
+    if (category) {
+      templates = templates.filter(t => t.category === category);
+    }
+    
+    return res.json({ success: true, data: { templates } });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'Impossible de récupérer les modèles.',
+    });
+  }
+});
+
+// Get single template
+app.get('/pdf/templates/:id', async (req, res) => {
+  try {
+    const template = getTemplateById(req.params.id);
+    if (!template) {
+      return res.status(404).json({
+        success: false,
+        error: 'Modèle introuvable.',
+      });
+    }
+    return res.json({ success: true, data: template });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'Impossible de récupérer le modèle.',
+    });
+  }
+});
+
+// Preview filled template (text only)
+app.post('/pdf/preview', async (req, res) => {
+  try {
+    const { templateId, taskId, variables } = req.body;
+    
+    if (!templateId) {
+      return res.status(400).json({
+        success: false,
+        error: 'templateId est requis.',
+      });
+    }
+    
+    const preview = await previewFilledTemplate(templateId, taskId, variables);
+    return res.json({ success: true, data: preview });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Erreur inconnue';
+    return res.status(500).json({
+      success: false,
+      error: message,
+    });
+  }
+});
+
+// Generate PDF document
+app.post('/pdf/generate', async (req, res) => {
+  try {
+    const { templateId, taskId, variables } = req.body;
+    
+    if (!templateId) {
+      return res.status(400).json({
+        success: false,
+        error: 'templateId est requis.',
+      });
+    }
+    
+    const result = await generatePDF({
+      templateId,
+      taskId,
+      variables: variables || {},
+    });
+    
+    return res.json({
+      success: true,
+      data: {
+        pdfUrl: result.pdfUrl,
+        filename: result.filename,
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Erreur inconnue';
+    console.error('[PDF] Generation error:', message);
+    return res.status(500).json({
+      success: false,
+      error: message,
+    });
+  }
+});
+
+// Download PDF (returns raw PDF buffer)
+app.post('/pdf/download', async (req, res) => {
+  try {
+    const { templateId, taskId, variables } = req.body;
+    
+    if (!templateId) {
+      return res.status(400).json({
+        success: false,
+        error: 'templateId est requis.',
+      });
+    }
+    
+    const result = await generatePDF({
+      templateId,
+      taskId,
+      variables: variables || {},
+    });
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    return res.send(result.pdfBuffer);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Erreur inconnue';
+    console.error('[PDF] Download error:', message);
+    return res.status(500).json({
+      success: false,
+      error: message,
+    });
+  }
+});
+
+// ============================================
+// Message Draft Generation (Milestone 5)
+// ============================================
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
+app.post('/tasks/:id/message-draft', async (req, res) => {
+  try {
+    const taskId = req.params.id;
+    const { channel } = req.body; // 'email' | 'sms' | 'whatsapp'
+    
+    if (!channel || !['email', 'sms', 'whatsapp'].includes(channel)) {
+      return res.status(400).json({
+        success: false,
+        error: 'channel doit être email, sms ou whatsapp.',
+      });
+    }
+    
+    const task = await getTaskById(taskId);
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: 'Tâche introuvable.',
+      });
+    }
+    
+    // Get contact info
+    const recipient = channel === 'email' ? task.contactEmail : task.contactPhone;
+    if (!recipient) {
+      return res.status(400).json({
+        success: false,
+        error: `Aucun contact ${channel === 'email' ? 'email' : 'téléphone'} disponible pour cette tâche.`,
+      });
+    }
+    
+    // Generate message draft via AI
+    const profile = await getProfile();
+    const senderName = profile.lastName || 'Le parent';
+    
+    let subject: string | undefined;
+    let body: string;
+    
+    if (OPENAI_API_KEY) {
+      // Use AI to generate message
+      const prompt = `Tu es un assistant familial. Génère un message ${channel === 'email' ? 'email' : 'SMS/WhatsApp'} professionnel mais amical pour la tâche suivante:
+
+Tâche: ${task.title}
+Description: ${task.description || 'Pas de description'}
+Catégorie: ${task.category}
+Échéance: ${task.deadline}
+Destinataire: ${task.contactName || recipient}
+Expéditeur: ${senderName}
+
+Règles:
+- ${channel === 'email' ? 'Format email avec objet et corps' : 'Message court (max 160 caractères pour SMS)'}
+- Ton professionnel mais chaleureux
+- En français
+- Si c'est pour une école/crèche, utiliser les formules de politesse appropriées
+
+Réponds UNIQUEMENT avec un JSON valide:
+{
+  ${channel === 'email' ? '"subject": "objet du message",' : ''}
+  "body": "contenu du message"
+}`;
+
+      try {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${OPENAI_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              { role: 'system', content: 'Tu génères des messages pour des communications familiales. Réponds uniquement en JSON valide.' },
+              { role: 'user', content: prompt },
+            ],
+            response_format: { type: 'json_object' },
+            temperature: 0.5,
+            max_tokens: 300,
+          }),
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const parsed = JSON.parse(data.choices[0].message.content);
+          subject = parsed.subject;
+          body = parsed.body;
+        } else {
+          throw new Error('AI API error');
+        }
+      } catch (aiError) {
+        console.error('[Message Draft] AI error:', aiError);
+        // Fall back to default
+        subject = channel === 'email' ? `À propos de : ${task.title}` : undefined;
+        body = `Bonjour,\n\nJe vous contacte concernant : ${task.title}.\n\nCordialement,\n${senderName}`;
+      }
+    } else {
+      // No AI key, use default template
+      subject = channel === 'email' ? `À propos de : ${task.title}` : undefined;
+      body = channel === 'email'
+        ? `Bonjour,\n\nJe vous contacte concernant : ${task.title}.\n\n${task.description || ''}\n\nCordialement,\n${senderName}`
+        : `Bonjour, je vous contacte au sujet de: ${task.title}. ${senderName}`;
+    }
+    
+    return res.json({
+      success: true,
+      data: {
+        subject,
+        body,
+        recipient,
+        channel,
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Erreur inconnue';
+    console.error('[Message Draft] Error:', message);
+    return res.status(500).json({
+      success: false,
+      error: 'Impossible de générer le brouillon.',
     });
   }
 });

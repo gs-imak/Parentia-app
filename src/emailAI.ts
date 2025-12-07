@@ -28,6 +28,11 @@ export interface EmailAIOutput {
   priority: 'high' | 'medium' | 'low';
   skip?: boolean; // true if email is newsletter/promo with no action required
   originalSender?: string; // original sender if forwarded email
+  // Milestone 5: Contact info and template suggestions
+  contactEmail?: string; // Extracted contact email
+  contactPhone?: string; // Extracted phone number
+  contactName?: string; // Contact name
+  suggestedTemplates?: string[]; // Suggested PDF template IDs
   metadata: {
     emailType: string;
     confidence: number;
@@ -111,7 +116,24 @@ Règles importantes:
    - ⚠️ IMPORTANT: Si un PDF est joint (section "CONTENU DU PDF JOINT" présente), NE JAMAIS mettre skip: true
    - Les emails avec PDF contiennent généralement des factures ou documents importants, même si le corps semble promotionnel
 
-7. CATÉGORIE (doit être une de: administratif, enfants-école, santé, finances, logement, personnel):
+7. EXTRACTION CONTACT:
+   - Extraire l'email de l'expéditeur original (pas l'email de transfert)
+   - Si un numéro de téléphone est visible dans l'email ou le PDF, l'extraire
+   - Extraire le nom de l'expéditeur ou de l'organisation
+
+8. TEMPLATES PDF SUGGÉRÉS:
+   - Basé sur la catégorie et le type d'email, suggérer des IDs de templates pertinents
+   - Templates disponibles:
+     * École: ecole_absence, ecole_autorisation_sortie, ecole_derogation, ecole_inscription, ecole_cantine, ecole_changement_adresse
+     * Crèche: creche_inscription
+     * Santé: sante_demande_remboursement, sante_rdv_medical, sante_certificat_medical, sante_resiliation_mutuelle
+     * Attestations: attestation_hebergement, attestation_honneur, attestation_employeur, attestation_assurance, attestation_domicile, attestation_revenus
+     * Logement: logement_preavis, contrat_resiliation, facture_contestation
+     * Documents: documents_procuration, documents_reclamation
+     * Travail: travail_conges
+   - Suggérer 1 à 3 templates maximum, uniquement si pertinents
+
+9. CATÉGORIE (doit être une de: administratif, enfants-école, santé, finances, logement, personnel):
 
    FINANCES (documents financiers purs):
    - Impôts (avis d'imposition, déclarations, échéances fiscales)
@@ -152,7 +174,7 @@ Règles importantes:
    - Tâches personnelles diverses
    - Informations générales non catégorisables
 
-8. TITRE: court et actionnable (max 60 caractères)
+10. TITRE: court et actionnable (max 60 caractères)
 
 Réponds UNIQUEMENT avec un JSON valide (pas de texte avant ou après):
 {
@@ -163,6 +185,10 @@ Réponds UNIQUEMENT avec un JSON valide (pas de texte avant ou après):
   "description": "string (résumé de l'action + date trouvée si applicable)",
   "priority": "high|medium|low",
   "originalSender": "string (expéditeur original si email transféré, sinon omis)",
+  "contactEmail": "string (email de contact extrait, sinon omis)",
+  "contactPhone": "string (téléphone extrait au format 0X XX XX XX XX ou +33, sinon omis)",
+  "contactName": "string (nom de l'expéditeur/organisation, sinon omis)",
+  "suggestedTemplates": ["template_id1", "template_id2"] (IDs des templates pertinents, max 3, ou omis),
   "metadata": {
     "emailType": "string (ex: facture, convocation, rdv, impôts, newsletter, promo)",
     "confidence": number (0-1, confiance dans l'analyse)
@@ -330,6 +356,20 @@ export function normalizeAIOutput(raw: unknown): EmailAIOutput | null {
 
   // Extract original sender if present (for forwarded emails)
   const originalSender = typeof obj.originalSender === 'string' ? obj.originalSender : undefined;
+  
+  // Milestone 5: Extract contact info
+  const contactEmail = typeof obj.contactEmail === 'string' ? obj.contactEmail : undefined;
+  const contactPhone = typeof obj.contactPhone === 'string' ? obj.contactPhone : undefined;
+  const contactName = typeof obj.contactName === 'string' ? obj.contactName : undefined;
+  
+  // Extract suggested templates
+  let suggestedTemplates: string[] | undefined;
+  if (Array.isArray(obj.suggestedTemplates)) {
+    suggestedTemplates = obj.suggestedTemplates
+      .filter((t: unknown) => typeof t === 'string')
+      .slice(0, 3) as string[];
+    if (suggestedTemplates.length === 0) suggestedTemplates = undefined;
+  }
 
   return {
     title: String(obj.title || 'Tâche à vérifier').slice(0, 100),
@@ -339,6 +379,10 @@ export function normalizeAIOutput(raw: unknown): EmailAIOutput | null {
     priority,
     skip,
     originalSender,
+    contactEmail,
+    contactPhone,
+    contactName,
+    suggestedTemplates,
     metadata: {
       emailType: String(metadataObj.emailType || 'unknown'),
       confidence: typeof metadataObj.confidence === 'number' 

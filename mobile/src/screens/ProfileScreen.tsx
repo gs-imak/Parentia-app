@@ -3,7 +3,7 @@ import { Alert, Platform, View, Text, TextInput, TouchableOpacity, ScrollView, K
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
 import { getStoredCity, setStoredCity, getStoredWeatherCity, setStoredWeatherCity, getStoredCoordinates, setStoredCoordinates, getCachedLocation, setCachedLocation } from '../utils/storage';
-import { reverseGeocode, geolocateByIP, getProfile, addChild, updateChild, deleteChild, updateSpouse, deleteSpouse, updateMarriageDate, deleteMarriageDate, type Child, type Profile } from '../api/client';
+import { reverseGeocode, geolocateByIP, getProfile, addChild, updateChild, deleteChild, updateSpouse, deleteSpouse, updateMarriageDate, deleteMarriageDate, updateProfileAddress, type Child, type Profile } from '../api/client';
 import { AppEvents, EVENTS } from '../utils/events';
 
 // Cross-platform confirm dialog
@@ -73,6 +73,14 @@ export default function ProfileScreen() {
   const [savingMarriageDate, setSavingMarriageDate] = useState(false);
   const [editingMarriageDate, setEditingMarriageDate] = useState(false);
 
+  // Address state (Milestone 5)
+  const [addressExpanded, setAddressExpanded] = useState(false);
+  const [lastName, setLastName] = useState('');
+  const [address, setAddress] = useState('');
+  const [addressPostalCode, setAddressPostalCode] = useState('');
+  const [addressCity, setAddressCity] = useState('');
+  const [savingAddress, setSavingAddress] = useState(false);
+
   useEffect(() => {
     getStoredCity().then((storedCity) => {
       if (storedCity) setCity(storedCity);
@@ -90,6 +98,11 @@ export default function ProfileScreen() {
         if (data.spouse.birthDate) setSpouseBirthDate(new Date(data.spouse.birthDate));
       }
       if (data.marriageDate) setMarriageDate(new Date(data.marriageDate));
+      // Load address fields
+      if (data.lastName) setLastName(data.lastName);
+      if (data.address) setAddress(data.address);
+      if (data.postalCode) setAddressPostalCode(data.postalCode);
+      if (data.city) setAddressCity(data.city);
     } catch (error) {
       console.error('Failed to load profile:', error);
     } finally {
@@ -563,6 +576,33 @@ export default function ProfileScreen() {
           },
         },
       ]);
+    }
+  };
+
+  // Address handlers (Milestone 5)
+  const handleSaveAddress = async () => {
+    setSavingAddress(true);
+    try {
+      await updateProfileAddress({
+        lastName: lastName.trim() || undefined,
+        address: address.trim() || undefined,
+        postalCode: addressPostalCode.trim() || undefined,
+        city: addressCity.trim() || undefined,
+      });
+      await loadProfile();
+      if (Platform.OS === 'web') {
+        // No alert needed, profile reloads
+      } else {
+        Alert.alert('Succès', 'Adresse enregistrée.');
+      }
+    } catch (error) {
+      if (Platform.OS === 'web') {
+        alert('Impossible de mettre à jour l\'adresse.');
+      } else {
+        Alert.alert('Erreur', 'Impossible de mettre à jour l\'adresse.');
+      }
+    } finally {
+      setSavingAddress(false);
     }
   };
 
@@ -1187,6 +1227,81 @@ onChange={(event: any, selectedDate?: Date) => {
                     )}
                   </View>
                 )}
+              </View>
+            )}
+          </View>
+
+          {/* Address Section (Milestone 5) */}
+          <View style={styles.card}>
+            <TouchableOpacity style={styles.sectionHeader} onPress={() => setAddressExpanded(!addressExpanded)}>
+              <View style={styles.sectionHeaderLeft}>
+                <Feather name="home" size={20} color="#2C3E50" />
+                <Text style={styles.sectionTitle}>Adresse & Identité</Text>
+              </View>
+              <Feather name={addressExpanded ? 'chevron-up' : 'chevron-down'} size={20} color="#6E7A84" />
+            </TouchableOpacity>
+
+            {addressExpanded && (
+              <View style={{ marginTop: 12 }}>
+                <Text style={styles.hint}>Ces informations seront utilisées pour pré-remplir vos documents PDF.</Text>
+                
+                <View style={{ marginTop: 12 }}>
+                  <Text style={styles.formLabel}>Nom de famille</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Ex: Dupont"
+                    value={lastName}
+                    onChangeText={setLastName}
+                    placeholderTextColor="#9CA3AF"
+                  />
+                </View>
+
+                <View style={{ marginTop: 12 }}>
+                  <Text style={styles.formLabel}>Adresse</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Ex: 15 rue de la Paix"
+                    value={address}
+                    onChangeText={setAddress}
+                    placeholderTextColor="#9CA3AF"
+                  />
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.formLabel}>Code postal</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Ex: 75001"
+                      value={addressPostalCode}
+                      onChangeText={setAddressPostalCode}
+                      keyboardType="numeric"
+                      placeholderTextColor="#9CA3AF"
+                    />
+                  </View>
+                  <View style={{ flex: 2 }}>
+                    <Text style={styles.formLabel}>Ville</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Ex: Paris"
+                      value={addressCity}
+                      onChangeText={setAddressCity}
+                      placeholderTextColor="#9CA3AF"
+                    />
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.button, savingAddress && styles.buttonDisabled, { marginTop: 16 }]}
+                  onPress={handleSaveAddress}
+                  disabled={savingAddress}
+                >
+                  {savingAddress ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.buttonText}>Enregistrer</Text>
+                  )}
+                </TouchableOpacity>
               </View>
             )}
           </View>

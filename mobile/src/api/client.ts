@@ -43,6 +43,11 @@ export interface Task {
   source?: 'manual' | 'email' | 'profile' | 'photo';
   emailId?: string;
   imageUrl?: string;
+  // Milestone 5: Contact info and PDF suggestions
+  contactEmail?: string;
+  contactPhone?: string;
+  contactName?: string;
+  suggestedTemplates?: string[];
 }
 
 export interface NewsItem {
@@ -146,6 +151,11 @@ export interface Profile {
   children: Child[];
   spouse?: Spouse;
   marriageDate?: string;
+  // Milestone 5: Address fields
+  lastName?: string;
+  address?: string;
+  postalCode?: string;
+  city?: string;
 }
 
 // Profile CRUD operations
@@ -195,6 +205,20 @@ export async function updateMarriageDate(date: string): Promise<Profile> {
 
 export async function deleteMarriageDate(): Promise<Profile> {
   return fetchApi<Profile>('/profile/marriage-date', { method: 'DELETE' });
+}
+
+// Milestone 5: Update profile address
+export async function updateProfileAddress(data: {
+  lastName?: string;
+  address?: string;
+  postalCode?: string;
+  city?: string;
+}): Promise<Profile> {
+  return fetchApi<Profile>('/profile/address', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
 }
 
 // ============================================
@@ -308,4 +332,112 @@ export async function createTaskFromImage(
   }
   
   return json.data;
+}
+
+// ============================================
+// PDF Templates & Generation API (Milestone 5)
+// ============================================
+
+export type TemplateCategory = 
+  | 'ecole' 
+  | 'creche' 
+  | 'sante_mutuelle' 
+  | 'attestation' 
+  | 'logement' 
+  | 'contrat_facture' 
+  | 'documents' 
+  | 'travail';
+
+export interface PDFTemplate {
+  id: string;
+  label: string;
+  category: TemplateCategory;
+  type: 'lettre' | 'attestation' | 'formulaire' | 'note';
+  variables: string[];
+  taskCategories: string[];
+}
+
+export interface PDFPreview {
+  content: string;
+  missingVariables: string[];
+}
+
+export interface GeneratedPDF {
+  pdfUrl: string | null;
+  filename: string;
+}
+
+export interface MessageDraft {
+  subject?: string;
+  body: string;
+  recipient: string;
+  channel: 'email' | 'sms' | 'whatsapp';
+}
+
+/**
+ * Get all PDF templates, optionally filtered by category
+ */
+export async function fetchPDFTemplates(options?: {
+  category?: TemplateCategory;
+  taskCategory?: TaskCategory;
+}): Promise<{ templates: PDFTemplate[] }> {
+  let url = '/pdf/templates';
+  const params = new URLSearchParams();
+  if (options?.category) params.append('category', options.category);
+  if (options?.taskCategory) params.append('taskCategory', options.taskCategory);
+  const query = params.toString();
+  if (query) url += `?${query}`;
+  
+  return fetchApi<{ templates: PDFTemplate[] }>(url);
+}
+
+/**
+ * Get a single PDF template by ID
+ */
+export async function fetchPDFTemplate(id: string): Promise<PDFTemplate> {
+  return fetchApi<PDFTemplate>(`/pdf/templates/${id}`);
+}
+
+/**
+ * Preview a filled PDF template (text only, no PDF generation)
+ */
+export async function previewPDF(options: {
+  templateId: string;
+  taskId?: string;
+  variables?: Record<string, string>;
+}): Promise<PDFPreview> {
+  return fetchApi<PDFPreview>('/pdf/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(options),
+  });
+}
+
+/**
+ * Generate a PDF document from a template
+ */
+export async function generatePDF(options: {
+  templateId: string;
+  taskId?: string;
+  variables?: Record<string, string>;
+}): Promise<GeneratedPDF> {
+  return fetchApi<GeneratedPDF>('/pdf/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(options),
+  });
+}
+
+/**
+ * Generate a message draft for contacting someone about a task
+ */
+export async function getMessageDraft(
+  taskId: string,
+  channel: 'email' | 'sms' | 'whatsapp'
+): Promise<MessageDraft> {
+  return fetchApi<MessageDraft>(`/tasks/${taskId}/message-draft`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ channel }),
+  });
 }

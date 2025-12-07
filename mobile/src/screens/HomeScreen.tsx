@@ -16,7 +16,11 @@ import {
 import { getStoredCity, getStoredWeatherCity, getStoredCoordinates, getStoredQuote, setStoredQuote } from '../utils/storage';
 import { AppEvents, EVENTS } from '../utils/events';
 
-export default function HomeScreen() {
+interface HomeScreenProps {
+  onOpenTaskDetail?: (task: Task) => void;
+}
+
+export default function HomeScreen({ onOpenTaskDetail }: HomeScreenProps) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -73,6 +77,7 @@ export default function HomeScreen() {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [newsError, setNewsError] = useState<string | null>(null);
   
+  // Legacy description modal state (only used if onOpenTaskDetail not provided)
   const [longPressedTask, setLongPressedTask] = useState<Task | null>(null);
   const [pressPosition, setPressPosition] = useState<'top' | 'bottom'>('bottom');
 
@@ -260,11 +265,13 @@ export default function HomeScreen() {
                       style={styles.taskRow}
                       onPress={() => toggleTaskStatus(task.id)}
                       onLongPress={(e: GestureResponderEvent) => {
-                        if (task.description) {
-                          // Get screen height and press Y position
+                        // Open task detail screen if handler is provided
+                        if (onOpenTaskDetail) {
+                          onOpenTaskDetail(task);
+                        } else if (task.description) {
+                          // Fallback: show description modal
                           const screenHeight = Dimensions.get('window').height;
                           const pressY = e.nativeEvent.pageY;
-                          // If press is in lower half of screen, show popup above
                           setPressPosition(pressY > screenHeight / 2 ? 'top' : 'bottom');
                           setLongPressedTask(task);
                         }

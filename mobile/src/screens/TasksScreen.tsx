@@ -31,7 +31,11 @@ const CATEGORIES: { value: TaskCategory; label: string }[] = [
   { value: 'personnel', label: 'Personnel' },
 ];
 
-export default function TasksScreen() {
+interface TasksScreenProps {
+  onOpenTaskDetail?: (task: Task) => void;
+}
+
+export default function TasksScreen({ onOpenTaskDetail }: TasksScreenProps) {
   const scrollViewRef = useRef<ScrollView>(null);
   const [loading, setLoading] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -742,7 +746,14 @@ onChange={(event: any, selectedDate?: Date) => {
               }
 
               return (
-                <View key={task.id} style={styles.taskItem}>
+                <TouchableOpacity
+                  key={task.id}
+                  style={styles.taskItem}
+                  onLongPress={() => onOpenTaskDetail && onOpenTaskDetail(task)}
+                  delayLongPress={400}
+                  activeOpacity={0.7}
+                  disabled={editingTaskId === task.id}
+                >
                   {editingTaskId === task.id ? (
                     // Edit Form
                     <View>
@@ -1048,7 +1059,7 @@ onChange={(event: any, selectedDate?: Date) => {
                       )}
                     </>
                   )}
-                </View>
+                </TouchableOpacity>
               );
             })}
           </View>

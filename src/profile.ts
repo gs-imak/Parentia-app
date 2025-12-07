@@ -27,6 +27,11 @@ export interface Profile {
   children: Child[];
   spouse?: Spouse;
   marriageDate?: string; // ISO date string
+  // Milestone 5: Address fields for PDF generation
+  lastName?: string; // Family name
+  address?: string; // Street address
+  postalCode?: string; // Postal code
+  city?: string; // City
 }
 
 const ChildSchema = z.object({
@@ -47,6 +52,11 @@ const ProfileSchema = z.object({
   children: z.array(ChildSchema).max(5),
   spouse: SpouseSchema.optional(),
   marriageDate: z.string().optional(),
+  // Milestone 5: Address fields
+  lastName: z.string().optional(),
+  address: z.string().optional(),
+  postalCode: z.string().optional(),
+  city: z.string().optional(),
 });
 
 async function readProfile(): Promise<Profile> {
@@ -219,5 +229,23 @@ export async function deleteMarriageDate(): Promise<Profile> {
   // Delete associated anniversary task
   await deleteTasksByRecurringSource('marriage');
   
+  return profile;
+}
+
+// Milestone 5: Update profile address information
+export async function updateProfileAddress(data: {
+  lastName?: string;
+  address?: string;
+  postalCode?: string;
+  city?: string;
+}): Promise<Profile> {
+  const profile = await readProfile();
+  
+  if (data.lastName !== undefined) profile.lastName = data.lastName;
+  if (data.address !== undefined) profile.address = data.address;
+  if (data.postalCode !== undefined) profile.postalCode = data.postalCode;
+  if (data.city !== undefined) profile.city = data.city;
+  
+  await writeProfile(profile);
   return profile;
 }

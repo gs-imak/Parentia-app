@@ -1,26 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import HomeScreen from './src/screens/HomeScreen';
 import TasksScreen from './src/screens/TasksScreen';
 import InboxScreen from './src/screens/InboxScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
+import TaskDetailScreen from './src/screens/TaskDetailScreen';
+import { type Task } from './src/api/client';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('Home');
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+
+  const handleOpenTaskDetail = useCallback((task: Task) => {
+    setSelectedTask(task);
+  }, []);
+
+  const handleCloseTaskDetail = useCallback(() => {
+    setSelectedTask(null);
+  }, []);
+
+  const handleTaskUpdated = useCallback((updatedTask: Task) => {
+    setSelectedTask(updatedTask);
+  }, []);
+
+  const handleTaskDeleted = useCallback((taskId: string) => {
+    setSelectedTask(null);
+  }, []);
 
   const renderScreen = () => {
     switch (activeTab) {
       case 'Home':
-        return <HomeScreen />;
+        return <HomeScreen onOpenTaskDetail={handleOpenTaskDetail} />;
       case 'Tasks':
-        return <TasksScreen />;
+        return <TasksScreen onOpenTaskDetail={handleOpenTaskDetail} />;
       case 'Inbox':
-        return <InboxScreen />;
+        return <InboxScreen onOpenTaskDetail={handleOpenTaskDetail} />;
       case 'Profile':
         return <ProfileScreen />;
       default:
-        return <HomeScreen />;
+        return <HomeScreen onOpenTaskDetail={handleOpenTaskDetail} />;
     }
   };
 
@@ -86,6 +105,16 @@ export default function App() {
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Task Detail Modal */}
+      {selectedTask && (
+        <TaskDetailScreen
+          task={selectedTask}
+          onClose={handleCloseTaskDetail}
+          onTaskUpdated={handleTaskUpdated}
+          onTaskDeleted={handleTaskDeleted}
+        />
+      )}
     </View>
   );
 }

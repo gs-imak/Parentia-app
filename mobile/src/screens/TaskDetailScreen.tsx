@@ -1,0 +1,930 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  Modal,
+  StyleSheet,
+  ActivityIndicator,
+  Linking,
+  Platform,
+  Alert,
+  TextInput,
+} from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { formatDateFrench } from '../utils/dateFormat';
+import {
+  type Task,
+  type PDFTemplate,
+  updateTask,
+  deleteTask,
+  fetchPDFTemplates,
+  generatePDF,
+  getMessageDraft,
+} from '../api/client';
+
+interface TaskDetailScreenProps {
+  task: Task;
+  onClose: () => void;
+  onTaskUpdated: (task: Task) => void;
+  onTaskDeleted: (taskId: string) => void;
+}
+
+// Category labels in French
+const CATEGORY_LABELS: Record<string, string> = {
+  'administratif': 'Administratif',
+  'enfants-école': 'Enfants & École',
+  'santé': 'Santé',
+  'finances': 'Finances',
+  'logement': 'Logement',
+  'personnel': 'Personnel',
+};
+
+// Source labels
+const SOURCE_LABELS: Record<string, string> = {
+  'email': '📧 Email',
+  'photo': '📷 Photo',
+  'manual': '✏️ Manuel',
+  'profile': '👤 Profil',
+};
+
+export default function TaskDetailScreen({
+  task,
+  onClose,
+  onTaskUpdated,
+  onTaskDeleted,
+}: TaskDetailScreenProps) {
+  const [loading, setLoading] = useState(false);
+  const [templates, setTemplates] = useState<PDFTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState<string | null>(null);
+  const [showAllTemplates, setShowAllTemplates] = useState(false);
+  const [allTemplates, setAllTemplates] = useState<PDFTemplate[]>([]);
+  const [loadingAllTemplates, setLoadingAllTemplates] = useState(false);
+  
+  // Message draft modal
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [messageChannel, setMessageChannel] = useState<'email' | 'sms' | 'whatsapp'>('email');
+  const [messageDraft, setMessageDraft] = useState<{ subject?: string; body: string } | null>(null);
+  const [loadingMessage, setLoadingMessage] = useState(false);
+  
+  // Delete confirmation
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    loadSuggestedTemplates();
+  }, [task]);
+
+  const loadSuggestedTemplates = async () => {
+    // Load templates for task's category
+    setLoadingTemplates(true);
+    try {
+      const result = await fetchPDFTemplates({ taskCategory: task.category });
+      setTemplates(result.templates.slice(0, 3)); // Show max 3 suggestions
+    } catch (error) {
+      console.error('Failed to load templates:', error);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
+
+  const loadAllTemplates = async () => {
+    setLoadingAllTemplates(true);
+    try {
+      const result = await fetchPDFTemplates();
+      setAllTemplates(result.templates);
+      setShowAllTemplates(true);
+    } catch (error) {
+      console.error('Failed to load all templates:', error);
+    } finally {
+      setLoadingAllTemplates(false);
+    }
+  };
+
+  const handleGeneratePdf = async (templateId: string) => {
+    setGeneratingPdf(templateId);
+    try {
+      const result = await generatePDF({
+        templateId,
+        taskId: task.id,
+      });
+      
+      if (result.pdfUrl) {
+        // Open PDF in browser
+        await Linking.openURL(result.pdfUrl);
+      } else {
+        Alert.alert('Erreur', 'Le PDF a été généré mais l\'URL n\'est pas disponible.');
+      }
+    } catch (error) {
+      console.error('Failed to generate PDF:', error);
+      Alert.alert('Erreur', 'Impossible de générer le PDF.');
+    } finally {
+      setGeneratingPdf(null);
+    }
+  };
+
+  const handleContactAction = async (channel: 'email' | 'sms' | 'whatsapp') => {
+    setMessageChannel(channel);
+    setLoadingMessage(true);
+    setShowMessageModal(true);
+    
+    try {
+      const draft = await getMessageDraft(task.id, channel);
+      setMessageDraft({ subject: draft.subject, body: draft.body });
+    } catch (error) {
+      console.error('Failed to get message draft:', error);
+      // Fallback to simple message
+      setMessageDraft({
+        subject: channel === 'email' ? `À propos de : ${task.title}` : undefined,
+        body: `Bonjour,\n\nJe vous contacte concernant : ${task.title}.\n\nCordialement`,
+      });
+    } finally {
+      setLoadingMessage(false);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!messageDraft) return;
+    
+    const recipient = messageChannel === 'email' ? task.contactEmail : task.contactPhone;
+    if (!recipient) {
+      Alert.alert('Erreur', 'Aucun contact disponible.');
+      return;
+    }
+    
+    let url = '';
+    
+    if (messageChannel === 'email') {
+      const subject = encodeURIComponent(messageDraft.subject || '');
+      const body = encodeURIComponent(messageDraft.body);
+      url = `mailto:${recipient}?subject=${subject}&body=${body}`;
+    } else if (messageChannel === 'sms') {
+      const body = encodeURIComponent(messageDraft.body);
+      url = Platform.OS === 'ios' 
+        ? `sms:${recipient}&body=${body}`
+        : `sms:${recipient}?body=${body}`;
+    } else if (messageChannel === 'whatsapp') {
+      const cleanPhone = recipient.replace(/[^0-9+]/g, '');
+      const body = encodeURIComponent(messageDraft.body);
+      url = `https://wa.me/${cleanPhone}?text=${body}`;
+    }
+    
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+        setShowMessageModal(false);
+      } else {
+        Alert.alert('Erreur', 'Impossible d\'ouvrir l\'application de messagerie.');
+      }
+    } catch (error) {
+      console.error('Failed to open messaging app:', error);
+      Alert.alert('Erreur', 'Impossible d\'ouvrir l\'application.');
+    }
+  };
+
+  const handleStatusChange = async (newStatus: 'todo' | 'in_progress' | 'done') => {
+    setLoading(true);
+    try {
+      const updated = await updateTask(task.id, { status: newStatus });
+      onTaskUpdated(updated);
+    } catch (error) {
+      console.error('Failed to update status:', error);
+      Alert.alert('Erreur', 'Impossible de mettre à jour le statut.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await deleteTask(task.id);
+      onTaskDeleted(task.id);
+      onClose();
+    } catch (error) {
+      console.error('Failed to delete task:', error);
+      Alert.alert('Erreur', 'Impossible de supprimer la tâche.');
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
+  const deadline = new Date(task.deadline);
+  const formattedDeadline = formatDateFrench(deadline);
+  const hasContact = task.contactEmail || task.contactPhone;
+  const hasAttachment = task.imageUrl;
+
+  return (
+    <Modal
+      visible={true}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <Feather name="x" size={24} color="#2C3E50" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Détail de la tâche</Text>
+          <TouchableOpacity 
+            onPress={() => setShowDeleteConfirm(true)} 
+            style={styles.deleteButton}
+          >
+            <Feather name="trash-2" size={20} color="#DC2626" />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={styles.scrollView}>
+          {/* Task Info Card */}
+          <View style={styles.card}>
+            <Text style={styles.taskTitle}>{task.title}</Text>
+            
+            <View style={styles.metaRow}>
+              <View style={styles.categoryBadge}>
+                <Text style={styles.categoryBadgeText}>
+                  {CATEGORY_LABELS[task.category] || task.category}
+                </Text>
+              </View>
+              {task.source && (
+                <View style={styles.sourceBadge}>
+                  <Text style={styles.sourceBadgeText}>
+                    {SOURCE_LABELS[task.source] || task.source}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.deadlineRow}>
+              <Feather name="calendar" size={16} color="#6E7A84" />
+              <Text style={styles.deadlineText}>Échéance : {formattedDeadline}</Text>
+            </View>
+
+            {task.description && (
+              <View style={styles.descriptionSection}>
+                <Text style={styles.sectionLabel}>Description</Text>
+                <Text style={styles.descriptionText}>{task.description}</Text>
+              </View>
+            )}
+
+            {/* Status Buttons */}
+            <View style={styles.statusSection}>
+              <Text style={styles.sectionLabel}>Statut</Text>
+              <View style={styles.statusButtons}>
+                <TouchableOpacity
+                  style={[
+                    styles.statusButton,
+                    task.status === 'todo' && styles.statusButtonActive,
+                  ]}
+                  onPress={() => handleStatusChange('todo')}
+                  disabled={loading}
+                >
+                  <Text style={[
+                    styles.statusButtonText,
+                    task.status === 'todo' && styles.statusButtonTextActive,
+                  ]}>À faire</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.statusButton,
+                    task.status === 'in_progress' && styles.statusButtonActiveProgress,
+                  ]}
+                  onPress={() => handleStatusChange('in_progress')}
+                  disabled={loading}
+                >
+                  <Text style={[
+                    styles.statusButtonText,
+                    task.status === 'in_progress' && styles.statusButtonTextActive,
+                  ]}>En cours</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.statusButton,
+                    task.status === 'done' && styles.statusButtonActiveDone,
+                  ]}
+                  onPress={() => handleStatusChange('done')}
+                  disabled={loading}
+                >
+                  <Text style={[
+                    styles.statusButtonText,
+                    task.status === 'done' && styles.statusButtonTextActive,
+                  ]}>Terminé</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
+          {/* Actions Card */}
+          {(hasAttachment || hasContact) && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Actions</Text>
+              
+              {hasAttachment && (
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => Linking.openURL(task.imageUrl!)}
+                >
+                  <Feather name="paperclip" size={20} color="#3A82F7" />
+                  <Text style={styles.actionButtonText}>Voir la pièce jointe</Text>
+                  <Feather name="external-link" size={16} color="#6E7A84" />
+                </TouchableOpacity>
+              )}
+
+              {hasContact && (
+                <View style={styles.contactSection}>
+                  <Text style={styles.contactLabel}>
+                    Contacter {task.contactName || 'le destinataire'}
+                  </Text>
+                  <View style={styles.contactButtons}>
+                    {task.contactEmail && (
+                      <TouchableOpacity
+                        style={styles.contactButton}
+                        onPress={() => handleContactAction('email')}
+                      >
+                        <Feather name="mail" size={20} color="#FFFFFF" />
+                        <Text style={styles.contactButtonText}>Email</Text>
+                      </TouchableOpacity>
+                    )}
+                    {task.contactPhone && (
+                      <>
+                        <TouchableOpacity
+                          style={[styles.contactButton, styles.contactButtonSms]}
+                          onPress={() => handleContactAction('sms')}
+                        >
+                          <Feather name="message-square" size={20} color="#FFFFFF" />
+                          <Text style={styles.contactButtonText}>SMS</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.contactButton, styles.contactButtonWhatsapp]}
+                          onPress={() => handleContactAction('whatsapp')}
+                        >
+                          <Feather name="message-circle" size={20} color="#FFFFFF" />
+                          <Text style={styles.contactButtonText}>WhatsApp</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </View>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Documents Card */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Documents suggérés</Text>
+            
+            {loadingTemplates ? (
+              <ActivityIndicator color="#3A82F7" style={{ marginVertical: 16 }} />
+            ) : templates.length > 0 ? (
+              <View>
+                {templates.map((template) => (
+                  <View key={template.id} style={styles.templateItem}>
+                    <View style={styles.templateInfo}>
+                      <Text style={styles.templateLabel}>{template.label}</Text>
+                      <Text style={styles.templateType}>{template.type}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.generateButton}
+                      onPress={() => handleGeneratePdf(template.id)}
+                      disabled={generatingPdf === template.id}
+                    >
+                      {generatingPdf === template.id ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <>
+                          <Feather name="file-text" size={16} color="#FFFFFF" />
+                          <Text style={styles.generateButtonText}>Générer</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.noTemplatesText}>
+                Aucun modèle suggéré pour cette catégorie.
+              </Text>
+            )}
+
+            <TouchableOpacity
+              style={styles.showAllButton}
+              onPress={loadAllTemplates}
+              disabled={loadingAllTemplates}
+            >
+              {loadingAllTemplates ? (
+                <ActivityIndicator size="small" color="#3A82F7" />
+              ) : (
+                <Text style={styles.showAllButtonText}>
+                  Voir tous les modèles ({showAllTemplates ? allTemplates.length : '20'})
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+
+        {/* All Templates Modal */}
+        <Modal
+          visible={showAllTemplates}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowAllTemplates(false)}
+        >
+          <View style={styles.container}>
+            <View style={styles.header}>
+              <TouchableOpacity onPress={() => setShowAllTemplates(false)} style={styles.closeButton}>
+                <Feather name="x" size={24} color="#2C3E50" />
+              </TouchableOpacity>
+              <Text style={styles.headerTitle}>Tous les modèles</Text>
+              <View style={{ width: 44 }} />
+            </View>
+            <ScrollView style={styles.scrollView}>
+              {allTemplates.map((template) => (
+                <View key={template.id} style={[styles.templateItem, { marginHorizontal: 16 }]}>
+                  <View style={styles.templateInfo}>
+                    <Text style={styles.templateLabel}>{template.label}</Text>
+                    <Text style={styles.templateType}>{template.type} • {template.category}</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.generateButton}
+                    onPress={() => {
+                      setShowAllTemplates(false);
+                      handleGeneratePdf(template.id);
+                    }}
+                  >
+                    <Feather name="file-text" size={16} color="#FFFFFF" />
+                    <Text style={styles.generateButtonText}>Générer</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </Modal>
+
+        {/* Message Draft Modal */}
+        <Modal
+          visible={showMessageModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowMessageModal(false)}
+        >
+          <View style={styles.container}>
+            <View style={styles.header}>
+              <TouchableOpacity onPress={() => setShowMessageModal(false)} style={styles.closeButton}>
+                <Feather name="x" size={24} color="#2C3E50" />
+              </TouchableOpacity>
+              <Text style={styles.headerTitle}>
+                {messageChannel === 'email' ? 'Email' : messageChannel === 'sms' ? 'SMS' : 'WhatsApp'}
+              </Text>
+              <View style={{ width: 44 }} />
+            </View>
+            
+            {loadingMessage ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#3A82F7" />
+                <Text style={styles.loadingText}>Génération du message...</Text>
+              </View>
+            ) : (
+              <ScrollView style={styles.scrollView}>
+                <View style={styles.messageCard}>
+                  {messageChannel === 'email' && (
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Objet</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={messageDraft?.subject || ''}
+                        onChangeText={(text) => setMessageDraft(prev => prev ? { ...prev, subject: text } : null)}
+                        placeholder="Objet du message"
+                      />
+                    </View>
+                  )}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Message</Text>
+                    <TextInput
+                      style={[styles.input, styles.textArea]}
+                      value={messageDraft?.body || ''}
+                      onChangeText={(text) => setMessageDraft(prev => prev ? { ...prev, body: text } : null)}
+                      placeholder="Contenu du message"
+                      multiline
+                      numberOfLines={8}
+                    />
+                  </View>
+                  <TouchableOpacity
+                    style={styles.sendButton}
+                    onPress={handleSendMessage}
+                  >
+                    <Feather name="send" size={20} color="#FFFFFF" />
+                    <Text style={styles.sendButtonText}>
+                      Ouvrir {messageChannel === 'email' ? 'Mail' : messageChannel === 'sms' ? 'Messages' : 'WhatsApp'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            )}
+          </View>
+        </Modal>
+
+        {/* Delete Confirmation Modal */}
+        <Modal
+          visible={showDeleteConfirm}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowDeleteConfirm(false)}
+        >
+          <View style={styles.deleteModalOverlay}>
+            <View style={styles.deleteModalContent}>
+              <Feather name="alert-triangle" size={48} color="#DC2626" />
+              <Text style={styles.deleteModalTitle}>Supprimer la tâche ?</Text>
+              <Text style={styles.deleteModalText}>
+                Cette action est irréversible.
+              </Text>
+              <View style={styles.deleteModalButtons}>
+                <TouchableOpacity
+                  style={styles.deleteModalCancel}
+                  onPress={() => setShowDeleteConfirm(false)}
+                >
+                  <Text style={styles.deleteModalCancelText}>Annuler</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.deleteModalConfirm}
+                  onPress={handleDelete}
+                  disabled={deleting}
+                >
+                  {deleting ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.deleteModalConfirmText}>Supprimer</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F5F7FA',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    paddingTop: Platform.OS === 'ios' ? 50 : 20,
+    paddingBottom: 15,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E9EEF2',
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#2C3E50',
+  },
+  closeButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#E9EEF2',
+  },
+  cardTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#2C3E50',
+    marginBottom: 12,
+  },
+  taskTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#2C3E50',
+    marginBottom: 12,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  categoryBadge: {
+    backgroundColor: '#EBF5FF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  categoryBadgeText: {
+    color: '#3A82F7',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  sourceBadge: {
+    backgroundColor: '#F5F7FA',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  sourceBadgeText: {
+    color: '#6E7A84',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  deadlineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  deadlineText: {
+    fontSize: 15,
+    color: '#6E7A84',
+  },
+  descriptionSection: {
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E9EEF2',
+  },
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6E7A84',
+    marginBottom: 8,
+  },
+  descriptionText: {
+    fontSize: 15,
+    color: '#2C3E50',
+    lineHeight: 22,
+  },
+  statusSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E9EEF2',
+  },
+  statusButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  statusButton: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: '#F5F7FA',
+    alignItems: 'center',
+  },
+  statusButtonActive: {
+    backgroundColor: '#6E7A84',
+  },
+  statusButtonActiveProgress: {
+    backgroundColor: '#F7A45A',
+  },
+  statusButtonActiveDone: {
+    backgroundColor: '#4CAF50',
+  },
+  statusButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6E7A84',
+  },
+  statusButtonTextActive: {
+    color: '#FFFFFF',
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#F5F7FA',
+    borderRadius: 8,
+    gap: 12,
+    marginBottom: 12,
+  },
+  actionButtonText: {
+    flex: 1,
+    fontSize: 15,
+    color: '#3A82F7',
+    fontWeight: '500',
+  },
+  contactSection: {
+    marginTop: 4,
+  },
+  contactLabel: {
+    fontSize: 14,
+    color: '#6E7A84',
+    marginBottom: 8,
+  },
+  contactButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  contactButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    backgroundColor: '#3A82F7',
+    borderRadius: 8,
+    gap: 8,
+  },
+  contactButtonSms: {
+    backgroundColor: '#4CAF50',
+  },
+  contactButtonWhatsapp: {
+    backgroundColor: '#25D366',
+  },
+  contactButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  templateItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    backgroundColor: '#F5F7FA',
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  templateInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  templateLabel: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#2C3E50',
+    marginBottom: 4,
+  },
+  templateType: {
+    fontSize: 13,
+    color: '#6E7A84',
+  },
+  generateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    paddingHorizontal: 14,
+    backgroundColor: '#3A82F7',
+    borderRadius: 8,
+    gap: 6,
+  },
+  generateButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  noTemplatesText: {
+    fontSize: 14,
+    color: '#6E7A84',
+    textAlign: 'center',
+    paddingVertical: 16,
+  },
+  showAllButton: {
+    alignItems: 'center',
+    padding: 12,
+    marginTop: 8,
+  },
+  showAllButtonText: {
+    fontSize: 15,
+    color: '#3A82F7',
+    fontWeight: '500',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#6E7A84',
+  },
+  messageCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    margin: 16,
+    borderWidth: 1,
+    borderColor: '#E9EEF2',
+  },
+  inputGroup: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6E7A84',
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: '#F5F7FA',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E9EEF2',
+    padding: 12,
+    fontSize: 15,
+    color: '#2C3E50',
+  },
+  textArea: {
+    height: 200,
+    textAlignVertical: 'top',
+  },
+  sendButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 14,
+    backgroundColor: '#3A82F7',
+    borderRadius: 8,
+    gap: 8,
+  },
+  sendButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  deleteModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  deleteModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 320,
+  },
+  deleteModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2C3E50',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  deleteModalText: {
+    fontSize: 14,
+    color: '#6E7A84',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  deleteModalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  deleteModalCancel: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 8,
+    backgroundColor: '#F5F7FA',
+    alignItems: 'center',
+  },
+  deleteModalCancelText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#6E7A84',
+  },
+  deleteModalConfirm: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 8,
+    backgroundColor: '#DC2626',
+    alignItems: 'center',
+  },
+  deleteModalConfirmText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+});
