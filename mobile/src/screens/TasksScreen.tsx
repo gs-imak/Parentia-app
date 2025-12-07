@@ -281,9 +281,6 @@ export default function TasksScreen() {
       setSuccessMessage(`Tâche créée : ${response.task.title}`);
       setTimeout(() => setSuccessMessage(null), 4000);
       
-      // Scroll to top to show success message
-      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-      
       await loadTasks();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erreur inconnue';
@@ -336,9 +333,6 @@ export default function TasksScreen() {
       
       setSuccessMessage(`Tâche créée : ${response.task.title}`);
       setTimeout(() => setSuccessMessage(null), 4000);
-      
-      // Scroll to top to show success message
-      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       
       // Reload tasks
       await loadTasks();
@@ -416,13 +410,6 @@ export default function TasksScreen() {
         />
       )}
       <ScrollView ref={scrollViewRef} style={styles.container}>
-      {/* Success Message */}
-      {successMessage && (
-        <View style={styles.successBanner}>
-          <Feather name="check-circle" size={20} color="#4CAF50" />
-          <Text style={styles.successText}>{successMessage}</Text>
-        </View>
-      )}
 
       {/* Error Message */}
       {formError && (
@@ -1101,6 +1088,14 @@ onChange={(event: any, selectedDate?: Date) => {
           </View>
         </Modal>
       )}
+      
+      {/* Floating success toast - always visible */}
+      {successMessage && (
+        <View style={styles.floatingToast}>
+          <Feather name="check-circle" size={20} color="#FFFFFF" />
+          <Text style={styles.floatingToastText}>{successMessage}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -1111,26 +1106,28 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F7FA',
     padding: 20,
   },
-  successBanner: {
-    backgroundColor: '#E8F5E9',
+  floatingToast: {
+    position: 'absolute',
+    bottom: 80,
+    left: 20,
+    right: 20,
+    backgroundColor: '#4CAF50',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    borderLeftWidth: 4,
-    borderLeftColor: '#4CAF50',
-    shadowColor: '#4CAF50',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 9999,
   },
-  successText: {
+  floatingToastText: {
     fontSize: 15,
-    color: '#4CAF50',
-    fontWeight: '500',
-    marginLeft: 8,
+    color: '#FFFFFF',
+    fontWeight: '600',
+    marginLeft: 12,
     flex: 1,
   },
   errorBanner: {
