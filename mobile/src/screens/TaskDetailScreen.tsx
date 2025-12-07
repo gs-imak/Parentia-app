@@ -747,10 +747,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
     backgroundColor: '#3A82F7',
     borderRadius: 8,
-    gap: 8,
+    gap: 6,
   },
   contactButtonSms: {
     backgroundColor: '#4CAF50',
