@@ -281,6 +281,9 @@ export default function TasksScreen() {
       setSuccessMessage(`Tâche créée : ${response.task.title}`);
       setTimeout(() => setSuccessMessage(null), 4000);
       
+      // Scroll to top to show success message
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      
       await loadTasks();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erreur inconnue';
@@ -333,6 +336,9 @@ export default function TasksScreen() {
       
       setSuccessMessage(`Tâche créée : ${response.task.title}`);
       setTimeout(() => setSuccessMessage(null), 4000);
+      
+      // Scroll to top to show success message
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       
       // Reload tasks
       await loadTasks();

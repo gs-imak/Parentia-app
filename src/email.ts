@@ -193,6 +193,7 @@ export async function processIncomingEmail(
       category: aiOutput.category,
       deadline: aiOutput.deadline,
       description: aiOutput.description,
+      source: 'email',
     });
     console.log(`Task created: ${task.id}`);
   } catch (error) {
