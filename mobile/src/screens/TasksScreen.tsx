@@ -1108,7 +1108,7 @@ const styles = StyleSheet.create({
   },
   floatingToast: {
     position: 'absolute',
-    bottom: 80,
+    top: 20,
     left: 20,
     right: 20,
     backgroundColor: '#4CAF50',
