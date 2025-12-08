@@ -97,9 +97,26 @@ export default function TaskDetailScreen({
   }, [task]);
 
   const loadSuggestedTemplates = async () => {
-    // Load templates for task's category
     setLoadingTemplates(true);
     try {
+      // First, check if task has AI-suggested templates
+      if (task.suggestedTemplates && task.suggestedTemplates.length > 0) {
+        // Load all templates and filter to AI-suggested ones
+        const result = await fetchPDFTemplates();
+        const aiSuggested = result.templates.filter(
+          t => task.suggestedTemplates!.includes(t.id)
+        );
+        
+        // If we have AI suggestions, use them first
+        if (aiSuggested.length > 0) {
+          // Show up to 3 AI-suggested templates
+          setTemplates(aiSuggested.slice(0, 3));
+          setLoadingTemplates(false);
+          return;
+        }
+      }
+      
+      // Fallback: load templates for task's category
       const result = await fetchPDFTemplates({ taskCategory: task.category });
       setTemplates(result.templates.slice(0, 3)); // Show max 3 suggestions
     } catch (error) {
