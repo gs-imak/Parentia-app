@@ -112,8 +112,12 @@ export default function TaskDetailScreen({
       });
       
       if (result.pdfUrl) {
-        // Open PDF in browser
-        await Linking.openURL(result.pdfUrl);
+        // Open PDF in new tab/window
+        if (Platform.OS === 'web') {
+          window.open(result.pdfUrl, '_blank');
+        } else {
+          await Linking.openURL(result.pdfUrl);
+        }
       } else {
         Alert.alert('Erreur', 'Le PDF a été généré mais l\'URL n\'est pas disponible.');
       }
