@@ -18,12 +18,19 @@ import { formatDateFrench } from '../utils/dateFormat';
 import {
   type Task,
   type PDFTemplate,
+  type TaskCategory,
   updateTask,
   deleteTask,
   fetchPDFTemplates,
   generatePDF,
   getMessageDraft,
 } from '../api/client';
+
+// Conditionally import DateTimePicker only for mobile
+let DateTimePicker: any = null;
+if (Platform.OS !== 'web') {
+  DateTimePicker = require('@react-native-community/datetimepicker').default;
+}
 
 interface TaskDetailScreenProps {
   task: Task;
@@ -76,6 +83,14 @@ export default function TaskDetailScreen({
   
   // Image viewer
   const [showImageViewer, setShowImageViewer] = useState(false);
+  
+  // Edit category/deadline
+  const [editingCategory, setEditingCategory] = useState(false);
+  const [editCategory, setEditCategory] = useState(task.category);
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [editingDeadline, setEditingDeadline] = useState(false);
+  const [editDeadline, setEditDeadline] = useState(new Date(task.deadline));
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => {
     loadSuggestedTemplates();
@@ -234,6 +249,34 @@ export default function TaskDetailScreen({
     }
   };
 
+  const handleCategoryChange = async (newCategory: typeof task.category) => {
+    setLoading(true);
+    try {
+      const updated = await updateTask(task.id, { category: newCategory });
+      onTaskUpdated(updated);
+      setEditingCategory(false);
+    } catch (error) {
+      console.error('Failed to update category:', error);
+      Alert.alert('Erreur', 'Impossible de mettre à jour la catégorie.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeadlineChange = async () => {
+    setLoading(true);
+    try {
+      const updated = await updateTask(task.id, { deadline: editDeadline.toISOString() });
+      onTaskUpdated(updated);
+      setEditingDeadline(false);
+    } catch (error) {
+      console.error('Failed to update deadline:', error);
+      Alert.alert('Erreur', 'Impossible de mettre à jour l\'échéance.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const deadline = new Date(task.deadline);
   const formattedDeadline = formatDateFrench(deadline);
   const hasContact = task.contactEmail || task.contactPhone;
@@ -267,11 +310,15 @@ export default function TaskDetailScreen({
             <Text style={styles.taskTitle}>{task.title}</Text>
             
             <View style={styles.metaRow}>
-              <View style={styles.categoryBadge}>
+              <TouchableOpacity
+                style={styles.categoryBadge}
+                onPress={() => setEditingCategory(true)}
+              >
                 <Text style={styles.categoryBadgeText}>
                   {CATEGORY_LABELS[task.category] || task.category}
                 </Text>
-              </View>
+                <Feather name="edit-2" size={12} color="#3A82F7" style={{ marginLeft: 6 }} />
+              </TouchableOpacity>
               {task.source && (
                 <View style={styles.sourceBadge}>
                   <Text style={styles.sourceBadgeText}>
@@ -281,10 +328,14 @@ export default function TaskDetailScreen({
               )}
             </View>
 
-            <View style={styles.deadlineRow}>
+            <TouchableOpacity
+              style={styles.deadlineRow}
+              onPress={() => setEditingDeadline(true)}
+            >
               <Feather name="calendar" size={16} color="#6E7A84" />
               <Text style={styles.deadlineText}>Échéance : {formattedDeadline}</Text>
-            </View>
+              <Feather name="edit-2" size={14} color="#6E7A84" style={{ marginLeft: 6 }} />
+            </TouchableOpacity>
 
             {task.description && (
               <View style={styles.descriptionSection}>
@@ -616,6 +667,129 @@ export default function TaskDetailScreen({
             </View>
           </Modal>
         )}
+
+        {/* Category Picker Modal */}
+        <Modal
+          visible={editingCategory}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setEditingCategory(false)}
+        >
+          <TouchableOpacity
+            style={styles.deleteModalOverlay}
+            activeOpacity={1}
+            onPress={() => setEditingCategory(false)}
+          >
+            <View style={[styles.deleteModalContent, { maxHeight: '70%' }]}>
+              <Text style={styles.deleteModalTitle}>Changer la catégorie</Text>
+              <ScrollView style={{ width: '100%', maxHeight: 400 }}>
+                {Object.entries(CATEGORY_LABELS).map(([key, label]) => (
+                  <TouchableOpacity
+                    key={key}
+                    style={[
+                      styles.categoryOption,
+                      task.category === key && styles.categoryOptionActive,
+                    ]}
+                    onPress={() => handleCategoryChange(key as TaskCategory)}
+                  >
+                    <Text
+                      style={[
+                        styles.categoryOptionText,
+                        task.category === key && styles.categoryOptionTextActive,
+                      ]}
+                    >
+                      {label}
+                    </Text>
+                    {task.category === key && <Feather name="check" size={20} color="#3A82F7" />}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <TouchableOpacity
+                style={[styles.deleteModalCancel, { marginTop: 12 }]}
+                onPress={() => setEditingCategory(false)}
+              >
+                <Text style={styles.deleteModalCancelText}>Annuler</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
+        {/* Deadline Picker Modal */}
+        <Modal
+          visible={editingDeadline}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setEditingDeadline(false)}
+        >
+          <TouchableOpacity
+            style={styles.deleteModalOverlay}
+            activeOpacity={1}
+            onPress={() => setEditingDeadline(false)}
+          >
+            <View style={styles.deleteModalContent}>
+              <Text style={styles.deleteModalTitle}>Modifier l'échéance</Text>
+              {Platform.OS === 'web' ? (
+                <input
+                  type="date"
+                  style={{
+                    borderWidth: 1,
+                    borderColor: '#E9EEF2',
+                    borderRadius: 10,
+                    paddingLeft: 14,
+                    paddingRight: 14,
+                    paddingTop: 12,
+                    paddingBottom: 12,
+                    fontSize: 16,
+                    color: '#2C3E50',
+                    backgroundColor: '#F5F7FA',
+                    width: '100%',
+                    fontFamily: 'system-ui',
+                    marginTop: 16,
+                    marginBottom: 16,
+                  }}
+                  value={editDeadline.toISOString().split('T')[0]}
+                  onChange={(e: any) => {
+                    const value = e.target.value;
+                    if (value) {
+                      const d = new Date(value);
+                      if (!isNaN(d.getTime())) setEditDeadline(d);
+                    }
+                  }}
+                />
+              ) : (
+                DateTimePicker && (
+                  <DateTimePicker
+                    value={editDeadline}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    onChange={(event: any, selectedDate?: Date) => {
+                      if (selectedDate) setEditDeadline(selectedDate);
+                    }}
+                  />
+                )
+              )}
+              <View style={styles.deleteModalButtons}>
+                <TouchableOpacity
+                  style={styles.deleteModalCancel}
+                  onPress={() => setEditingDeadline(false)}
+                >
+                  <Text style={styles.deleteModalCancelText}>Annuler</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.deleteModalConfirm}
+                  onPress={handleDeadlineChange}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.deleteModalConfirmText}>Valider</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </Modal>
       </View>
     </Modal>
   );
@@ -685,6 +859,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   categoryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#EBF5FF',
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -979,5 +1155,25 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  categoryOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 14,
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: '#F5F7FA',
+  },
+  categoryOptionActive: {
+    backgroundColor: '#EBF5FF',
+  },
+  categoryOptionText: {
+    fontSize: 15,
+    color: '#2C3E50',
+  },
+  categoryOptionTextActive: {
+    fontWeight: '600',
+    color: '#3A82F7',
   },
 });
