@@ -202,6 +202,24 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksS
     setEditStatus('todo');
   };
   
+  const handleOpenAttachment = async (url: string) => {
+    try {
+      if (Platform.OS === 'web') {
+        window.open(url, '_blank');
+      } else {
+        const canOpen = await Linking.canOpenURL(url);
+        if (canOpen) {
+          await Linking.openURL(url);
+        } else {
+          Alert.alert('Erreur', 'Impossible d\'ouvrir la pièce jointe.');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to open attachment:', error);
+      Alert.alert('Erreur', 'Impossible d\'ouvrir la pièce jointe.');
+    }
+  };
+  
   // ============================================
   // Image Picker Functions (Milestone 4)
   // ============================================
@@ -1069,7 +1087,7 @@ onChange={(event: any, selectedDate?: Date) => {
                       {task.imageUrl && (
                         <TouchableOpacity
                           style={styles.attachmentButton}
-                          onPress={() => Linking.openURL(task.imageUrl!)}
+                          onPress={() => handleOpenAttachment(task.imageUrl!)}
                         >
                           <Feather name="paperclip" size={14} color="#3A82F7" />
                           <Text style={styles.attachmentButtonText}>Voir la pièce jointe</Text>
