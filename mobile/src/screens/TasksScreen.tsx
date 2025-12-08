@@ -10,6 +10,7 @@ import {
   Platform,
   Alert,
   Modal,
+  Linking,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -1065,6 +1066,15 @@ onChange={(event: any, selectedDate?: Date) => {
                       {task.description && (
                         <Text style={styles.taskDescription}>{task.description}</Text>
                       )}
+                      {task.imageUrl && (
+                        <TouchableOpacity
+                          style={styles.attachmentButton}
+                          onPress={() => Linking.openURL(task.imageUrl!)}
+                        >
+                          <Feather name="paperclip" size={14} color="#3A82F7" />
+                          <Text style={styles.attachmentButtonText}>Voir la pièce jointe</Text>
+                        </TouchableOpacity>
+                      )}
                     </>
                   )}
                 </TouchableOpacity>
@@ -1443,6 +1453,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6E7A84',
     marginTop: 4,
+  },
+  attachmentButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: '#EBF5FF',
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  attachmentButtonText: {
+    fontSize: 13,
+    color: '#3A82F7',
+    marginLeft: 6,
+    fontWeight: '500',
   },
   sourceRow: {
     flexDirection: 'row',
