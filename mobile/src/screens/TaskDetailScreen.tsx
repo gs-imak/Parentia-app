@@ -11,6 +11,7 @@ import {
   Platform,
   Alert,
   TextInput,
+  Image,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { formatDateFrench } from '../utils/dateFormat';
@@ -72,6 +73,9 @@ export default function TaskDetailScreen({
   // Delete confirmation
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  
+  // Image viewer
+  const [showImageViewer, setShowImageViewer] = useState(false);
 
   useEffect(() => {
     loadSuggestedTemplates();
@@ -344,7 +348,7 @@ export default function TaskDetailScreen({
               {hasAttachment && (
                 <TouchableOpacity
                   style={styles.actionButton}
-                  onPress={() => Linking.openURL(task.imageUrl!)}
+                  onPress={() => setShowImageViewer(true)}
                 >
                   <Feather name="paperclip" size={20} color="#3A82F7" />
                   <Text style={styles.actionButtonText}>Voir la pièce jointe</Text>
@@ -581,6 +585,37 @@ export default function TaskDetailScreen({
             </View>
           </View>
         </Modal>
+
+        {/* Image Viewer Modal */}
+        {task.imageUrl && (
+          <Modal
+            visible={showImageViewer}
+            animationType="fade"
+            onRequestClose={() => setShowImageViewer(false)}
+          >
+            <View style={{ flex: 1, backgroundColor: '#000000' }}>
+              <View style={styles.header}>
+                <TouchableOpacity onPress={() => setShowImageViewer(false)} style={styles.closeButton}>
+                  <Feather name="x" size={24} color="#FFFFFF" />
+                </TouchableOpacity>
+                <Text style={[styles.headerTitle, { color: '#FFFFFF' }]}>Pièce jointe</Text>
+                <View style={{ width: 44 }} />
+              </View>
+              <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}
+                maximumZoomScale={3}
+                minimumZoomScale={1}
+              >
+                <Image
+                  source={{ uri: task.imageUrl }}
+                  style={{ width: '100%', height: undefined, aspectRatio: 1 }}
+                  resizeMode="contain"
+                />
+              </ScrollView>
+            </View>
+          </Modal>
+        )}
       </View>
     </Modal>
   );

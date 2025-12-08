@@ -244,7 +244,23 @@ export default function HomeScreen({ onOpenTaskDetail, refreshTrigger }: HomeScr
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Feather name="check-square" size={20} color="#2C3E50" />
-            <Text style={styles.cardTitle}>Tâches du jour</Text>
+            <Text style={styles.cardTitle}>
+              {(() => {
+                // Check if any task is actually due today (date-only comparison)
+                const now = new Date();
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                const tomorrow = new Date(today);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                
+                const hasTodayTask = tasks.some(task => {
+                  const taskDeadline = new Date(task.deadline);
+                  const taskDate = new Date(taskDeadline.getFullYear(), taskDeadline.getMonth(), taskDeadline.getDate());
+                  return taskDate.getTime() === today.getTime();
+                });
+                
+                return hasTodayTask ? 'Tâches du jour' : 'Tâches à venir';
+              })()}
+            </Text>
           </View>
           {tasksError ? (
             <Text style={styles.errorText}>{tasksError}</Text>
