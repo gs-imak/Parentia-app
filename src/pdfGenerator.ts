@@ -66,16 +66,17 @@ export async function getProfileVariables(): Promise<Record<string, string>> {
   const profile = await getProfile();
   const variables: Record<string, string> = {};
   
-  // Profile address fields
-  if (profile.lastName) {
-    variables.parentName = profile.lastName;
-    variables.declarantName = profile.lastName;
-    variables.customerName = profile.lastName;
-    variables.tenantName = profile.lastName;
-    variables.senderName = profile.lastName;
-    variables.hostName = profile.lastName;
-    variables.employeeName = profile.lastName;
-    variables.mandantName = profile.lastName;
+  // Build full name from firstName + lastName
+  const fullName = [profile.firstName, profile.lastName].filter(Boolean).join(' ');
+  if (fullName) {
+    variables.parentName = fullName;
+    variables.declarantName = fullName;
+    variables.customerName = fullName;
+    variables.tenantName = fullName;
+    variables.senderName = fullName;
+    variables.hostName = fullName;
+    variables.employeeName = fullName;
+    variables.mandantName = fullName;
   }
   
   if (profile.address) {

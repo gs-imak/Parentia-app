@@ -10,6 +10,7 @@ const FRENCH_MONTHS = [
 
 /**
  * Format a date in French format: "2 décembre 2025, 14:30"
+ * If time is 00:00 (midnight), only show the date without time
  * @param date - Date to format
  * @returns Formatted string
  */
@@ -17,10 +18,17 @@ export function formatDateFrench(date: Date): string {
   const day = date.getDate();
   const month = FRENCH_MONTHS[date.getMonth()];
   const year = date.getFullYear();
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
   
-  return `${day} ${month} ${year}, ${hours}:${minutes}`;
+  // If time is midnight (00:00), don't show time
+  if (hours === 0 && minutes === 0) {
+    return `${day} ${month} ${year}`;
+  }
+  
+  const hoursStr = String(hours).padStart(2, '0');
+  const minutesStr = String(minutes).padStart(2, '0');
+  return `${day} ${month} ${year}, ${hoursStr}:${minutesStr}`;
 }
 
 /**

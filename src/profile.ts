@@ -28,6 +28,7 @@ export interface Profile {
   spouse?: Spouse;
   marriageDate?: string; // ISO date string
   // Milestone 5: Address fields for PDF generation
+  firstName?: string; // First name
   lastName?: string; // Family name
   address?: string; // Street address
   postalCode?: string; // Postal code
@@ -53,6 +54,7 @@ const ProfileSchema = z.object({
   spouse: SpouseSchema.optional(),
   marriageDate: z.string().optional(),
   // Milestone 5: Address fields
+  firstName: z.string().optional(),
   lastName: z.string().optional(),
   address: z.string().optional(),
   postalCode: z.string().optional(),

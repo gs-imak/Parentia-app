@@ -75,6 +75,7 @@ export default function ProfileScreen() {
 
   // Address state (Milestone 5)
   const [addressExpanded, setAddressExpanded] = useState(false);
+  const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [address, setAddress] = useState('');
   const [addressPostalCode, setAddressPostalCode] = useState('');
@@ -100,6 +101,7 @@ export default function ProfileScreen() {
       }
       if (data.marriageDate) setMarriageDate(new Date(data.marriageDate));
       // Load address fields
+      if (data.firstName) setFirstName(data.firstName);
       if (data.lastName) setLastName(data.lastName);
       if (data.address) setAddress(data.address);
       if (data.postalCode) setAddressPostalCode(data.postalCode);
@@ -585,6 +587,7 @@ export default function ProfileScreen() {
     setSavingAddress(true);
     try {
       await updateProfileAddress({
+        firstName: firstName.trim() || undefined,
         lastName: lastName.trim() || undefined,
         address: address.trim() || undefined,
         postalCode: addressPostalCode.trim() || undefined,
@@ -1243,11 +1246,11 @@ onChange={(event: any, selectedDate?: Date) => {
             </TouchableOpacity>
 
             {/* Show summary when collapsed and data exists */}
-            {!addressExpanded && (profile.lastName || profile.address || profile.postalCode || profile.city) && (
+            {!addressExpanded && (profile.firstName || profile.lastName || profile.address || profile.postalCode || profile.city) && (
               <View style={{ marginTop: 12, padding: 12, backgroundColor: '#F5F7FA', borderRadius: 8 }}>
-                {profile.lastName && (
+                {(profile.firstName || profile.lastName) && (
                   <Text style={{ fontSize: 15, color: '#2C3E50', marginBottom: 4 }}>
-                    <Text style={{ fontWeight: '600' }}>Nom :</Text> {profile.lastName}
+                    <Text style={{ fontWeight: '600' }}>Nom :</Text> {profile.firstName ? `${profile.firstName} ` : ''}{profile.lastName || ''}
                   </Text>
                 )}
                 {profile.address && (
@@ -1267,15 +1270,27 @@ onChange={(event: any, selectedDate?: Date) => {
               <View style={{ marginTop: 12 }}>
                 <Text style={styles.hint}>Ces informations seront utilisées pour pré-remplir vos documents PDF.</Text>
                 
-                <View style={{ marginTop: 12 }}>
-                  <Text style={styles.formLabel}>Nom de famille</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Ex: Dupont"
-                    value={lastName}
-                    onChangeText={setLastName}
-                    placeholderTextColor="#9CA3AF"
-                  />
+                <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.formLabel}>Prénom</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Ex: Jean"
+                      value={firstName}
+                      onChangeText={setFirstName}
+                      placeholderTextColor="#9CA3AF"
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.formLabel}>Nom</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Ex: Dupont"
+                      value={lastName}
+                      onChangeText={setLastName}
+                      placeholderTextColor="#9CA3AF"
+                    />
+                  </View>
                 </View>
 
                 <View style={{ marginTop: 12 }}>

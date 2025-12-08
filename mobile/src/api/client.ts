@@ -152,6 +152,7 @@ export interface Profile {
   spouse?: Spouse;
   marriageDate?: string;
   // Milestone 5: Address fields
+  firstName?: string;
   lastName?: string;
   address?: string;
   postalCode?: string;
@@ -209,6 +210,7 @@ export async function deleteMarriageDate(): Promise<Profile> {
 
 // Milestone 5: Update profile address
 export async function updateProfileAddress(data: {
+  firstName?: string;
   lastName?: string;
   address?: string;
   postalCode?: string;
