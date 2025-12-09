@@ -546,19 +546,16 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksS
             <input
               type="datetime-local"
               style={{
-                borderWidth: 1,
-                borderColor: '#E9EEF2',
-                borderRadius: 12,
-                paddingLeft: 16,
-                paddingRight: 16,
-                paddingTop: 12,
-                paddingBottom: 12,
-                fontSize: 16,
-                color: '#2C3E50',
                 backgroundColor: '#F8F9FB',
+                border: '1px solid #E9EEF2',
+                borderRadius: '12px',
+                padding: '12px 16px',
+                fontSize: '16px',
+                color: '#2C3E50',
                 width: '100%',
                 fontFamily: 'system-ui',
                 boxSizing: 'border-box',
+                outline: 'none',
               }}
               value={new Date(deadline.getTime() - deadline.getTimezoneOffset() * 60000)
                 .toISOString()
