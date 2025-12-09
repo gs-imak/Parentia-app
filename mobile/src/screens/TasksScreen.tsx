@@ -542,7 +542,7 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksS
 
         <View style={styles.formGroup}>
           <Text style={styles.label}>Échéance *</Text>
-{Platform.OS === 'web' ? (
+          {Platform.OS === 'web' ? (
             <input
               type="datetime-local"
               style={{
@@ -558,7 +558,7 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksS
                 backgroundColor: '#F8F9FB',
                 width: '100%',
                 fontFamily: 'system-ui',
-                textAlign: 'left' as any,
+                boxSizing: 'border-box',
               }}
               value={new Date(deadline.getTime() - deadline.getTimezoneOffset() * 60000)
                 .toISOString()
@@ -590,7 +590,7 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksS
                   value={deadline}
                   mode="datetime"
                   display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-onChange={(event: any, selectedDate?: Date) => {
+                  onChange={(event: any, selectedDate?: Date) => {
                     setShowDatePicker(Platform.OS === 'ios');
                     if (selectedDate) setDeadline(selectedDate);
                   }}
