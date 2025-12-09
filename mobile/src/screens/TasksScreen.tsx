@@ -553,9 +553,13 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksS
                 fontSize: '16px',
                 color: '#2C3E50',
                 width: '100%',
+                maxWidth: '100%',
                 fontFamily: 'system-ui',
                 boxSizing: 'border-box',
                 outline: 'none',
+                WebkitAppearance: 'none',
+                MozAppearance: 'none',
+                appearance: 'none',
               }}
               value={new Date(deadline.getTime() - deadline.getTimezoneOffset() * 60000)
                 .toISOString()
