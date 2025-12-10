@@ -85,7 +85,9 @@ export default function TaskDetailScreen({
   // Image viewer
   const [showImageViewer, setShowImageViewer] = useState(false);
   
-  // Edit category/deadline
+  // Edit title/category/deadline
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [editTitle, setEditTitle] = useState(task.title);
   const [editingCategory, setEditingCategory] = useState(false);
   const [editCategory, setEditCategory] = useState(task.category);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
@@ -311,6 +313,24 @@ export default function TaskDetailScreen({
     }
   };
 
+  const handleTitleChange = async () => {
+    if (!editTitle.trim()) {
+      Alert.alert('Erreur', 'Le titre ne peut pas être vide.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const updated = await updateTask(task.id, { title: editTitle.trim() });
+      onTaskUpdated(updated);
+      setEditingTitle(false);
+    } catch (error) {
+      console.error('Failed to update title:', error);
+      Alert.alert('Erreur', 'Impossible de mettre à jour le titre.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const deadline = new Date(task.deadline);
   const formattedDeadline = formatDateFrench(deadline);
   const hasContact = task.contactEmail || task.contactPhone;
@@ -341,7 +361,13 @@ export default function TaskDetailScreen({
         <ScrollView style={styles.scrollView}>
           {/* Task Info Card */}
           <View style={styles.card}>
-            <Text style={styles.taskTitle}>{task.title}</Text>
+            <TouchableOpacity 
+              style={styles.titleContainer}
+              onPress={() => setEditingTitle(true)}
+            >
+              <Text style={styles.taskTitle}>{task.title}</Text>
+              <Feather name="edit-2" size={16} color="#6E7A84" style={{ marginLeft: 8 }} />
+            </TouchableOpacity>
             
             <View style={styles.metaRow}>
               <TouchableOpacity
@@ -824,6 +850,51 @@ export default function TaskDetailScreen({
             </View>
           </TouchableOpacity>
         </Modal>
+
+        {/* Title Edit Modal */}
+        <Modal
+          visible={editingTitle}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setEditingTitle(false)}
+        >
+          <TouchableOpacity
+            style={styles.deleteModalOverlay}
+            activeOpacity={1}
+            onPress={() => setEditingTitle(false)}
+          >
+            <View style={styles.deleteModalContent}>
+              <Text style={styles.deleteModalTitle}>Modifier le titre</Text>
+              <TextInput
+                style={styles.titleInput}
+                value={editTitle}
+                onChangeText={setEditTitle}
+                placeholder="Titre de la tâche"
+                placeholderTextColor="#A0AEC0"
+                autoFocus
+              />
+              <View style={styles.deleteModalButtons}>
+                <TouchableOpacity
+                  style={styles.deleteModalCancel}
+                  onPress={() => setEditingTitle(false)}
+                >
+                  <Text style={styles.deleteModalCancelText}>Annuler</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.deleteModalConfirm}
+                  onPress={handleTitleChange}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.deleteModalConfirmText}>Valider</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </Modal>
       </View>
     </Modal>
   );
@@ -880,11 +951,28 @@ const styles = StyleSheet.create({
     color: '#2C3E50',
     marginBottom: 12,
   },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
   taskTitle: {
+    flex: 1,
     fontSize: 20,
     fontWeight: '600',
     color: '#2C3E50',
-    marginBottom: 12,
+  },
+  titleInput: {
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#E9EEF2',
+    borderRadius: 10,
+    padding: 14,
+    fontSize: 16,
+    color: '#2C3E50',
+    backgroundColor: '#F5F7FA',
+    marginTop: 16,
+    marginBottom: 16,
   },
   metaRow: {
     flexDirection: 'row',
