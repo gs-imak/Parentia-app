@@ -456,11 +456,44 @@ export default function TaskDetailScreen({
                       if (part.type === 'text') {
                         return <span key={index}>{part.value}</span>;
                       }
-                      const href = part.type === 'phone' ? `tel:${part.value}` : `mailto:${part.value}`;
+                      if (part.type === 'phone') {
+                        return (
+                          <a
+                            key={index}
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              const cleanPhone = part.value.replace(/\s/g, '');
+                              const choice = window.confirm(
+                                `Choisir une action pour ${part.value}:\n\nOK = Appeler\nAnnuler = Voir options`
+                              );
+                              if (choice) {
+                                window.location.href = `tel:${cleanPhone}`;
+                              } else {
+                                const action = window.prompt(
+                                  `Entrez:\n1 = Appeler\n2 = SMS\n3 = WhatsApp`,
+                                  '1'
+                                );
+                                if (action === '1') window.location.href = `tel:${cleanPhone}`;
+                                else if (action === '2') window.location.href = `sms:${cleanPhone}`;
+                                else if (action === '3') window.location.href = `https://wa.me/${cleanPhone}`;
+                              }
+                            }}
+                            style={{
+                              color: '#3A82F7',
+                              textDecoration: 'underline',
+                              fontWeight: 500,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {part.value}
+                          </a>
+                        );
+                      }
                       return (
                         <a
                           key={index}
-                          href={href}
+                          href={`mailto:${part.value}`}
                           style={{
                             color: '#3A82F7',
                             textDecoration: 'underline',
