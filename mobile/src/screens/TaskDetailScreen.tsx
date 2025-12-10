@@ -23,6 +23,7 @@ import {
   deleteTask,
   fetchPDFTemplates,
   generatePDF,
+  downloadPDFBlob,
   getMessageDraft,
 } from '../api/client';
 
@@ -142,28 +143,36 @@ export default function TaskDetailScreen({
   const handleGeneratePdf = async (templateId: string) => {
     setGeneratingPdf(templateId);
     try {
-      const result = await generatePDF({
-        templateId,
-        taskId: task.id,
-      });
-      
-      if (result.pdfUrl) {
-        if (Platform.OS === 'web') {
-          // For Safari compatibility, create a temporary link and click it
-          // This works around popup blockers
-          const link = document.createElement('a');
-          link.href = result.pdfUrl;
-          link.target = '_blank';
-          link.rel = 'noopener noreferrer';
-          link.download = result.filename || 'document.pdf';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-        } else {
-          await Linking.openURL(result.pdfUrl);
-        }
+      if (Platform.OS === 'web') {
+        // For web, download as blob to avoid Safari cross-origin issues
+        const { blob, filename } = await downloadPDFBlob({
+          templateId,
+          taskId: task.id,
+        });
+        
+        // Create a blob URL and trigger download
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Clean up blob URL after a delay
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
       } else {
-        Alert.alert('Erreur', 'Le PDF a été généré mais l\'URL n\'est pas disponible.');
+        // For native, use the regular URL-based approach
+        const result = await generatePDF({
+          templateId,
+          taskId: task.id,
+        });
+        
+        if (result.pdfUrl) {
+          await Linking.openURL(result.pdfUrl);
+        } else {
+          Alert.alert('Erreur', 'Le PDF a été généré mais l\'URL n\'est pas disponible.');
+        }
       }
     } catch (error) {
       console.error('Failed to generate PDF:', error);

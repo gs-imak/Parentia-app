@@ -431,6 +431,36 @@ export async function generatePDF(options: {
 }
 
 /**
+ * Download PDF directly as blob (for Safari compatibility)
+ */
+export async function downloadPDFBlob(options: {
+  templateId: string;
+  taskId?: string;
+  variables?: Record<string, string>;
+}): Promise<{ blob: Blob; filename: string }> {
+  const response = await fetch(`${BACKEND_URL}/pdf/download`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(options),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to download PDF: ${response.status}`);
+  }
+  
+  // Extract filename from Content-Disposition header
+  const contentDisposition = response.headers.get('Content-Disposition');
+  let filename = 'document.pdf';
+  if (contentDisposition) {
+    const match = contentDisposition.match(/filename="(.+?)"/);
+    if (match) filename = match[1];
+  }
+  
+  const blob = await response.blob();
+  return { blob, filename };
+}
+
+/**
  * Generate a message draft for contacting someone about a task
  */
 export async function getMessageDraft(
