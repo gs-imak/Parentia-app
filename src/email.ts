@@ -194,6 +194,7 @@ export async function processIncomingEmail(
       deadline: aiOutput.deadline,
       description: aiOutput.description,
       source: 'email',
+      imageUrl: attachmentUrl || undefined, // Include PDF attachment URL
       // Milestone 5: Contact info and template suggestions
       contactEmail: aiOutput.contactEmail || effectiveSender, // Use extracted or sender email
       contactPhone: aiOutput.contactPhone,

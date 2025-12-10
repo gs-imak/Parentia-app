@@ -934,36 +934,38 @@ export default function TaskDetailScreen({
             activeOpacity={1}
             onPress={() => setEditingTitle(false)}
           >
-            <View style={styles.deleteModalContent}>
-              <Text style={styles.deleteModalTitle}>Modifier le titre</Text>
-              <TextInput
-                style={styles.titleInput}
-                value={editTitle}
-                onChangeText={setEditTitle}
-                placeholder="Titre de la tâche"
-                placeholderTextColor="#A0AEC0"
-                autoFocus
-              />
-              <View style={styles.deleteModalButtons}>
-                <TouchableOpacity
-                  style={styles.deleteModalCancel}
-                  onPress={() => setEditingTitle(false)}
-                >
-                  <Text style={styles.deleteModalCancelText}>Annuler</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.deleteModalConfirm}
-                  onPress={handleTitleChange}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.deleteModalConfirmText}>Valider</Text>
-                  )}
-                </TouchableOpacity>
+            <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.deleteModalContent}>
+                <Text style={styles.deleteModalTitle}>Modifier le titre</Text>
+                <TextInput
+                  style={styles.titleInput}
+                  value={editTitle}
+                  onChangeText={setEditTitle}
+                  placeholder="Titre de la tâche"
+                  placeholderTextColor="#A0AEC0"
+                  autoFocus
+                />
+                <View style={styles.deleteModalButtons}>
+                  <TouchableOpacity
+                    style={styles.deleteModalCancel}
+                    onPress={() => setEditingTitle(false)}
+                  >
+                    <Text style={styles.deleteModalCancelText}>Annuler</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.deleteModalConfirm}
+                    onPress={handleTitleChange}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.deleteModalConfirmText}>Valider</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
+            </TouchableOpacity>
           </TouchableOpacity>
         </Modal>
 
@@ -1116,6 +1118,7 @@ const styles = StyleSheet.create({
     color: '#3A82F7',
     textDecorationLine: 'underline',
     fontWeight: '500',
+    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
   },
   statusSection: {
     marginTop: 16,

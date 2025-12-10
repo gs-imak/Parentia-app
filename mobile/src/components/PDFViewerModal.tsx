@@ -9,7 +9,6 @@ import {
   Linking,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { downloadPDFBlob } from '../api/client';
 
 interface PDFViewerModalProps {
   visible: boolean;
@@ -28,9 +27,28 @@ export default function PDFViewerModal({
     if (!pdfUrl) return;
 
     if (Platform.OS === 'web') {
-      // On web, download via blob
+      // On web, fetch PDF and download as blob
       try {
-        await downloadPDFBlob(pdfUrl);
+        const response = await fetch(pdfUrl);
+        if (!response.ok) throw new Error('Failed to fetch PDF');
+        
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        
+        // Extract filename from URL or use default
+        const urlParts = pdfUrl.split('/');
+        const filename = urlParts[urlParts.length - 1] || 'document.pdf';
+        
+        // Create download link
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Clean up
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
       } catch (error) {
         console.error('Failed to download PDF:', error);
       }
@@ -64,7 +82,7 @@ export default function PDFViewerModal({
         {/* PDF Viewer */}
         {Platform.OS === 'web' ? (
           <iframe
-            src={pdfUrl}
+            src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
             style={{
               flex: 1,
               width: '100%',
