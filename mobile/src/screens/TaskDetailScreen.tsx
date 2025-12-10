@@ -102,6 +102,10 @@ export default function TaskDetailScreen({
 
   useEffect(() => {
     loadSuggestedTemplates();
+    // Sync edit states when task updates
+    setEditTitle(task.title);
+    setEditCategory(task.category);
+    setEditDeadline(new Date(task.deadline));
   }, [task]);
 
   const loadSuggestedTemplates = async () => {
