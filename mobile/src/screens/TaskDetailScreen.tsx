@@ -450,24 +450,49 @@ export default function TaskDetailScreen({
             {task.description && (
               <View style={styles.descriptionSection}>
                 <Text style={styles.sectionLabel}>Description</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                  {detectContactsInDescription(task.description).map((part, index) => {
-                    if (part.type === 'text') {
-                      return <Text key={index} style={styles.descriptionText}>{part.value}</Text>;
-                    }
-                    return (
-                      <Pressable
-                        key={index}
-                        onPress={() => handleDescriptionContact(part.type as 'phone' | 'email', part.value)}
-                        style={{ alignSelf: 'flex-start' }}
-                      >
-                        <Text style={[styles.descriptionText, styles.contactLink]}>
+                {Platform.OS === 'web' ? (
+                  <div style={{ fontSize: 15, color: '#2C3E50', lineHeight: 1.47 }}>
+                    {detectContactsInDescription(task.description).map((part, index) => {
+                      if (part.type === 'text') {
+                        return <span key={index}>{part.value}</span>;
+                      }
+                      const href = part.type === 'phone' ? `tel:${part.value}` : `mailto:${part.value}`;
+                      return (
+                        <a
+                          key={index}
+                          href={href}
+                          style={{
+                            color: '#3A82F7',
+                            textDecoration: 'underline',
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                          }}
+                        >
                           {part.value}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
+                        </a>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                    {detectContactsInDescription(task.description).map((part, index) => {
+                      if (part.type === 'text') {
+                        return <Text key={index} style={styles.descriptionText}>{part.value}</Text>;
+                      }
+                      return (
+                        <Pressable
+                          key={index}
+                          onPress={() => handleDescriptionContact(part.type as 'phone' | 'email', part.value)}
+                          style={{ alignSelf: 'flex-start' }}
+                        >
+                          <Text style={[styles.descriptionText, styles.contactLink]}>
+                            {part.value}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
               </View>
             )}
 
