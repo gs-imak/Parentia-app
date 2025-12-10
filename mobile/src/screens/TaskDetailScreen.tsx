@@ -148,9 +148,17 @@ export default function TaskDetailScreen({
       });
       
       if (result.pdfUrl) {
-        // Open PDF in new tab/window
         if (Platform.OS === 'web') {
-          window.open(result.pdfUrl, '_blank');
+          // For Safari compatibility, create a temporary link and click it
+          // This works around popup blockers
+          const link = document.createElement('a');
+          link.href = result.pdfUrl;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.download = result.filename || 'document.pdf';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
         } else {
           await Linking.openURL(result.pdfUrl);
         }
