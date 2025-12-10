@@ -122,7 +122,11 @@ Règles importantes:
    - Extraire le nom de l'expéditeur ou de l'organisation
 
 8. TEMPLATES PDF SUGGÉRÉS:
-   - Basé sur la catégorie et le type d'email, suggérer des IDs de templates pertinents
+   - IMPORTANT: Sois TRÈS conservateur avec les suggestions. NE suggère un template que s'il est VRAIMENT pertinent.
+   - Pour les FACTURES:
+     * NE suggère "facture_contestation" QUE si l'email ou le PDF indique explicitement un problème, une erreur, un désaccord, ou une contestation nécessaire
+     * Si c'est juste une facture normale à payer → NE PAS suggérer de template (omis ou tableau vide)
+     * Exemples où suggérer facture_contestation: "montant incorrect", "erreur de facturation", "service non reçu", "tarif erroné"
    - Templates disponibles:
      * École: ecole_absence, ecole_autorisation_sortie, ecole_derogation, ecole_inscription, ecole_cantine, ecole_changement_adresse
      * Crèche: creche_inscription
@@ -131,7 +135,8 @@ Règles importantes:
      * Logement: logement_preavis, contrat_resiliation, facture_contestation
      * Documents: documents_procuration, documents_reclamation
      * Travail: travail_conges
-   - Suggérer 1 à 3 templates maximum, uniquement si pertinents
+   - Suggérer 1 à 3 templates maximum, uniquement si CLAIREMENT pertinents
+   - Si aucun template n'est pertinent → omis ou tableau vide
 
 9. CATÉGORIE (doit être une de: administratif, enfants-école, santé, finances, logement, personnel):
 
