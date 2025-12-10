@@ -26,6 +26,7 @@ import {
   downloadPDFBlob,
   getMessageDraft,
 } from '../api/client';
+import PDFViewerModal from '../components/PDFViewerModal';
 
 // Conditionally import DateTimePicker only for mobile
 let DateTimePicker: any = null;
@@ -94,6 +95,10 @@ export default function TaskDetailScreen({
   const [editingDeadline, setEditingDeadline] = useState(false);
   const [editDeadline, setEditDeadline] = useState(new Date(task.deadline));
   const [showDatePicker, setShowDatePicker] = useState(false);
+  
+  // PDF viewer modal
+  const [showPdfViewer, setShowPdfViewer] = useState(false);
+  const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null);
 
   useEffect(() => {
     loadSuggestedTemplates();
@@ -145,36 +150,18 @@ export default function TaskDetailScreen({
   const handleGeneratePdf = async (templateId: string) => {
     setGeneratingPdf(templateId);
     try {
-      if (Platform.OS === 'web') {
-        // For web, download as blob to avoid Safari cross-origin issues
-        const { blob, filename } = await downloadPDFBlob({
-          templateId,
-          taskId: task.id,
-        });
-        
-        // Create a blob URL and trigger download
-        const blobUrl = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        // Clean up blob URL after a delay
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+      // Generate PDF and get URL
+      const result = await generatePDF({
+        templateId,
+        taskId: task.id,
+      });
+      
+      if (result.pdfUrl) {
+        // Show PDF in viewer modal
+        setPdfViewerUrl(result.pdfUrl);
+        setShowPdfViewer(true);
       } else {
-        // For native, use the regular URL-based approach
-        const result = await generatePDF({
-          templateId,
-          taskId: task.id,
-        });
-        
-        if (result.pdfUrl) {
-          await Linking.openURL(result.pdfUrl);
-        } else {
-          Alert.alert('Erreur', 'Le PDF a été généré mais l\'URL n\'est pas disponible.');
-        }
+        Alert.alert('Erreur', 'Le PDF a été généré mais l\'URL n\'est pas disponible.');
       }
     } catch (error) {
       console.error('Failed to generate PDF:', error);
@@ -967,6 +954,17 @@ export default function TaskDetailScreen({
             </View>
           </TouchableOpacity>
         </Modal>
+
+        {/* PDF Viewer Modal */}
+        <PDFViewerModal
+          visible={showPdfViewer}
+          pdfUrl={pdfViewerUrl}
+          title="Document généré"
+          onClose={() => {
+            setShowPdfViewer(false);
+            setPdfViewerUrl(null);
+          }}
+        />
       </View>
     </Modal>
   );
