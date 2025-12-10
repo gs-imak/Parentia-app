@@ -915,7 +915,7 @@ export default function TaskDetailScreen({
                 <Text style={styles.deleteModalTitle}>Modifier l'échéance</Text>
                 {Platform.OS === 'web' ? (
                 <input
-                  type="date"
+                  type="datetime-local"
                   style={{
                     borderWidth: 1,
                     borderColor: '#E9EEF2',
@@ -932,7 +932,7 @@ export default function TaskDetailScreen({
                     marginTop: 16,
                     marginBottom: 16,
                   }}
-                  value={editDeadline.toISOString().split('T')[0]}
+                  value={editDeadline.toISOString().slice(0, 16)}
                   onChange={(e: any) => {
                     const value = e.target.value;
                     if (value) {
