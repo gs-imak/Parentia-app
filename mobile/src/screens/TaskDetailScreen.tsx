@@ -518,7 +518,15 @@ export default function TaskDetailScreen({
               {hasAttachment && (
                 <TouchableOpacity
                   style={styles.actionButton}
-                  onPress={() => setShowImageViewer(true)}
+                  onPress={() => {
+                    // Prefer PDF viewer when link ends with .pdf or content is a PDF URL
+                    if (task.imageUrl && task.imageUrl.toLowerCase().includes('.pdf')) {
+                      setPdfViewerUrl(task.imageUrl);
+                      setShowPdfViewer(true);
+                    } else {
+                      setShowImageViewer(true);
+                    }
+                  }}
                 >
                   <Feather name="paperclip" size={20} color="#3A82F7" />
                   <Text style={styles.actionButtonText}>Voir la pièce jointe</Text>

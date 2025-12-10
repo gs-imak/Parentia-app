@@ -16,6 +16,7 @@ import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { createTask, getAllTasks, deleteTask, updateTask, createTaskFromImage, type TaskCategory, type Task } from '../api/client';
 import { formatDateFrench } from '../utils/dateFormat';
+import PDFViewerModal from '../components/PDFViewerModal';
 
 // Conditionally import DateTimePicker only for mobile
 let DateTimePicker: any = null;
@@ -78,6 +79,10 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksS
   
   // Image picker state (Milestone 4)
   const [isProcessingImage, setIsProcessingImage] = useState(false);
+  
+  // PDF viewer modal
+  const [showPdfViewer, setShowPdfViewer] = useState(false);
+  const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null);
 
   const loadTasks = async () => {
     setLoading(true);
@@ -202,23 +207,6 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksS
     setEditStatus('todo');
   };
   
-  const handleOpenAttachment = async (url: string) => {
-    try {
-      if (Platform.OS === 'web') {
-        window.open(url, '_blank');
-      } else {
-        const canOpen = await Linking.canOpenURL(url);
-        if (canOpen) {
-          await Linking.openURL(url);
-        } else {
-          Alert.alert('Erreur', 'Impossible d\'ouvrir la pièce jointe.');
-        }
-      }
-    } catch (error) {
-      console.error('Failed to open attachment:', error);
-      Alert.alert('Erreur', 'Impossible d\'ouvrir la pièce jointe.');
-    }
-  };
   
   // ============================================
   // Image Picker Functions (Milestone 4)
@@ -1088,7 +1076,17 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksS
                       {task.imageUrl && (
                         <TouchableOpacity
                           style={styles.attachmentButton}
-                          onPress={() => handleOpenAttachment(task.imageUrl!)}
+                          onPress={() => {
+                            // If PDF, use PDF viewer modal, otherwise open directly
+                            if (task.imageUrl!.toLowerCase().includes('.pdf')) {
+                              setPdfViewerUrl(task.imageUrl!);
+                              setShowPdfViewer(true);
+                            } else if (Platform.OS === 'web') {
+                              window.open(task.imageUrl!, '_blank');
+                            } else {
+                              Linking.openURL(task.imageUrl!);
+                            }
+                          }}
                         >
                           <Feather name="paperclip" size={14} color="#3A82F7" />
                           <Text style={styles.attachmentButtonText}>Voir la pièce jointe</Text>
@@ -1144,6 +1142,17 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksS
           <Text style={styles.floatingToastText}>{successMessage}</Text>
         </View>
       )}
+      
+      {/* PDF Viewer Modal */}
+      <PDFViewerModal
+        visible={showPdfViewer}
+        pdfUrl={pdfViewerUrl}
+        title="Pièce jointe"
+        onClose={() => {
+          setShowPdfViewer(false);
+          setPdfViewerUrl(null);
+        }}
+      />
     </View>
   );
 }
