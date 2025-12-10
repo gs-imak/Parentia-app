@@ -329,7 +329,8 @@ export default function TaskDetailScreen({
 
   // Phone/email detection in description
   const detectContactsInDescription = (text: string): Array<{ type: 'text' | 'phone' | 'email', value: string }> => {
-    const phoneRegex = /(?:(?:\+|00)33|0)[1-9](?:[0-9]{2}){4}/g;
+    // Match French phone numbers with or without spaces/dots/dashes
+    const phoneRegex = /(?:(?:\+|00)33|0)\s?[1-9](?:[\s.-]?[0-9]{2}){4}/g;
     const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
     
     const parts: Array<{ type: 'text' | 'phone' | 'email', value: string, index: number }> = [];
