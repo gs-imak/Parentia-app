@@ -82,7 +82,7 @@ export default function PDFViewerModal({
         {/* PDF Viewer */}
         {Platform.OS === 'web' ? (
           <iframe
-            src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
+            src={`${pdfUrl}#view=Fit&zoom=page-width`}
             style={{
               flex: 1,
               width: '100%',

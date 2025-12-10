@@ -448,22 +448,23 @@ export default function TaskDetailScreen({
             {task.description && (
               <View style={styles.descriptionSection}>
                 <Text style={styles.sectionLabel}>Description</Text>
-                <Text style={styles.descriptionText}>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
                   {detectContactsInDescription(task.description).map((part, index) => {
                     if (part.type === 'text') {
-                      return <Text key={index}>{part.value}</Text>;
+                      return <Text key={index} style={styles.descriptionText}>{part.value}</Text>;
                     }
                     return (
-                      <Text
+                      <TouchableOpacity
                         key={index}
-                        style={styles.contactLink}
                         onPress={() => handleDescriptionContact(part.type as 'phone' | 'email', part.value)}
                       >
-                        {part.value}
-                      </Text>
+                        <Text style={[styles.descriptionText, styles.contactLink]}>
+                          {part.value}
+                        </Text>
+                      </TouchableOpacity>
                     );
                   })}
-                </Text>
+                </View>
               </View>
             )}
 
