@@ -455,7 +455,7 @@ export default function TaskDetailScreen({
               <View style={styles.descriptionSection}>
                 <Text style={styles.sectionLabel}>Description</Text>
                 {Platform.OS === 'web' ? (
-                  <div style={{ fontSize: 15, color: '#2C3E50', lineHeight: 1.47 }}>
+                  <div style={{ fontSize: 15, color: '#2C3E50', lineHeight: '22px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
                     {detectContactsInDescription(task.description).map((part, index) => {
                       if (part.type === 'text') {
                         return <span key={index}>{part.value}</span>;
@@ -1338,7 +1338,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#25D366',
   },
   contactButtonText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: '#FFFFFF',
   },
