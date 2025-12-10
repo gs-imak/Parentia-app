@@ -910,9 +910,10 @@ export default function TaskDetailScreen({
             activeOpacity={1}
             onPress={() => setEditingDeadline(false)}
           >
-            <View style={styles.deleteModalContent}>
-              <Text style={styles.deleteModalTitle}>Modifier l'échéance</Text>
-              {Platform.OS === 'web' ? (
+            <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.deleteModalContent}>
+                <Text style={styles.deleteModalTitle}>Modifier l'échéance</Text>
+                {Platform.OS === 'web' ? (
                 <input
                   type="date"
                   style={{
@@ -972,6 +973,7 @@ export default function TaskDetailScreen({
                 </TouchableOpacity>
               </View>
             </View>
+            </TouchableOpacity>
           </TouchableOpacity>
         </Modal>
 
