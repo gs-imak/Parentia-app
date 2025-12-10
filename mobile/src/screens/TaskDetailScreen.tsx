@@ -100,6 +100,10 @@ export default function TaskDetailScreen({
   // PDF viewer modal
   const [showPdfViewer, setShowPdfViewer] = useState(false);
   const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null);
+  
+  // Phone action sheet
+  const [showPhoneActions, setShowPhoneActions] = useState(false);
+  const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
 
   useEffect(() => {
     loadSuggestedTemplates();
@@ -463,21 +467,8 @@ export default function TaskDetailScreen({
                             href="#"
                             onClick={(e) => {
                               e.preventDefault();
-                              const cleanPhone = part.value.replace(/\s/g, '');
-                              const choice = window.confirm(
-                                `Choisir une action pour ${part.value}:\n\nOK = Appeler\nAnnuler = Voir options`
-                              );
-                              if (choice) {
-                                window.location.href = `tel:${cleanPhone}`;
-                              } else {
-                                const action = window.prompt(
-                                  `Entrez:\n1 = Appeler\n2 = SMS\n3 = WhatsApp`,
-                                  '1'
-                                );
-                                if (action === '1') window.location.href = `tel:${cleanPhone}`;
-                                else if (action === '2') window.location.href = `sms:${cleanPhone}`;
-                                else if (action === '3') window.location.href = `https://wa.me/${cleanPhone}`;
-                              }
+                              setSelectedPhone(part.value);
+                              setShowPhoneActions(true);
                             }}
                             style={{
                               color: '#3A82F7',
@@ -1031,6 +1022,91 @@ export default function TaskDetailScreen({
           </TouchableOpacity>
         </Modal>
 
+        {/* Phone Action Sheet */}
+        <Modal
+          visible={showPhoneActions}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowPhoneActions(false)}
+        >
+          <TouchableOpacity
+            style={styles.actionSheetOverlay}
+            activeOpacity={1}
+            onPress={() => setShowPhoneActions(false)}
+          >
+            <View style={styles.actionSheetContainer}>
+              <View style={styles.actionSheetHeader}>
+                <Text style={styles.actionSheetTitle}>Contacter</Text>
+                <Text style={styles.actionSheetPhone}>{selectedPhone}</Text>
+              </View>
+              
+              <TouchableOpacity
+                style={styles.actionSheetButton}
+                onPress={() => {
+                  const cleanPhone = selectedPhone?.replace(/\s/g, '') || '';
+                  if (Platform.OS === 'web') {
+                    window.location.href = `tel:${cleanPhone}`;
+                  } else {
+                    Linking.openURL(`tel:${cleanPhone}`);
+                  }
+                  setShowPhoneActions(false);
+                }}
+              >
+                <View style={[styles.actionSheetIcon, { backgroundColor: '#3A82F7' }]}>
+                  <Feather name="phone" size={20} color="#FFFFFF" />
+                </View>
+                <Text style={styles.actionSheetButtonText}>Appeler</Text>
+                <Feather name="chevron-right" size={20} color="#6E7A84" />
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.actionSheetButton}
+                onPress={() => {
+                  const cleanPhone = selectedPhone?.replace(/\s/g, '') || '';
+                  if (Platform.OS === 'web') {
+                    window.location.href = `sms:${cleanPhone}`;
+                  } else {
+                    Linking.openURL(`sms:${cleanPhone}`);
+                  }
+                  setShowPhoneActions(false);
+                }}
+              >
+                <View style={[styles.actionSheetIcon, { backgroundColor: '#4CAF50' }]}>
+                  <Feather name="message-square" size={20} color="#FFFFFF" />
+                </View>
+                <Text style={styles.actionSheetButtonText}>SMS</Text>
+                <Feather name="chevron-right" size={20} color="#6E7A84" />
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.actionSheetButton}
+                onPress={() => {
+                  const cleanPhone = selectedPhone?.replace(/\s/g, '') || '';
+                  if (Platform.OS === 'web') {
+                    window.location.href = `https://wa.me/${cleanPhone}`;
+                  } else {
+                    Linking.openURL(`https://wa.me/${cleanPhone}`);
+                  }
+                  setShowPhoneActions(false);
+                }}
+              >
+                <View style={[styles.actionSheetIcon, { backgroundColor: '#25D366' }]}>
+                  <Feather name="message-circle" size={20} color="#FFFFFF" />
+                </View>
+                <Text style={styles.actionSheetButtonText}>WhatsApp</Text>
+                <Feather name="chevron-right" size={20} color="#6E7A84" />
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.actionSheetButton, styles.actionSheetCancelButton]}
+                onPress={() => setShowPhoneActions(false)}
+              >
+                <Text style={styles.actionSheetCancelText}>Annuler</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
         {/* PDF Viewer Modal */}
         <PDFViewerModal
           visible={showPdfViewer}
@@ -1449,5 +1525,68 @@ const styles = StyleSheet.create({
   categoryOptionTextActive: {
     fontWeight: '600',
     color: '#3A82F7',
+  },
+  actionSheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  actionSheetContainer: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 16,
+    paddingHorizontal: 16,
+  },
+  actionSheetHeader: {
+    alignItems: 'center',
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E9EEF2',
+  },
+  actionSheetTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2C3E50',
+    marginBottom: 4,
+  },
+  actionSheetPhone: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#3A82F7',
+  },
+  actionSheetButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F5F7FA',
+  },
+  actionSheetIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  actionSheetButtonText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#2C3E50',
+  },
+  actionSheetCancelButton: {
+    justifyContent: 'center',
+    borderBottomWidth: 0,
+    paddingVertical: 16,
+    marginTop: 8,
+  },
+  actionSheetCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#DC2626',
+    textAlign: 'center',
   },
 });
