@@ -4,6 +4,7 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
+  Pressable,
   Modal,
   StyleSheet,
   ActivityIndicator,
@@ -455,14 +456,15 @@ export default function TaskDetailScreen({
                       return <Text key={index} style={styles.descriptionText}>{part.value}</Text>;
                     }
                     return (
-                      <TouchableOpacity
+                      <Pressable
                         key={index}
                         onPress={() => handleDescriptionContact(part.type as 'phone' | 'email', part.value)}
+                        style={{ alignSelf: 'flex-start' }}
                       >
                         <Text style={[styles.descriptionText, styles.contactLink]}>
                           {part.value}
                         </Text>
-                      </TouchableOpacity>
+                      </Pressable>
                     );
                   })}
                 </View>
