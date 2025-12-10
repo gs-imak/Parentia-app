@@ -336,6 +336,63 @@ export default function TaskDetailScreen({
   const hasContact = task.contactEmail || task.contactPhone;
   const hasAttachment = task.imageUrl;
 
+  // Phone/email detection in description
+  const detectContactsInDescription = (text: string): Array<{ type: 'text' | 'phone' | 'email', value: string }> => {
+    const phoneRegex = /(?:(?:\+|00)33|0)[1-9](?:[0-9]{2}){4}/g;
+    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+    
+    const parts: Array<{ type: 'text' | 'phone' | 'email', value: string, index: number }> = [];
+    
+    // Find phones
+    let match;
+    while ((match = phoneRegex.exec(text)) !== null) {
+      parts.push({ type: 'phone', value: match[0], index: match.index });
+    }
+    
+    // Find emails
+    while ((match = emailRegex.exec(text)) !== null) {
+      parts.push({ type: 'email', value: match[0], index: match.index });
+    }
+    
+    // Sort by index
+    parts.sort((a, b) => a.index - b.index);
+    
+    // Build result with text parts
+    const result: Array<{ type: 'text' | 'phone' | 'email', value: string }> = [];
+    let lastIndex = 0;
+    
+    for (const part of parts) {
+      if (part.index > lastIndex) {
+        result.push({ type: 'text', value: text.substring(lastIndex, part.index) });
+      }
+      result.push({ type: part.type, value: part.value });
+      lastIndex = part.index + part.value.length;
+    }
+    
+    if (lastIndex < text.length) {
+      result.push({ type: 'text', value: text.substring(lastIndex) });
+    }
+    
+    return result.length > 0 ? result : [{ type: 'text', value: text }];
+  };
+
+  const handleDescriptionContact = (type: 'phone' | 'email', value: string) => {
+    if (type === 'phone') {
+      Alert.alert(
+        'Contacter',
+        `Que souhaitez-vous faire avec ${value} ?`,
+        [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Appeler', onPress: () => Linking.openURL(`tel:${value}`) },
+          { text: 'SMS', onPress: () => Linking.openURL(`sms:${value}`) },
+          { text: 'WhatsApp', onPress: () => Linking.openURL(`whatsapp://send?phone=${value}`) },
+        ]
+      );
+    } else {
+      Linking.openURL(`mailto:${value}`);
+    }
+  };
+
   return (
     <Modal
       visible={true}
@@ -400,7 +457,22 @@ export default function TaskDetailScreen({
             {task.description && (
               <View style={styles.descriptionSection}>
                 <Text style={styles.sectionLabel}>Description</Text>
-                <Text style={styles.descriptionText}>{task.description}</Text>
+                <Text style={styles.descriptionText}>
+                  {detectContactsInDescription(task.description).map((part, index) => {
+                    if (part.type === 'text') {
+                      return <Text key={index}>{part.value}</Text>;
+                    }
+                    return (
+                      <Text
+                        key={index}
+                        style={styles.contactLink}
+                        onPress={() => handleDescriptionContact(part.type as 'phone' | 'email', part.value)}
+                      >
+                        {part.value}
+                      </Text>
+                    );
+                  })}
+                </Text>
               </View>
             )}
 
@@ -1029,6 +1101,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#2C3E50',
     lineHeight: 22,
+  },
+  contactLink: {
+    color: '#3A82F7',
+    textDecorationLine: 'underline',
+    fontWeight: '500',
   },
   statusSection: {
     marginTop: 16,
