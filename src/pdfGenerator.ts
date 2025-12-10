@@ -225,10 +225,10 @@ async function createPDFFromText(content: string, template: PDFTemplate): Promis
       const doc = new PDFDocument({
         size: 'A4',
         margins: {
-          top: 50,
-          bottom: 50,
-          left: 60,
-          right: 60,
+          top: 70,
+          bottom: 70,
+          left: 75,
+          right: 75,
         },
       });
       
@@ -253,22 +253,25 @@ async function createPDFFromText(content: string, template: PDFTemplate): Promis
       // Add title
       doc.fontSize(14).font('Helvetica-Bold');
       doc.text(template.label, { align: 'center' });
-      doc.moveDown(2);
+      doc.moveDown(3);
       
       // Add content
       doc.fontSize(11).font('Helvetica');
       
       // Split content by lines and render
       const lines = content.split('\n');
-      for (const line of lines) {
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
         if (line.trim() === '') {
-          doc.moveDown(0.5);
+          doc.moveDown(1);
         } else if (line.startsWith('Objet :') || line.startsWith('ATTESTATION') || line.startsWith('PROCURATION') || line.startsWith('AUTORISATION')) {
-          // Make subject lines bold
-          doc.font('Helvetica-Bold').text(line);
+          // Make subject lines bold with extra spacing
+          doc.font('Helvetica-Bold').text(line, { lineGap: 6 });
+          doc.moveDown(0.8);
           doc.font('Helvetica');
         } else {
-          doc.text(line);
+          doc.text(line, { lineGap: 5 });
+          doc.moveDown(0.3);
         }
       }
       
