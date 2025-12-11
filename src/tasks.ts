@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { deleteInboxEntriesByTaskId } from './inbox.js';
+import { getSuggestedTemplateIds } from './pdfTemplates.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,6 +31,67 @@ export interface Task {
   contactPhone?: string; // Extracted phone number
   contactName?: string; // Contact name if found
   suggestedTemplates?: string[]; // AI-suggested PDF template IDs
+}
+
+// Keywords used to detect payment-related tasks (for template filtering)
+const PAYMENT_KEYWORDS = [
+  'payer',
+  'paiement',
+  'facture',
+  'à régler',
+  'regler',
+  'règlement',
+  'échéance',
+  'montant',
+  'prélèvement',
+  'prelevement'
+];
+
+const DISPUTE_KEYWORDS = [
+  'contestation',
+  'contester',
+  'réclamation',
+  'reclamation',
+  'litige',
+  'erreur',
+  'incorrect',
+  'abusif',
+  'double',
+  'fraude'
+];
+
+function detectPaymentContext(title: string, description?: string) {
+  const haystack = `${title} ${description || ''}`.toLowerCase();
+  const isPayment = PAYMENT_KEYWORDS.some((kw) => haystack.includes(kw));
+  const isDispute = DISPUTE_KEYWORDS.some((kw) => haystack.includes(kw));
+  return { isPayment, isDispute };
+}
+
+function sanitizeSuggestedTemplatesForTask(
+  suggestedTemplates: string[] | undefined,
+  category: TaskCategory,
+  title: string,
+  description?: string
+): string[] | undefined {
+  if (!suggestedTemplates || suggestedTemplates.length === 0) return undefined;
+
+  const { isPayment, isDispute } = detectPaymentContext(title, description);
+
+  // For simple payment tasks, never persist any template suggestions
+  if (isPayment && !isDispute) return undefined;
+
+  // Only keep templates that match the task category
+  const allowed = new Set(getSuggestedTemplateIds(category));
+  let filtered = suggestedTemplates.filter((id) => allowed.has(id));
+
+  // For contested invoices, keep only the contestation template
+  if (isPayment && isDispute) {
+    filtered = filtered.filter((id) => id === 'facture_contestation');
+  }
+
+  // Deduplicate and cap to 3
+  const unique = Array.from(new Set(filtered)).slice(0, 3);
+  return unique.length > 0 ? unique : undefined;
 }
 
 const TaskSchema = z.object({
@@ -69,8 +131,15 @@ async function writeTasks(tasks: Task[]): Promise<void> {
 
 export async function createTask(taskData: Omit<Task, 'id' | 'createdAt' | 'status'>): Promise<Task> {
   const tasks = await readTasks();
+  const sanitizedTemplates = sanitizeSuggestedTemplatesForTask(
+    taskData.suggestedTemplates,
+    taskData.category,
+    taskData.title,
+    taskData.description
+  );
   const newTask: Task = {
     ...taskData,
+    suggestedTemplates: sanitizedTemplates,
     id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
     status: 'todo',
     createdAt: new Date().toISOString(),
@@ -96,9 +165,17 @@ export async function updateTask(id: string, updates: Partial<Omit<Task, 'id' | 
   const index = tasks.findIndex(t => t.id === id);
   if (index === -1) return null;
   
-  tasks[index] = { ...tasks[index], ...updates };
+  const merged = { ...tasks[index], ...updates };
+  merged.suggestedTemplates = sanitizeSuggestedTemplatesForTask(
+    merged.suggestedTemplates,
+    merged.category,
+    merged.title,
+    merged.description
+  );
+
+  tasks[index] = merged;
   await writeTasks(tasks);
-  return tasks[index];
+  return merged;
 }
 
 export async function deleteTask(id: string): Promise<boolean> {
@@ -154,6 +231,33 @@ export async function getTasksForToday(): Promise<Task[]> {
   });
   
   return sorted.slice(0, 3);
+}
+
+// Sanitize existing tasks in storage (used to clean legacy bad suggestions)
+export async function sanitizeAllTasks(): Promise<void> {
+  const tasks = await readTasks();
+  let updated = false;
+
+  const sanitized = tasks.map((task) => {
+    const cleanedTemplates = sanitizeSuggestedTemplatesForTask(
+      task.suggestedTemplates,
+      task.category,
+      task.title,
+      task.description
+    );
+
+    const prev = task.suggestedTemplates ?? null;
+    const next = cleanedTemplates ?? null;
+    if (JSON.stringify(prev) !== JSON.stringify(next)) {
+      updated = true;
+    }
+
+    return { ...task, suggestedTemplates: cleanedTemplates };
+  });
+
+  if (updated) {
+    await writeTasks(sanitized);
+  }
 }
 
 // Helper: Delete all tasks associated with a recurring source (for profile deletion)

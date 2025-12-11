@@ -7,7 +7,7 @@ import { processPipeline } from './pipeline.js';
 import { getRandomQuote } from './quotes.js';
 import { getWeatherForCity } from './weather.js';
 import { getTopNews } from './news.js';
-import { getTasksForToday, createTask, getTasks, updateTask, deleteTask } from './tasks.js';
+import { getTasksForToday, createTask, getTasks, updateTask, deleteTask, sanitizeAllTasks } from './tasks.js';
 import { getProfile, addChild, updateChild, deleteChild, updateSpouse, deleteSpouse, updateMarriageDate, deleteMarriageDate, updateProfileAddress } from './profile.js';
 import { getInboxEntries, getInboxEntryById } from './inbox.js';
 import { getNotifications, markNotificationRead, getUnreadCount, createNotification } from './notifications.js';
@@ -29,6 +29,11 @@ const __dirname = path.dirname(__filename);
 app.use(cors());
 
 app.use(express.json());
+
+// Clean up legacy suggested templates (non-blocking)
+sanitizeAllTasks()
+  .then(() => console.log('[Init] Suggested templates sanitized'))
+  .catch((err) => console.error('[Init] Failed to sanitize templates', err));
 
 // Multer configuration for image uploads
 const imageUpload = multer({

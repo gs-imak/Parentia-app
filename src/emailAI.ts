@@ -1,4 +1,5 @@
 import type { TaskCategory } from './tasks.js';
+import { getSuggestedTemplateIds } from './pdfTemplates.js';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
@@ -37,6 +38,70 @@ export interface EmailAIOutput {
     emailType: string;
     confidence: number;
   };
+}
+
+const PAYMENT_KEYWORDS = [
+  'payer',
+  'paiement',
+  'facture',
+  'à régler',
+  'regler',
+  'règlement',
+  'échéance',
+  'montant',
+  'prélèvement',
+  'prelevement'
+];
+
+const DISPUTE_KEYWORDS = [
+  'contestation',
+  'contester',
+  'réclamation',
+  'reclamation',
+  'litige',
+  'erreur',
+  'incorrect',
+  'abusif',
+  'double',
+  'fraude'
+];
+
+function detectPaymentContext(
+  title: string,
+  description: string,
+  emailType: string
+) {
+  const haystack = `${title} ${description} ${emailType}`.toLowerCase();
+  const isPayment = PAYMENT_KEYWORDS.some((kw) => haystack.includes(kw));
+  const isDispute = DISPUTE_KEYWORDS.some((kw) => haystack.includes(kw));
+  return { isPayment, isDispute };
+}
+
+function sanitizeSuggestedTemplates(
+  suggestions: string[] | undefined,
+  category: TaskCategory,
+  title: string,
+  description: string,
+  emailType: string
+): string[] | undefined {
+  if (!suggestions || suggestions.length === 0) return undefined;
+
+  const { isPayment, isDispute } = detectPaymentContext(title, description, emailType);
+
+  // For simple payments, no template is ever needed
+  if (isPayment && !isDispute) return undefined;
+
+  // Keep only templates that match the task category
+  const allowed = new Set(getSuggestedTemplateIds(category));
+  let filtered = suggestions.filter((id) => allowed.has(id));
+
+  // If the task is a contested invoice, keep only the contestation template
+  if (isPayment && isDispute) {
+    filtered = filtered.filter((id) => id === 'facture_contestation');
+  }
+
+  const unique = Array.from(new Set(filtered)).slice(0, 3);
+  return unique.length > 0 ? unique : undefined;
 }
 
 /**
@@ -121,13 +186,14 @@ Règles importantes:
    - Si un numéro de téléphone est visible dans l'email ou le PDF, l'extraire
    - Extraire le nom de l'expéditeur ou de l'organisation
 
-8. TEMPLATES PDF SUGGÉRÉS:
-   - IMPORTANT: Sois TRÈS conservateur avec les suggestions. NE suggère un template que s'il est VRAIMENT pertinent.
-   - Pour les FACTURES:
-     * NE suggère "facture_contestation" QUE si l'email ou le PDF indique explicitement un problème, une erreur, un désaccord, ou une contestation nécessaire
-     * Si c'est juste une facture normale à payer → NE PAS suggérer de template (omis ou tableau vide)
-     * Exemples où suggérer facture_contestation: "montant incorrect", "erreur de facturation", "service non reçu", "tarif erroné"
-   - Templates disponibles:
+8. TEMPLATES PDF SUGGÉRÉS (règles strictes):
+   - Règle de base: pour un paiement ou prélèvement normal ("payer facture", "montant à régler", "paiement avant le", "prélèvement automatique"), suggestedTemplates doit être VIDE ou absent. Aucun document n'est nécessaire pour payer.
+   - Ne JAMAIS proposer d'attestations, demandes ou formulaires pour un simple paiement.
+   - "facture_contestation" uniquement si une contestation est EXPLICITE: "montant incorrect", "erreur de facturation", "double prélèvement", "service non reçu", "réclamation", "litige".
+   - Exemples:
+     * Sujet: "Payer facture Selfbox - 98,00 €" → suggestedTemplates: []
+     * Sujet: "Montant incorrect sur la facture" → suggestedTemplates: ["facture_contestation"]
+   - Templates disponibles (utiliser seulement si pertinents): 
      * École: ecole_absence, ecole_autorisation_sortie, ecole_derogation, ecole_inscription, ecole_cantine, ecole_changement_adresse
      * Crèche: creche_inscription
      * Santé: sante_demande_remboursement, sante_rdv_medical, sante_certificat_medical, sante_resiliation_mutuelle
@@ -376,20 +442,31 @@ export function normalizeAIOutput(raw: unknown): EmailAIOutput | null {
     if (suggestedTemplates.length === 0) suggestedTemplates = undefined;
   }
 
+  const normalizedTitle = String(obj.title || 'Tâche à vérifier').slice(0, 100);
+  const normalizedDescription = String(obj.description || '');
+  const normalizedEmailType = String(metadataObj.emailType || 'unknown');
+  const sanitizedTemplates = sanitizeSuggestedTemplates(
+    suggestedTemplates,
+    category,
+    normalizedTitle,
+    normalizedDescription,
+    normalizedEmailType
+  );
+
   return {
-    title: String(obj.title || 'Tâche à vérifier').slice(0, 100),
+    title: normalizedTitle,
     category,
     deadline,
-    description: String(obj.description || ''),
+    description: normalizedDescription,
     priority,
     skip,
     originalSender,
     contactEmail,
     contactPhone,
     contactName,
-    suggestedTemplates,
+    suggestedTemplates: sanitizedTemplates,
     metadata: {
-      emailType: String(metadataObj.emailType || 'unknown'),
+      emailType: normalizedEmailType,
       confidence: typeof metadataObj.confidence === 'number' 
         ? Math.min(1, Math.max(0, metadataObj.confidence))
         : 0.5,

@@ -60,6 +60,53 @@ const SOURCE_LABELS: Record<string, string> = {
   'profile': '👤 Profil',
 };
 
+const PAYMENT_KEYWORDS = [
+  'payer',
+  'paiement',
+  'facture',
+  'à régler',
+  'regler',
+  'règlement',
+  'échéance',
+  'montant',
+  'prélèvement',
+  'prelevement',
+];
+
+const DISPUTE_KEYWORDS = [
+  'contestation',
+  'contester',
+  'réclamation',
+  'reclamation',
+  'litige',
+  'erreur',
+  'incorrect',
+  'abusif',
+  'double',
+  'fraude',
+];
+
+function detectPaymentContext(task: Task) {
+  const haystack = `${task.title} ${task.description || ''}`.toLowerCase();
+  const isPayment = PAYMENT_KEYWORDS.some((kw) => haystack.includes(kw));
+  const isDispute = DISPUTE_KEYWORDS.some((kw) => haystack.includes(kw));
+  return { isPayment, isDispute };
+}
+
+function filterTemplatesForTask(templates: PDFTemplate[], task: Task) {
+  const { isPayment, isDispute } = detectPaymentContext(task);
+  
+  // No templates needed for simple payments
+  if (isPayment && !isDispute) return [];
+
+  // For contested invoices, only keep the contestation template
+  if (isPayment && isDispute) {
+    return templates.filter(t => t.id === 'facture_contestation');
+  }
+
+  return templates;
+}
+
 export default function TaskDetailScreen({
   task,
   onClose,
@@ -116,26 +163,35 @@ export default function TaskDetailScreen({
   const loadSuggestedTemplates = async () => {
     setLoadingTemplates(true);
     try {
+      const paymentContext = detectPaymentContext(task);
+
       // First, check if task has AI-suggested templates
       if (task.suggestedTemplates && task.suggestedTemplates.length > 0) {
         // Load all templates and filter to AI-suggested ones
         const result = await fetchPDFTemplates();
-        const aiSuggested = result.templates.filter(
-          t => task.suggestedTemplates!.includes(t.id)
-        );
+        const aiSuggested = result.templates.filter(t => task.suggestedTemplates!.includes(t.id));
+        const filteredAi = filterTemplatesForTask(aiSuggested, task);
         
         // If we have AI suggestions, use them first
-        if (aiSuggested.length > 0) {
+        if (filteredAi.length > 0) {
           // Show up to 3 AI-suggested templates
-          setTemplates(aiSuggested.slice(0, 3));
+          setTemplates(filteredAi.slice(0, 3));
           setLoadingTemplates(false);
           return;
         }
       }
+
+      // For simple payment tasks, do not fallback to category templates
+      if (paymentContext.isPayment && !paymentContext.isDispute) {
+        setTemplates([]);
+        setLoadingTemplates(false);
+        return;
+      }
       
       // Fallback: load templates for task's category
       const result = await fetchPDFTemplates({ taskCategory: task.category });
-      setTemplates(result.templates.slice(0, 3)); // Show max 3 suggestions
+      const filtered = filterTemplatesForTask(result.templates, task);
+      setTemplates(filtered.slice(0, 3)); // Show max 3 suggestions
     } catch (error) {
       console.error('Failed to load templates:', error);
     } finally {
@@ -331,6 +387,10 @@ export default function TaskDetailScreen({
   const formattedDeadline = formatDateFrench(deadline);
   const hasContact = task.contactEmail || task.contactPhone;
   const hasAttachment = task.imageUrl;
+  const paymentContext = detectPaymentContext(task);
+  const noTemplateMessage = paymentContext.isPayment && !paymentContext.isDispute
+    ? 'Pas de document nécessaire pour une facture à payer.'
+    : 'Aucun modèle suggéré pour cette catégorie.';
 
   // Phone/email detection in description
   const detectContactsInDescription = (text: string): Array<{ type: 'text' | 'phone' | 'email', value: string }> => {
@@ -663,7 +723,7 @@ export default function TaskDetailScreen({
               </View>
             ) : (
               <Text style={styles.noTemplatesText}>
-                Aucun modèle suggéré pour cette catégorie.
+                {noTemplateMessage}
               </Text>
             )}
 
