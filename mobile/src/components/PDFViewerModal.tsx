@@ -59,7 +59,7 @@ export default function PDFViewerModal({
         {/* PDF Viewer */}
         {Platform.OS === 'web' ? (
           <iframe
-            src={pdfUrl}
+            src={`${pdfUrl}#view=FitH&toolbar=1`}
             style={{
               flex: 1,
               width: '100%',
