@@ -1156,7 +1156,12 @@ export default function TaskDetailScreen({
               <TouchableOpacity
                 style={styles.actionSheetButton}
                 onPress={() => {
-                  const cleanPhone = selectedPhone?.replace(/\s/g, '') || '';
+                  // Clean phone and convert to international format for WhatsApp
+                  let cleanPhone = selectedPhone?.replace(/[\s.\-()]/g, '') || '';
+                  // French numbers: replace leading 0 with 33
+                  if (cleanPhone.startsWith('0')) {
+                    cleanPhone = '33' + cleanPhone.substring(1);
+                  }
                   if (Platform.OS === 'web') {
                     window.location.href = `https://wa.me/${cleanPhone}`;
                   } else {
