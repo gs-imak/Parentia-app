@@ -97,7 +97,7 @@ export async function processIncomingEmail(
       console.log(`  Attachment ${i + 1}: ${att.filename} (${att.contentType}, ${att.content.length} bytes)`);
     });
     
-    // Find first PDF attachment
+    // Find first PDF attachment for text extraction
     const pdfAttachment = email.attachments.find((a) =>
       isPdf(a.contentType, a.filename)
     );
@@ -113,7 +113,7 @@ export async function processIncomingEmail(
         console.log(`PDF text extraction returned null`);
       }
       
-      // Upload to Supabase (non-blocking - failure doesn't stop processing)
+      // Upload PDF to Supabase
       if (isSupabaseConfigured()) {
         console.log(`Uploading PDF to Supabase...`);
         try {
@@ -134,7 +134,29 @@ export async function processIncomingEmail(
         console.log(`Supabase not configured, skipping upload`);
       }
     } else {
-      console.log(`No PDF found in attachments (checked contentType and filename)`);
+      // No PDF found - try to upload first supported attachment (image, document, etc.)
+      const supportedTypes = ['image/', 'application/pdf', 'application/msword', 'application/vnd.', 'text/'];
+      const firstAttachment = email.attachments.find((a) =>
+        supportedTypes.some(type => a.contentType.startsWith(type))
+      );
+      
+      if (firstAttachment && isSupabaseConfigured()) {
+        console.log(`Uploading non-PDF attachment: ${firstAttachment.filename} (${firstAttachment.contentType})`);
+        try {
+          attachmentUrl = await uploadAttachment(
+            firstAttachment.content,
+            firstAttachment.filename,
+            firstAttachment.contentType
+          );
+          if (attachmentUrl) {
+            console.log(`Attachment uploaded: ${attachmentUrl}`);
+          }
+        } catch (uploadErr) {
+          console.error(`Upload error:`, uploadErr);
+        }
+      } else {
+        console.log(`No supported attachment found in email`);
+      }
     }
   }
   

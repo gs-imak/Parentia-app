@@ -202,9 +202,19 @@ export async function deleteTask(id: string): Promise<boolean> {
 export async function getTasksForToday(): Promise<Task[]> {
   const tasks = await readTasks();
   const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const sevenDaysFromNow = new Date(today);
+  
+  // Helper to get date string YYYY-MM-DD in local time
+  const getLocalDateString = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  
+  const todayStr = getLocalDateString(now);
+  const sevenDaysFromNow = new Date(now);
   sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+  const sevenDaysStr = getLocalDateString(sevenDaysFromNow);
   
   // Get upcoming tasks within the next 7 days (including today)
   // Birthday/anniversary tasks get priority, regular tasks also included
@@ -212,9 +222,11 @@ export async function getTasksForToday(): Promise<Task[]> {
     if (t.status === 'done') return false;
     
     const deadline = new Date(t.deadline);
+    const deadlineStr = getLocalDateString(deadline);
     
-    // Include all tasks (recurring or not) if within 7 days from today
-    return deadline >= today && deadline <= sevenDaysFromNow;
+    // Compare dates as strings to ignore time component
+    // Task is relevant if deadline is today or in the next 7 days
+    return deadlineStr >= todayStr && deadlineStr <= sevenDaysStr;
   });
   
   // Sort: birthday/anniversary tasks first (by deadline), then regular tasks (by deadline)

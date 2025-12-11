@@ -263,15 +263,19 @@ async function createPDFFromText(content: string, template: PDFTemplate): Promis
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         if (line.trim() === '') {
-          doc.moveDown(1);
+          doc.moveDown(1.2);
         } else if (line.startsWith('Objet :') || line.startsWith('ATTESTATION') || line.startsWith('PROCURATION') || line.startsWith('AUTORISATION')) {
           // Make subject lines bold with extra spacing
-          doc.font('Helvetica-Bold').text(line, { lineGap: 6 });
-          doc.moveDown(0.8);
+          doc.font('Helvetica-Bold').text(line, { lineGap: 8 });
+          doc.moveDown(1);
           doc.font('Helvetica');
+        } else if (line.includes('____________')) {
+          // Lines with fillable fields get extra spacing for readability
+          doc.text(line, { lineGap: 10 });
+          doc.moveDown(0.8);
         } else {
-          doc.text(line, { lineGap: 5 });
-          doc.moveDown(0.3);
+          doc.text(line, { lineGap: 6 });
+          doc.moveDown(0.5);
         }
       }
       
