@@ -1223,7 +1223,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    paddingTop: Platform.OS === 'ios' ? 50 : 20,
+    // Use 50px for all platforms to handle iOS Safari status bar
+    paddingTop: 50,
     paddingBottom: 15,
     paddingHorizontal: 16,
   },
