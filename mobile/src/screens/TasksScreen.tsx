@@ -1266,7 +1266,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    width: '100%',
+    alignSelf: 'stretch',
   },
   dateButtonText: {
     fontSize: 16,
