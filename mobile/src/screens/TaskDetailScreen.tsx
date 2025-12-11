@@ -182,6 +182,24 @@ export default function TaskDetailScreen({
     setEditDeadline(new Date(task.deadline));
   }, [task]);
 
+  // Inject CSS keyframes for web action sheet animation
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      const styleId = 'action-sheet-keyframes';
+      if (!document.getElementById(styleId)) {
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.textContent = `
+          @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+          }
+        `;
+        document.head.appendChild(style);
+      }
+    }
+  }, []);
+
   const loadSuggestedTemplates = async () => {
     setLoadingTemplates(true);
     try {
@@ -1123,7 +1141,7 @@ export default function TaskDetailScreen({
         <Modal
           visible={showPhoneActions}
           transparent
-          animationType="slide"
+          animationType="fade"
           onRequestClose={() => setShowPhoneActions(false)}
         >
           <TouchableOpacity
@@ -1131,7 +1149,7 @@ export default function TaskDetailScreen({
             activeOpacity={1}
             onPress={() => setShowPhoneActions(false)}
           >
-            <View style={styles.actionSheetContainer}>
+            <View style={[styles.actionSheetContainer, Platform.OS === 'web' && styles.actionSheetSlideUp]}>
               <View style={styles.actionSheetHeader}>
                 <Text style={styles.actionSheetTitle}>Contacter</Text>
                 <Text style={styles.actionSheetPhone}>{selectedPhone}</Text>
@@ -1640,6 +1658,12 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: Platform.OS === 'ios' ? 34 : 16,
     paddingHorizontal: 16,
+  },
+  actionSheetSlideUp: {
+    // @ts-ignore - web-only CSS animation
+    animationName: 'slideUp',
+    animationDuration: '0.25s',
+    animationTimingFunction: 'ease-out',
   },
   actionSheetHeader: {
     alignItems: 'center',
