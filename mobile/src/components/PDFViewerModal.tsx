@@ -27,8 +27,31 @@ export default function PDFViewerModal({
     if (!pdfUrl) return;
 
     if (Platform.OS === 'web') {
-      // On web, open in new tab (most reliable for iOS Safari)
-      window.open(pdfUrl, '_blank');
+      // On web, fetch PDF and download as blob
+      try {
+        const response = await fetch(pdfUrl);
+        if (!response.ok) throw new Error('Failed to fetch PDF');
+        
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        
+        // Extract filename from URL or use default
+        const urlParts = pdfUrl.split('/');
+        const filename = urlParts[urlParts.length - 1] || 'document.pdf';
+        
+        // Create download link
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Clean up
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+      } catch (error) {
+        console.error('Failed to download PDF:', error);
+      }
     } else {
       // On native, open URL directly
       Linking.openURL(pdfUrl);
@@ -58,24 +81,26 @@ export default function PDFViewerModal({
 
         {/* PDF Viewer */}
         {Platform.OS === 'web' ? (
-          <iframe
-            src={`${pdfUrl}#view=FitH&toolbar=1`}
+          <object
+            data={`${pdfUrl}#view=FitH&toolbar=1`}
+            type="application/pdf"
             style={{
               flex: 1,
               width: '100%',
               height: '100%',
-              border: 'none',
             }}
-            title="PDF Viewer"
-          />
+          >
+            <p>
+              Impossible d'afficher le PDF.{' '}
+              <a href={pdfUrl} target="_blank" rel="noopener noreferrer">
+                Télécharger le PDF
+              </a>
+            </p>
+          </object>
         ) : (
           <View style={styles.nativeContainer}>
-            <View style={styles.iconContainer}>
-              <Feather name="file-text" size={64} color="#3A82F7" />
-            </View>
-            <Text style={styles.nativeTitle}>Document PDF</Text>
             <Text style={styles.nativeText}>
-              Appuyez sur le bouton ci-dessous pour ouvrir le document.
+              Appuyez sur le bouton télécharger pour ouvrir le PDF
             </Text>
             <TouchableOpacity
               style={styles.openButton}
@@ -130,24 +155,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 32,
   },
-  iconContainer: {
-    marginBottom: 24,
-    padding: 24,
-    backgroundColor: '#EBF5FF',
-    borderRadius: 50,
-  },
-  nativeTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#2C3E50',
-    marginBottom: 12,
-  },
   nativeText: {
     fontSize: 16,
     color: '#6E7A84',
     textAlign: 'center',
-    marginBottom: 32,
-    lineHeight: 24,
+    marginBottom: 24,
   },
   openButton: {
     flexDirection: 'row',
