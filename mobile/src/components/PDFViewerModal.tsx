@@ -95,7 +95,7 @@ export default function PDFViewerModal({
                 width: '100%',
                 height: '100%',
                 border: 'none',
-                transform: 'scale(0.8)',
+                transform: 'scale(0.65)',
                 transformOrigin: 'top center',
               }}
               title={title}
