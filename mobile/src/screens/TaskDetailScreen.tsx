@@ -77,6 +77,9 @@ const TEMPLATE_CATEGORY_LABELS: Record<string, string> = {
   'administratif': 'Administratif',
   'banque': 'Banque',
   'travail': 'Travail',
+  'contrat_facture': 'Contrat & Facture',
+  'attestation': 'Attestation',
+  'documents': 'Documents',
 };
 
 const PAYMENT_KEYWORDS = [
