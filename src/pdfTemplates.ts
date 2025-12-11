@@ -345,7 +345,7 @@ Veuillez agréer, Madame, Monsieur, l'expression de mes salutations distinguées
     category: 'attestation',
     type: 'attestation',
     variables: ['hostName', 'hostAddress', 'hostPostalCode', 'hostCity', 'guestName', 'guestBirthDate', 'guestBirthPlace', 'startDate', 'city', 'date'],
-    taskCategories: ['administratif', 'logement'],
+    taskCategories: ['administratif'],  // Removed 'logement' - this is for admin purposes (visa, ID), not housing bills
     template: `ATTESTATION D'HÉBERGEMENT
 
 Je soussigné(e) {{hostName}}, demeurant au :
@@ -428,7 +428,7 @@ Cordialement,
     category: 'attestation',
     type: 'lettre',
     variables: ['parentName', 'parentAddress', 'parentPostalCode', 'parentCity', 'contractRef', 'attestationType', 'insurerName', 'city', 'date'],
-    taskCategories: ['logement', 'administratif'],
+    taskCategories: ['administratif'],  // Removed 'logement' - requesting certificates is admin, not related to housing bills
     template: `{{parentName}}
 {{parentAddress}}
 {{parentPostalCode}} {{parentCity}}
@@ -457,7 +457,7 @@ Je vous remercie par avance et vous prie d'agréer, Madame, Monsieur, mes saluta
     category: 'attestation',
     type: 'attestation',
     variables: ['declarantName', 'declarantAddress', 'declarantPostalCode', 'declarantCity', 'residenceSince', 'city', 'date'],
-    taskCategories: ['administratif', 'logement'],
+    taskCategories: ['administratif'],  // Removed 'logement' - proof of address is admin, not related to housing bills
     template: `ATTESTATION DE DOMICILE
 
 Je soussigné(e) {{declarantName}}, atteste sur l'honneur résider à l'adresse suivante :
