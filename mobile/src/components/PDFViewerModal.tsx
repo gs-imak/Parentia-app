@@ -81,26 +81,16 @@ export default function PDFViewerModal({
 
         {/* PDF Viewer */}
         {Platform.OS === 'web' ? (
-          <div
+          <iframe
+            src={`${pdfUrl}#zoom=page-fit`}
             style={{
               flex: 1,
               width: '100%',
               height: '100%',
-              overflow: 'auto',
+              border: 'none',
             }}
-          >
-            <iframe
-              src={pdfUrl}
-              style={{
-                width: '100%',
-                height: '100%',
-                border: 'none',
-                transform: 'scale(0.65)',
-                transformOrigin: 'top center',
-              }}
-              title={title}
-            />
-          </div>
+            title={title}
+          />
         ) : (
           <View style={styles.nativeContainer}>
             <Text style={styles.nativeText}>
