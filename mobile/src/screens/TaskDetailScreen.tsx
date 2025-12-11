@@ -889,12 +889,25 @@ export default function TaskDetailScreen({
             onRequestClose={() => setShowImageViewer(false)}
           >
             <View style={{ flex: 1, backgroundColor: '#000000' }}>
-              <View style={styles.header}>
+              <View style={styles.imageViewerHeader}>
                 <TouchableOpacity onPress={() => setShowImageViewer(false)} style={styles.closeButton}>
                   <Feather name="x" size={24} color="#FFFFFF" />
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: '#FFFFFF' }]}>Pièce jointe</Text>
-                <View style={{ width: 44 }} />
+                <Text style={styles.imageViewerTitle}>Pièce jointe</Text>
+                <TouchableOpacity 
+                  onPress={() => {
+                    if (task.imageUrl) {
+                      if (Platform.OS === 'web') {
+                        window.open(task.imageUrl, '_blank');
+                      } else {
+                        Linking.openURL(task.imageUrl);
+                      }
+                    }
+                  }} 
+                  style={styles.closeButton}
+                >
+                  <Feather name="download" size={20} color="#FFFFFF" />
+                </TouchableOpacity>
               </View>
               <ScrollView
                 style={{ flex: 1 }}
@@ -1204,6 +1217,20 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     color: '#2C3E50',
+  },
+  imageViewerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    paddingTop: Platform.OS === 'ios' ? 50 : 20,
+    paddingBottom: 15,
+    paddingHorizontal: 16,
+  },
+  imageViewerTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   closeButton: {
     width: 44,
