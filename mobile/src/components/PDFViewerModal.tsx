@@ -81,16 +81,22 @@ export default function PDFViewerModal({
 
         {/* PDF Viewer */}
         {Platform.OS === 'web' ? (
-          <iframe
-            src={`${pdfUrl}#zoom=page-fit`}
+          <object
+            data={`${pdfUrl}#view=FitH`}
+            type="application/pdf"
             style={{
               flex: 1,
               width: '100%',
               height: '100%',
-              border: 'none',
             }}
-            title={title}
-          />
+          >
+            <p>
+              Impossible d'afficher le PDF.{' '}
+              <a href={pdfUrl} target="_blank" rel="noopener noreferrer">
+                Télécharger le PDF
+              </a>
+            </p>
+          </object>
         ) : (
           <View style={styles.nativeContainer}>
             <Text style={styles.nativeText}>
