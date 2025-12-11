@@ -60,6 +60,25 @@ const SOURCE_LABELS: Record<string, string> = {
   'profile': '👤 Profil',
 };
 
+// Template type labels
+const TEMPLATE_TYPE_LABELS: Record<string, string> = {
+  'lettre': 'Lettre',
+  'attestation': 'Attestation',
+  'formulaire': 'Formulaire',
+  'note': 'Note',
+};
+
+// Template category labels
+const TEMPLATE_CATEGORY_LABELS: Record<string, string> = {
+  'ecole': 'École',
+  'creche': 'Crèche',
+  'sante_mutuelle': 'Santé & Mutuelle',
+  'logement': 'Logement',
+  'administratif': 'Administratif',
+  'banque': 'Banque',
+  'travail': 'Travail',
+};
+
 const PAYMENT_KEYWORDS = [
   'payer',
   'paiement',
@@ -702,7 +721,7 @@ export default function TaskDetailScreen({
                   <View key={template.id} style={styles.templateItem}>
                     <View style={styles.templateInfo}>
                       <Text style={styles.templateLabel}>{template.label}</Text>
-                      <Text style={styles.templateType}>{template.type}</Text>
+                      <Text style={styles.templateType}>{TEMPLATE_TYPE_LABELS[template.type] || template.type}</Text>
                     </View>
                     <TouchableOpacity
                       style={styles.generateButton}
@@ -763,7 +782,7 @@ export default function TaskDetailScreen({
                 <View key={template.id} style={[styles.templateItem, { marginHorizontal: 16 }]}>
                   <View style={styles.templateInfo}>
                     <Text style={styles.templateLabel}>{template.label}</Text>
-                    <Text style={styles.templateType}>{template.type} • {template.category}</Text>
+                    <Text style={styles.templateType}>{TEMPLATE_TYPE_LABELS[template.type] || template.type} • {TEMPLATE_CATEGORY_LABELS[template.category] || template.category}</Text>
                   </View>
                   <TouchableOpacity
                     style={styles.generateButton}
