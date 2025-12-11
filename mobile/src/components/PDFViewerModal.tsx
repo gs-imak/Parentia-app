@@ -82,7 +82,7 @@ export default function PDFViewerModal({
         {/* PDF Viewer */}
         {Platform.OS === 'web' ? (
           <object
-            data={`${pdfUrl}#view=FitH&toolbar=1`}
+            data={`${pdfUrl}#zoom=page-width`}
             type="application/pdf"
             style={{
               flex: 1,
