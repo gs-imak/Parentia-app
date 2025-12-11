@@ -888,12 +888,12 @@ export default function TaskDetailScreen({
             animationType="fade"
             onRequestClose={() => setShowImageViewer(false)}
           >
-            <View style={{ flex: 1, backgroundColor: '#000000' }}>
-              <View style={styles.imageViewerHeader}>
+            <View style={{ flex: 1, backgroundColor: '#F5F7FA' }}>
+              <View style={styles.header}>
                 <TouchableOpacity onPress={() => setShowImageViewer(false)} style={styles.closeButton}>
-                  <Feather name="x" size={24} color="#FFFFFF" />
+                  <Feather name="x" size={24} color="#2C3E50" />
                 </TouchableOpacity>
-                <Text style={styles.imageViewerTitle}>Pièce jointe</Text>
+                <Text style={styles.headerTitle}>Pièce jointe</Text>
                 <TouchableOpacity 
                   onPress={() => {
                     if (task.imageUrl) {
@@ -906,11 +906,11 @@ export default function TaskDetailScreen({
                   }} 
                   style={styles.closeButton}
                 >
-                  <Feather name="download" size={20} color="#FFFFFF" />
+                  <Feather name="download" size={20} color="#3A82F7" />
                 </TouchableOpacity>
               </View>
               <ScrollView
-                style={{ flex: 1 }}
+                style={{ flex: 1, backgroundColor: '#000000' }}
                 contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}
                 maximumZoomScale={3}
                 minimumZoomScale={1}
@@ -1217,21 +1217,6 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     color: '#2C3E50',
-  },
-  imageViewerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    // Use 50px for all platforms to handle iOS Safari status bar
-    paddingTop: 50,
-    paddingBottom: 15,
-    paddingHorizontal: 16,
-  },
-  imageViewerTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#FFFFFF',
   },
   closeButton: {
     width: 44,
