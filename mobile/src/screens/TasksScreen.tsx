@@ -540,14 +540,9 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksS
                 padding: '12px 16px',
                 fontSize: '16px',
                 color: '#2C3E50',
-                width: '100%',
-                maxWidth: '100%',
                 fontFamily: 'system-ui',
                 boxSizing: 'border-box',
                 outline: 'none',
-                WebkitAppearance: 'none',
-                MozAppearance: 'none',
-                appearance: 'none',
               }}
               value={new Date(deadline.getTime() - deadline.getTimezoneOffset() * 60000)
                 .toISOString()
@@ -856,13 +851,13 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksS
                             value={editDeadline.toISOString().slice(0, 16)}
                             onChange={(e: any) => setEditDeadline(new Date(e.target.value))}
                             style={{
-                              width: '100%',
                               padding: 12,
                               fontSize: 16,
                               borderRadius: 12,
                               border: '1px solid #E5E7EB',
                               backgroundColor: '#FFFFFF',
                               color: '#2C3E50',
+                              boxSizing: 'border-box',
                             }}
                           />
                         ) : (
