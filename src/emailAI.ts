@@ -190,6 +190,15 @@ Règles importantes:
    - Règle de base: pour un paiement ou prélèvement normal ("payer facture", "montant à régler", "paiement avant le", "prélèvement automatique"), suggestedTemplates doit être VIDE ou absent. Aucun document n'est nécessaire pour payer.
    - Ne JAMAIS proposer d'attestations, demandes ou formulaires pour un simple paiement.
    - "facture_contestation" uniquement si une contestation est EXPLICITE: "montant incorrect", "erreur de facturation", "double prélèvement", "service non reçu", "réclamation", "litige".
+   - ÉCOLE (absences): si l'email décrit une absence d'enfant à l'école (maladie, rendez-vous, absence justifiée), proposer en priorité: ["ecole_absence"].
+     * IMPORTANT: décrire la cause de l'absence dans "description" (cela servira à pré-remplir {{absenceReason}}).
+   - SANTÉ (rendez-vous / mutuelle): si le contexte est un rendez-vous médical, proposer selon le cas:
+     * prise de RDV → ["sante_rdv_medical"]
+     * demande de remboursement / mutuelle → ["sante_demande_remboursement"]
+     * besoin d'un certificat → ["sante_certificat_medical"]
+     * IMPORTANT: mettre le type de consultation / motif dans "description" (pré-remplissage {{consultationType}} / {{certificateReason}}).
+   - FACTURES (guidage): si l'email implique une contestation / réclamation, proposer "facture_contestation" et:
+     * si un numéro de facture est trouvé (dans le PDF ou le corps), le mentionner clairement dans la description (ex: "Facture n° 123456").
    - Exemples:
      * Sujet: "Payer facture Selfbox - 98,00 €" → suggestedTemplates: []
      * Sujet: "Montant incorrect sur la facture" → suggestedTemplates: ["facture_contestation"]

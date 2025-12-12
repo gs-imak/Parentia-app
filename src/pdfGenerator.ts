@@ -59,6 +59,47 @@ function fillTemplate(template: string, variables: Record<string, string>): stri
   return filled;
 }
 
+function extractInvoiceRefFromText(text: string): string | null {
+  const s = text || '';
+
+  // Common explicit patterns
+  const patterns: RegExp[] = [
+    /facture\s*(?:n(?:°|o)?|num(?:[ée]ro)?|#)?\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{3,})/i,
+    /invoice\s*(?:no\.?|number|#)?\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{3,})/i,
+    /\b(?:ref|réf(?:érence)?)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{3,})/i,
+  ];
+
+  for (const re of patterns) {
+    const m = s.match(re);
+    if (m?.[1]) return m[1];
+  }
+
+  // Fallback: a long-ish numeric token often used as invoice number
+  const numeric = s.match(/\b(\d{6,})\b/);
+  if (numeric?.[1]) return numeric[1];
+
+  return null;
+}
+
+function extractEuroAmount(text: string): string | null {
+  const s = text || '';
+  const m = s.match(/(\d{1,6}(?:[.,]\d{2})?)\s*€?/);
+  if (!m?.[1]) return null;
+  return m[1].replace(',', '.');
+}
+
+function extractFilenameFromUrl(url: string): string | null {
+  try {
+    const withoutQuery = url.split('?')[0];
+    const parts = withoutQuery.split('/');
+    const last = parts[parts.length - 1];
+    if (!last) return null;
+    return decodeURIComponent(last);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Auto-fill variables from profile data
  */
@@ -168,6 +209,35 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
     variables.effectiveDate = formatDateFrench(task.deadline);
     variables.leaveDate = formatDateFrench(task.deadline);
     variables.resiliationDate = formatDateFrench(task.deadline);
+  }
+
+  // Use task description as best-effort prefill for common "reason/type" fields
+  if (task.description && task.description.trim()) {
+    if (!variables.absenceReason) variables.absenceReason = task.description;
+    if (!variables.contestationReason) variables.contestationReason = task.description;
+    if (!variables.consultationType) variables.consultationType = task.description;
+    if (!variables.certificateReason) variables.certificateReason = task.description;
+  }
+
+  // Invoice heuristics (best-effort) for contestation templates
+  const invoiceContextText = `${task.title || ''}\n${task.description || ''}`;
+  const looksLikeInvoiceTask = /facture|invoice|selfbox|r[ée]f/i.test(invoiceContextText);
+  if (looksLikeInvoiceTask) {
+    const fromTitle = extractInvoiceRefFromText(task.title || '');
+    const fromDescription = extractInvoiceRefFromText(task.description || '');
+
+    const attachmentFilename = task.imageUrl ? extractFilenameFromUrl(task.imageUrl) : null;
+    const fromFilename = attachmentFilename ? extractInvoiceRefFromText(attachmentFilename) : null;
+
+    const invoiceRef = fromTitle || fromDescription || fromFilename;
+    if (invoiceRef && !variables.invoiceRef) {
+      variables.invoiceRef = invoiceRef;
+    }
+
+    const amount = extractEuroAmount(invoiceContextText);
+    if (amount && !variables.invoiceAmount) {
+      variables.invoiceAmount = amount;
+    }
   }
   
   return variables;

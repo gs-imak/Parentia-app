@@ -15,7 +15,7 @@ import {
   Image,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { formatDateFrench } from '../utils/dateFormat';
+import { formatDateFrench, formatTaskDeadlineFrench } from '../utils/dateFormat';
 import {
   type Task,
   type PDFTemplate,
@@ -148,6 +148,7 @@ export default function TaskDetailScreen({
   const [messageChannel, setMessageChannel] = useState<'email' | 'sms' | 'whatsapp'>('email');
   const [messageDraft, setMessageDraft] = useState<{ subject?: string; body: string } | null>(null);
   const [loadingMessage, setLoadingMessage] = useState(false);
+  const [quickContactLoading, setQuickContactLoading] = useState<'email' | 'sms' | 'whatsapp' | null>(null);
   
   // Delete confirmation
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -165,6 +166,8 @@ export default function TaskDetailScreen({
   const [editingDeadline, setEditingDeadline] = useState(false);
   const [editDeadline, setEditDeadline] = useState(new Date(task.deadline));
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [editDescription, setEditDescription] = useState(task.description || '');
   
   // PDF viewer modal
   const [showPdfViewer, setShowPdfViewer] = useState(false);
@@ -180,6 +183,7 @@ export default function TaskDetailScreen({
     setEditTitle(task.title);
     setEditCategory(task.category);
     setEditDeadline(new Date(task.deadline));
+    setEditDescription(task.description || '');
   }, [task]);
 
   // Inject CSS keyframes for web action sheet animation
@@ -293,6 +297,64 @@ export default function TaskDetailScreen({
       });
     } finally {
       setLoadingMessage(false);
+    }
+  };
+
+  const openChannelWithDraft = async (channel: 'email' | 'sms' | 'whatsapp') => {
+    const recipient = channel === 'email' ? task.contactEmail : task.contactPhone;
+    if (!recipient) {
+      Alert.alert('Erreur', 'Aucun contact disponible.');
+      return;
+    }
+
+    setQuickContactLoading(channel);
+    try {
+      let draft: { subject?: string; body: string };
+      try {
+        const aiDraft = await getMessageDraft(task.id, channel);
+        draft = { subject: aiDraft.subject, body: aiDraft.body };
+      } catch {
+        draft = {
+          subject: channel === 'email' ? `À propos de : ${task.title}` : undefined,
+          body: `Bonjour,\n\nJe vous contacte concernant : ${task.title}.\n\nCordialement`,
+        };
+      }
+
+      let url = '';
+      if (channel === 'email') {
+        const subject = encodeURIComponent(draft.subject || '');
+        const body = encodeURIComponent(draft.body);
+        url = `mailto:${recipient}?subject=${subject}&body=${body}`;
+      } else if (channel === 'sms') {
+        const body = encodeURIComponent(draft.body);
+        url = Platform.OS === 'ios'
+          ? `sms:${recipient}&body=${body}`
+          : `sms:${recipient}?body=${body}`;
+      } else {
+        const cleanPhone = recipient.replace(/[^0-9+]/g, '');
+        const body = encodeURIComponent(draft.body);
+        url = `https://wa.me/${cleanPhone}?text=${body}`;
+      }
+
+      if (Platform.OS === 'web') {
+        if (channel === 'whatsapp') {
+          window.open(url, '_blank', 'noopener,noreferrer');
+        } else {
+          const link = document.createElement('a');
+          link.href = url;
+          link.rel = 'noopener noreferrer';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+      } else {
+        await Linking.openURL(url);
+      }
+    } catch (error) {
+      console.error('Failed to open contact channel:', error);
+      Alert.alert('Erreur', 'Impossible d\'ouvrir l\'application.');
+    } finally {
+      setQuickContactLoading(null);
     }
   };
 
@@ -423,8 +485,22 @@ export default function TaskDetailScreen({
     }
   };
 
-  const deadline = new Date(task.deadline);
-  const formattedDeadline = formatDateFrench(deadline);
+  const handleDescriptionChange = async () => {
+    setLoading(true);
+    try {
+      const nextDescription = editDescription.trim();
+      const updated = await updateTask(task.id, { description: nextDescription });
+      onTaskUpdated(updated);
+      setEditingDescription(false);
+    } catch (error) {
+      console.error('Failed to update description:', error);
+      Alert.alert('Erreur', 'Impossible de modifier la description.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formattedDeadline = formatTaskDeadlineFrench(task.deadline);
   const hasContact = task.contactEmail || task.contactPhone;
   const hasAttachment = task.imageUrl;
   const paymentContext = detectPaymentContext(task);
@@ -551,10 +627,21 @@ export default function TaskDetailScreen({
               <Feather name="edit-2" size={14} color="#6E7A84" style={{ marginLeft: 6 }} />
             </TouchableOpacity>
 
-            {task.description && (
-              <View style={styles.descriptionSection}>
+            <View style={styles.descriptionSection}>
+              <View style={styles.descriptionHeaderRow}>
                 <Text style={styles.sectionLabel}>Description</Text>
-                {Platform.OS === 'web' ? (
+                <TouchableOpacity
+                  style={styles.descriptionEditButton}
+                  onPress={() => setEditingDescription(true)}
+                >
+                  <Feather name="edit-2" size={14} color="#6E7A84" />
+                  <Text style={styles.descriptionEditButtonText}>
+                    {task.description ? 'Modifier' : 'Ajouter'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {task.description ? (
+                Platform.OS === 'web' ? (
                   <div style={{ fontSize: 15, color: '#2C3E50', lineHeight: '22px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
                     {detectContactsInDescription(task.description).map((part, index) => {
                       if (part.type === 'text') {
@@ -616,9 +703,13 @@ export default function TaskDetailScreen({
                       );
                     })}
                   </View>
-                )}
-              </View>
-            )}
+                )
+              ) : (
+                <Text style={styles.descriptionEmptyText}>
+                  Aucune description. Vous pouvez en ajouter pour préciser la tâche.
+                </Text>
+              )}
+            </View>
 
             {/* Status Buttons */}
             <View style={styles.statusSection}>
@@ -693,16 +784,30 @@ export default function TaskDetailScreen({
 
               {hasContact && (
                 <View style={styles.contactSection}>
-                  <Text style={styles.contactLabel}>
-                    Contacter {task.contactName || 'le destinataire'}
-                  </Text>
+                  <View style={styles.contactHeaderRow}>
+                    <Text style={styles.contactLabel}>
+                      Contacter {task.contactName || 'le destinataire'}
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.contactDraftButton}
+                      onPress={() => handleContactAction(task.contactEmail ? 'email' : 'sms')}
+                    >
+                      <Feather name="edit-2" size={14} color="#6E7A84" />
+                      <Text style={styles.contactDraftButtonText}>Brouillon</Text>
+                    </TouchableOpacity>
+                  </View>
                   <View style={styles.contactButtons}>
                     {task.contactEmail && (
                       <TouchableOpacity
                         style={styles.contactButton}
-                        onPress={() => handleContactAction('email')}
+                        onPress={() => openChannelWithDraft('email')}
+                        disabled={quickContactLoading === 'email'}
                       >
-                        <Feather name="mail" size={20} color="#FFFFFF" />
+                        {quickContactLoading === 'email' ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <Feather name="mail" size={20} color="#FFFFFF" />
+                        )}
                         <Text style={styles.contactButtonText}>Email</Text>
                       </TouchableOpacity>
                     )}
@@ -710,16 +815,26 @@ export default function TaskDetailScreen({
                       <>
                         <TouchableOpacity
                           style={[styles.contactButton, styles.contactButtonSms]}
-                          onPress={() => handleContactAction('sms')}
+                          onPress={() => openChannelWithDraft('sms')}
+                          disabled={quickContactLoading === 'sms'}
                         >
-                          <Feather name="message-square" size={20} color="#FFFFFF" />
+                          {quickContactLoading === 'sms' ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <Feather name="message-square" size={20} color="#FFFFFF" />
+                          )}
                           <Text style={styles.contactButtonText}>SMS</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={[styles.contactButton, styles.contactButtonWhatsapp]}
-                          onPress={() => handleContactAction('whatsapp')}
+                          onPress={() => openChannelWithDraft('whatsapp')}
+                          disabled={quickContactLoading === 'whatsapp'}
                         >
-                          <Feather name="message-circle" size={20} color="#FFFFFF" />
+                          {quickContactLoading === 'whatsapp' ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <Feather name="message-circle" size={20} color="#FFFFFF" />
+                          )}
                           <Text style={styles.contactButtonText}>WhatsApp</Text>
                         </TouchableOpacity>
                       </>
@@ -938,7 +1053,22 @@ export default function TaskDetailScreen({
                   onPress={() => {
                     if (task.imageUrl) {
                       if (Platform.OS === 'web') {
-                        window.open(task.imageUrl, '_blank');
+                        // Download without navigating away (keeps browser back working)
+                        try {
+                          const urlParts = task.imageUrl.split('?')[0].split('/');
+                          const rawName = urlParts[urlParts.length - 1] || 'piece-jointe';
+                          const filename = decodeURIComponent(rawName);
+                          const link = document.createElement('a');
+                          link.href = task.imageUrl;
+                          link.download = filename;
+                          link.rel = 'noopener noreferrer';
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                        } catch {
+                          // Fallback: open in new tab if download attribute is not supported
+                          window.open(task.imageUrl, '_blank', 'noopener,noreferrer');
+                        }
                       } else {
                         Linking.openURL(task.imageUrl);
                       }
@@ -957,7 +1087,7 @@ export default function TaskDetailScreen({
               >
                 <Image
                   source={{ uri: task.imageUrl }}
-                  style={{ width: '100%', height: undefined, aspectRatio: 1 }}
+                  style={{ width: '100%', height: '100%' }}
                   resizeMode="contain"
                 />
               </ScrollView>
@@ -1129,6 +1259,55 @@ export default function TaskDetailScreen({
                       <ActivityIndicator size="small" color="#FFFFFF" />
                     ) : (
                       <Text style={styles.deleteModalConfirmText}>Valider</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
+
+        {/* Description Edit Modal */}
+        <Modal
+          visible={editingDescription}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setEditingDescription(false)}
+        >
+          <TouchableOpacity
+            style={styles.deleteModalOverlay}
+            activeOpacity={1}
+            onPress={() => setEditingDescription(false)}
+          >
+            <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+              <View style={[styles.deleteModalContent, { width: '90%', maxWidth: 420 }]}>
+                <Text style={styles.deleteModalTitle}>
+                  {task.description ? 'Modifier la description' : 'Ajouter une description'}
+                </Text>
+                <TextInput
+                  style={[styles.titleInput, { height: 140, textAlignVertical: 'top' }]}
+                  value={editDescription}
+                  onChangeText={setEditDescription}
+                  placeholder="Description de la tâche"
+                  multiline
+                  numberOfLines={6}
+                />
+                <View style={styles.deleteModalButtons}>
+                  <TouchableOpacity
+                    style={styles.deleteModalCancel}
+                    onPress={() => setEditingDescription(false)}
+                  >
+                    <Text style={styles.deleteModalCancelText}>Annuler</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.deleteModalConfirm}
+                    onPress={handleDescriptionChange}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.deleteModalConfirmText}>Enregistrer</Text>
                     )}
                   </TouchableOpacity>
                 </View>
@@ -1361,11 +1540,36 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#E9EEF2',
   },
+  descriptionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  descriptionEditButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: '#F1F5F9',
+  },
+  descriptionEditButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6E7A84',
+  },
   sectionLabel: {
     fontSize: 14,
     fontWeight: '600',
     color: '#6E7A84',
     marginBottom: 8,
+  },
+  descriptionEmptyText: {
+    fontSize: 15,
+    color: '#6E7A84',
+    lineHeight: 22,
   },
   descriptionText: {
     fontSize: 15,
@@ -1431,10 +1635,30 @@ const styles = StyleSheet.create({
   contactSection: {
     marginTop: 4,
   },
+  contactHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
   contactLabel: {
     fontSize: 14,
     color: '#6E7A84',
     marginBottom: 8,
+  },
+  contactDraftButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: '#F1F5F9',
+  },
+  contactDraftButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6E7A84',
   },
   contactButtons: {
     flexDirection: 'row',

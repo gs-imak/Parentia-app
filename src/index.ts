@@ -783,8 +783,8 @@ app.patch('/notifications/:id/read', async (req, res) => {
 // ============================================
 app.put('/profile/address', async (req, res) => {
   try {
-    const { lastName, address, postalCode, city } = req.body;
-    const profile = await updateProfileAddress({ lastName, address, postalCode, city });
+    const { firstName, lastName, address, postalCode, city } = req.body;
+    const profile = await updateProfileAddress({ firstName, lastName, address, postalCode, city });
     return res.json({ success: true, data: profile });
   } catch (error) {
     return res.status(500).json({
@@ -969,7 +969,8 @@ app.post('/tasks/:id/message-draft', async (req, res) => {
     
     // Generate message draft via AI
     const profile = await getProfile();
-    const senderName = profile.lastName || 'Le parent';
+    const fullName = [profile.firstName, profile.lastName].filter(Boolean).join(' ').trim();
+    const senderName = fullName || profile.lastName || 'Le parent';
     
     let subject: string | undefined;
     let body: string;

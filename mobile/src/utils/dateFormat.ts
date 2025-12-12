@@ -32,6 +32,44 @@ export function formatDateFrench(date: Date): string {
 }
 
 /**
+ * Format a task deadline from its stored string.
+ *
+ * Why this exists:
+ * - Many "date-only" deadlines are stored as ISO midnight in UTC (e.g. 2025-12-12T00:00:00.000Z).
+ * - Rendering with `new Date(iso)` converts to local time (e.g. 01:00 in France) and incorrectly shows a time.
+ *
+ * Heuristic:
+ * - If the stored string is midnight (all-zero time), treat it as a date-only deadline and hide time.
+ * - Otherwise, show date + time via `formatDateFrench`.
+ */
+export function formatTaskDeadlineFrench(deadline: string): string {
+  const normalized = deadline.trim();
+
+  // Date-only input (YYYY-MM-DD)
+  const dateOnlyMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnlyMatch) {
+    const year = Number(dateOnlyMatch[1]);
+    const month = Number(dateOnlyMatch[2]) - 1;
+    const day = Number(dateOnlyMatch[3]);
+    return formatDateFrench(new Date(year, month, day));
+  }
+
+  // ISO midnight (UTC or local) -> hide time but keep correct day semantics
+  const midnightUtc = normalized.match(/^(\d{4})-(\d{2})-(\d{2})T00:00(?::00(?:\.000)?)?Z$/);
+  const midnightLocal = normalized.match(/^(\d{4})-(\d{2})-(\d{2})T00:00(?::00(?:\.000)?)?$/);
+  const midnightMatch = midnightUtc || midnightLocal;
+  if (midnightMatch) {
+    const year = Number(midnightMatch[1]);
+    const month = Number(midnightMatch[2]) - 1;
+    const day = Number(midnightMatch[3]);
+    // Use local date constructor to avoid timezone shifts when formatting
+    return formatDateFrench(new Date(year, month, day));
+  }
+
+  return formatDateFrench(new Date(normalized));
+}
+
+/**
  * Format a date in short French format: "2 décembre 2025"
  * @param date - Date to format
  * @returns Formatted string

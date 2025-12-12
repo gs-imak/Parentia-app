@@ -15,7 +15,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { createTask, getAllTasks, deleteTask, updateTask, createTaskFromImage, type TaskCategory, type Task } from '../api/client';
-import { formatDateFrench } from '../utils/dateFormat';
+import { formatDateFrench, formatTaskDeadlineFrench } from '../utils/dateFormat';
 import PDFViewerModal from '../components/PDFViewerModal';
 
 // Conditionally import DateTimePicker only for mobile
@@ -1048,7 +1048,7 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksS
                       <View style={styles.taskDeadlineRow}>
                         <Feather name="clock" size={14} color={isOverdue ? '#DC2626' : '#6E7A84'} />
                         <Text style={[styles.taskDeadlineText, isOverdue && styles.overdueText]}>
-                          {formatDateFrench(deadlineDate)}
+                          {formatTaskDeadlineFrench(task.deadline)}
                           {isOverdue && ' (en retard)'}
                         </Text>
                       </View>

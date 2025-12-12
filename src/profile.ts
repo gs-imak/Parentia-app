@@ -236,6 +236,7 @@ export async function deleteMarriageDate(): Promise<Profile> {
 
 // Milestone 5: Update profile address information
 export async function updateProfileAddress(data: {
+  firstName?: string;
   lastName?: string;
   address?: string;
   postalCode?: string;
@@ -243,6 +244,7 @@ export async function updateProfileAddress(data: {
 }): Promise<Profile> {
   const profile = await readProfile();
   
+  if (data.firstName !== undefined) profile.firstName = data.firstName;
   if (data.lastName !== undefined) profile.lastName = data.lastName;
   if (data.address !== undefined) profile.address = data.address;
   if (data.postalCode !== undefined) profile.postalCode = data.postalCode;

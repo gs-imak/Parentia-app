@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { RefreshControl, Linking, View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Modal, StyleSheet, Dimensions, type GestureResponderEvent } from 'react-native';
-import { formatDateFrench } from '../utils/dateFormat';
+import { formatDateFrench, formatTaskDeadlineFrench } from '../utils/dateFormat';
 import { Feather } from '@expo/vector-icons';
 import {
   fetchQuote,
@@ -271,8 +271,7 @@ export default function HomeScreen({ onOpenTaskDetail, refreshTrigger }: HomeScr
           ) : (
             <View>
               {tasks.map((task) => {
-                const deadline = new Date(task.deadline);
-                const formattedDeadline = formatDateFrench(deadline);
+                const formattedDeadline = formatTaskDeadlineFrench(task.deadline);
 
                 let statusColor = '#6E7A84';
                 let isFilled = false;
