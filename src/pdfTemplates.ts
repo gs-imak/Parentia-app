@@ -263,13 +263,15 @@ Réf. adhérent : {{mutuelleRef}}
 
 {{mutuelleName}}
 
-Objet : Demande de remboursement
+Objet : Demande de remboursement de frais médicaux
 
 Madame, Monsieur,
 
-Je vous adresse ci-joint les justificatifs relatifs à {{prestationType}} effectué(e) le {{prestationDate}}, pour un montant de {{prestationAmount}} €.
+Je vous adresse ci-joint les justificatifs relatifs à la consultation médicale {{prestationType}} effectuée le {{prestationDate}}, pour un montant de {{prestationAmount}} €.
 
-Je vous prie de bien vouloir procéder au remboursement conformément à mon contrat.
+Conformément aux garanties de mon contrat, je vous prie de bien vouloir procéder au remboursement de ces frais.
+
+Vous trouverez en pièce jointe les documents justificatifs nécessaires (feuille de soins, facture).
 
 Vous remerciant par avance, je vous prie d'agréer, Madame, Monsieur, mes salutations distinguées.
 

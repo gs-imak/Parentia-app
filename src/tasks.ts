@@ -3,7 +3,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { deleteInboxEntriesByTaskId } from './inbox.js';
-import { getSuggestedTemplateIds } from './pdfTemplates.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,59 +33,23 @@ export interface Task {
 }
 
 // ============================================
-// Deterministic suggestion logic (Milestone 5)
+// Milestone 5 – FROZEN suggestion logic
 // ============================================
+// Hard whitelist: ONLY these 5 templates may be auto-suggested.
+// All other templates remain accessible via "Voir tous les modèles".
+const SUGGESTION_WHITELIST = new Set([
+  'ecole_absence',           // Justificatif d'absence école
+  'creche_absence',          // Justificatif d'absence crèche
+  'sante_demande_remboursement', // Demande de remboursement mutuelle
+  'facture_contestation',    // Contestation de facture
+  'attestation_honneur',     // Attestation sur l'honneur
+]);
+
+// Known providers for invoice detection
+const KNOWN_PROVIDERS = ['edf', 'selfbox', 'orange', 'sosh', 'sfr', 'free', 'bouygues', 'engie'];
+
 function normalizeText(s: string): string {
   return (s || '').toLowerCase();
-}
-
-function hasAny(haystack: string, needles: string[]): boolean {
-  return needles.some((n) => haystack.includes(n));
-}
-
-function isSchoolOrCrecheTask(haystack: string): boolean {
-  return hasAny(haystack, [
-    'absence',
-    'école',
-    'ecole',
-    'crèche',
-    'creche',
-    'retard',
-    'rendez-vous médical enfant',
-    'rendez vous médical enfant',
-    'rdv médical enfant',
-    'rdv medical enfant',
-  ]);
-}
-
-function isHealthTask(haystack: string): boolean {
-  return hasAny(haystack, [
-    'rendez-vous médical',
-    'rendez vous médical',
-    'rdv médical',
-    'rdv medical',
-    'médecin',
-    'medecin',
-    'pédiatre',
-    'pediatre',
-    'consultation',
-  ]);
-}
-
-function isInvoiceOrContractTask(haystack: string): boolean {
-  // Keep simple & explicit as requested
-  return (
-    haystack.includes('facture') ||
-    haystack.includes('invoice') ||
-    haystack.includes('€') ||
-    haystack.includes('eur') ||
-    haystack.includes('montant') ||
-    hasAny(haystack, ['edf', 'selfbox', 'orange', 'sosh', 'sfr', 'free', 'bouygues', 'engie'])
-  );
-}
-
-function isHousingIdentityTask(haystack: string): boolean {
-  return hasAny(haystack, ['domicile', 'hébergement', 'hebergement', 'adresse', 'attestation']);
 }
 
 function extractFirstPhoneNumber(text: string): string | null {
@@ -97,65 +60,61 @@ function extractFirstPhoneNumber(text: string): string | null {
   return m?.[0]?.trim() || null;
 }
 
+/**
+ * Milestone 5 – Flat decision table (FROZEN)
+ * 
+ * Rules (applied in order, FIRST MATCH WINS, ONE document only):
+ * 1. absence + école       → ecole_absence
+ * 2. absence + crèche      → creche_absence
+ * 3. rendez-vous médical OR consultation → sante_demande_remboursement
+ * 4. facture OR montant € OR fournisseur → facture_contestation
+ * 5. "attestation sur l'honneur"         → attestation_honneur
+ * 
+ * If no rule matches exactly → suggest NOTHING.
+ * If multiple keywords exist but don't clearly match one rule → suggest NOTHING.
+ */
 function inferSuggestedTemplatesDeterministic(
   task: Pick<Task, 'title' | 'description' | 'category' | 'source'>
 ): string[] | undefined {
-  const haystack = normalizeText(`${task.title || ''}\n${task.description || ''}\n${task.source || ''}\n${task.category || ''}`);
+  const haystack = normalizeText(`${task.title || ''} ${task.description || ''}`);
 
-  const suggestions: string[] = [];
-
-  // 1) School / crèche
-  if (isSchoolOrCrecheTask(haystack)) {
-    // Default: justificatif d'absence (école ou crèche)
-    if (haystack.includes('crèche') || haystack.includes('creche')) {
-      suggestions.push('creche_absence');
-    } else {
-      suggestions.push('ecole_absence');
-    }
-    // "Message d'information à l'école" is handled via contact actions (not a PDF template).
+  // Rule 1: absence + crèche → creche_absence
+  if (haystack.includes('absence') && (haystack.includes('crèche') || haystack.includes('creche'))) {
+    return ['creche_absence'];
   }
 
-  // 2) Health / medical appointments
-  if (isHealthTask(haystack)) {
-    suggestions.push('sante_rdv_medical', 'sante_demande_remboursement');
+  // Rule 2: absence + école → ecole_absence
+  if (haystack.includes('absence') && (haystack.includes('école') || haystack.includes('ecole'))) {
+    return ['ecole_absence'];
   }
 
-  // 3) Invoices / contracts
-  if (isInvoiceOrContractTask(haystack)) {
-    suggestions.push('facture_contestation', 'contrat_resiliation');
+  // Rule 3: rendez-vous médical OR consultation → sante_demande_remboursement
+  const hasMedical =
+    haystack.includes('rendez-vous médical') ||
+    haystack.includes('rendez vous médical') ||
+    haystack.includes('rdv médical') ||
+    haystack.includes('rdv medical') ||
+    haystack.includes('consultation');
+  if (hasMedical) {
+    return ['sante_demande_remboursement'];
   }
 
-  // 4-5) Housing / identity + generic attestations
-  if (isHousingIdentityTask(haystack)) {
-    // Select based on wording
-    if (/attestation\s+sur\s+l['’]honneur/.test(haystack)) suggestions.push('attestation_honneur');
-    if (/attestation\s+d['’]?\s*h[ée]bergement/.test(haystack) || haystack.includes('hébergement') || haystack.includes('hebergement')) {
-      suggestions.push('attestation_hebergement');
-    }
-    if (haystack.includes('domicile') || haystack.includes('adresse')) {
-      suggestions.push('attestation_domicile');
-    }
+  // Rule 4: facture OR montant € OR fournisseur → facture_contestation
+  const hasInvoice =
+    haystack.includes('facture') ||
+    /montant\s*€|\d+\s*€|\d+€/.test(haystack) ||
+    KNOWN_PROVIDERS.some((p) => haystack.includes(p));
+  if (hasInvoice) {
+    return ['facture_contestation'];
   }
 
-  const unique = Array.from(new Set(suggestions)).slice(0, 3);
-  return unique.length > 0 ? unique : undefined;
-}
+  // Rule 5: "attestation sur l'honneur" → attestation_honneur
+  if (/attestation\s+sur\s+l['']?honneur/.test(haystack)) {
+    return ['attestation_honneur'];
+  }
 
-function sanitizeSuggestedTemplatesForTask(
-  suggestedTemplates: string[] | undefined,
-  category: TaskCategory,
-  title: string,
-  description?: string
-): string[] | undefined {
-  if (!suggestedTemplates || suggestedTemplates.length === 0) return undefined;
-
-  // Only keep templates that match the task category
-  const allowed = new Set(getSuggestedTemplateIds(category));
-  let filtered = suggestedTemplates.filter((id) => allowed.has(id));
-
-  // Deduplicate and cap to 3
-  const unique = Array.from(new Set(filtered)).slice(0, 3);
-  return unique.length > 0 ? unique : undefined;
+  // No match → suggest nothing
+  return undefined;
 }
 
 const TaskSchema = z.object({
@@ -195,14 +154,9 @@ async function writeTasks(tasks: Task[]): Promise<void> {
 
 export async function createTask(taskData: Omit<Task, 'id' | 'createdAt' | 'status'>): Promise<Task> {
   const tasks = await readTasks();
-  // Milestone 5 deterministic suggestions (do not rely on AI suggestions)
-  const inferredTemplates = inferSuggestedTemplatesDeterministic(taskData);
-  const sanitizedTemplates = sanitizeSuggestedTemplatesForTask(
-    inferredTemplates,
-    taskData.category,
-    taskData.title,
-    taskData.description
-  );
+  
+  // Milestone 5 FROZEN: deterministic suggestions from flat decision table
+  const suggestedTemplates = inferSuggestedTemplatesDeterministic(taskData);
 
   // Contact fallback: if AI didn't set a phone number but one is visible in the task text, persist it.
   const phoneFromText =
@@ -212,7 +166,7 @@ export async function createTask(taskData: Omit<Task, 'id' | 'createdAt' | 'stat
 
   const newTask: Task = {
     ...taskData,
-    suggestedTemplates: sanitizedTemplates,
+    suggestedTemplates,
     contactPhone: phoneFromText,
     id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
     status: 'todo',
@@ -241,7 +195,7 @@ export async function updateTask(id: string, updates: Partial<Omit<Task, 'id' | 
   
   const merged = { ...tasks[index], ...updates };
 
-  // Recompute deterministic suggestions on update (stable & predictable)
+  // Milestone 5 FROZEN: recompute deterministic suggestions from flat decision table
   merged.suggestedTemplates = inferSuggestedTemplatesDeterministic(merged);
 
   // If contactPhone is still missing, try to pull it from title/description.
@@ -249,13 +203,6 @@ export async function updateTask(id: string, updates: Partial<Omit<Task, 'id' | 
     const autoPhone = extractFirstPhoneNumber(`${merged.title || ''}\n${merged.description || ''}`);
     if (autoPhone) merged.contactPhone = autoPhone;
   }
-
-  merged.suggestedTemplates = sanitizeSuggestedTemplatesForTask(
-    merged.suggestedTemplates,
-    merged.category,
-    merged.title,
-    merged.description
-  );
 
   tasks[index] = merged;
   await writeTasks(tasks);
@@ -329,26 +276,22 @@ export async function getTasksForToday(): Promise<Task[]> {
   return sorted.slice(0, 3);
 }
 
-// Sanitize existing tasks in storage (used to clean legacy bad suggestions)
+// Recompute all task suggestions using the frozen Milestone 5 decision table
 export async function sanitizeAllTasks(): Promise<void> {
   const tasks = await readTasks();
   let updated = false;
 
   const sanitized = tasks.map((task) => {
-    const cleanedTemplates = sanitizeSuggestedTemplatesForTask(
-      task.suggestedTemplates,
-      task.category,
-      task.title,
-      task.description
-    );
+    // Recompute using frozen decision table
+    const newTemplates = inferSuggestedTemplatesDeterministic(task);
 
     const prev = task.suggestedTemplates ?? null;
-    const next = cleanedTemplates ?? null;
+    const next = newTemplates ?? null;
     if (JSON.stringify(prev) !== JSON.stringify(next)) {
       updated = true;
     }
 
-    return { ...task, suggestedTemplates: cleanedTemplates };
+    return { ...task, suggestedTemplates: newTemplates };
   });
 
   if (updated) {

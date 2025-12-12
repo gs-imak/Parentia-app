@@ -475,6 +475,7 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
     const cleaned = normalizeReasonText(task.description);
     if (!variables.contestationReason) variables.contestationReason = cleaned;
     if (!variables.consultationType) variables.consultationType = cleaned;
+    if (!variables.prestationType) variables.prestationType = cleaned;
     if (!variables.certificateReason) variables.certificateReason = cleaned;
   }
 
