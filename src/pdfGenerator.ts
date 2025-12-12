@@ -147,6 +147,46 @@ function extractInvoiceDateFromText(text: string): string | null {
   return null;
 }
 
+const FRENCH_MONTHS: Record<string, number> = {
+  'janvier': 1, 'février': 2, 'mars': 3, 'avril': 4, 'mai': 5, 'juin': 6,
+  'juillet': 7, 'août': 8, 'septembre': 9, 'octobre': 10, 'novembre': 11, 'décembre': 12,
+};
+
+/**
+ * Extract a date from French text (e.g., "15 décembre", "le 15/12", "rendez-vous le 15")
+ * Returns formatted DD/MM/YYYY string or null
+ */
+function extractFrenchDateFromText(text: string): string | null {
+  const s = (text || '').toLowerCase();
+  
+  // Pattern 1: "15 décembre 2024" or "15 décembre"
+  const monthPattern = /(\d{1,2})\s+(janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)(?:\s+(\d{4}))?/i;
+  const monthMatch = s.match(monthPattern);
+  if (monthMatch) {
+    const day = parseInt(monthMatch[1], 10);
+    const month = FRENCH_MONTHS[monthMatch[2].toLowerCase()];
+    const year = monthMatch[3] ? parseInt(monthMatch[3], 10) : new Date().getFullYear();
+    if (day >= 1 && day <= 31 && month) {
+      return `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${year}`;
+    }
+  }
+  
+  // Pattern 2: "le 15/12" or "15/12/2024"
+  const slashPattern = /(?:le\s+)?(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/;
+  const slashMatch = s.match(slashPattern);
+  if (slashMatch) {
+    const day = parseInt(slashMatch[1], 10);
+    const month = parseInt(slashMatch[2], 10);
+    let year = slashMatch[3] ? parseInt(slashMatch[3], 10) : new Date().getFullYear();
+    if (year < 100) year += 2000; // Handle 2-digit years
+    if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
+      return `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${year}`;
+    }
+  }
+  
+  return null;
+}
+
 async function fetchAndExtractPdfText(url: string): Promise<string | null> {
   try {
     const response = await fetch(url);
@@ -264,14 +304,28 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
     variables.doctorName = task.contactName;
   }
   
-  // Task deadline as a potential date
+  // Try to extract specific date from description/title (e.g., "rendez-vous le 15 décembre")
+  const contextText = `${task.title || ''} ${task.description || ''}`;
+  const extractedDate = extractFrenchDateFromText(contextText);
+  
+  // Task deadline as a potential date (fallback)
   if (task.deadline) {
-    variables.absenceDate = formatDateFrench(task.deadline);
-    variables.sortieDate = formatDateFrench(task.deadline);
-    variables.startDate = formatDateFrench(task.deadline);
-    variables.effectiveDate = formatDateFrench(task.deadline);
-    variables.leaveDate = formatDateFrench(task.deadline);
-    variables.resiliationDate = formatDateFrench(task.deadline);
+    const deadlineFormatted = formatDateFrench(task.deadline);
+    // Use extracted date if available, otherwise fallback to deadline
+    variables.absenceDate = extractedDate || deadlineFormatted;
+    variables.prestationDate = extractedDate || deadlineFormatted;
+    variables.sortieDate = extractedDate || deadlineFormatted;
+    variables.startDate = extractedDate || deadlineFormatted;
+    variables.effectiveDate = extractedDate || deadlineFormatted;
+    variables.leaveDate = deadlineFormatted;
+    variables.resiliationDate = deadlineFormatted;
+  } else if (extractedDate) {
+    // No deadline but extracted a date from text
+    variables.absenceDate = extractedDate;
+    variables.prestationDate = extractedDate;
+    variables.sortieDate = extractedDate;
+    variables.startDate = extractedDate;
+    variables.effectiveDate = extractedDate;
   }
 
   // Use task description as best-effort prefill for common "reason/type" fields

@@ -36,7 +36,7 @@ export const PDF_TEMPLATES: PDFTemplate[] = [
     category: 'ecole',
     type: 'lettre',
     variables: ['parentName', 'childName', 'childClass', 'absenceDate', 'absenceReason', 'schoolName', 'city', 'date'],
-    taskCategories: ['enfants-école'],
+    taskCategories: ['enfants-école', 'santé'],
     template: `{{city}}, le {{date}}
 
 Objet : Justificatif d'absence de {{childName}}
@@ -231,7 +231,7 @@ Dans l'attente de votre réponse, je vous prie d'agréer, Madame, Monsieur le/la
     category: 'sante_mutuelle',
     type: 'lettre',
     variables: ['parentName', 'parentAddress', 'parentPostalCode', 'parentCity', 'mutuelleRef', 'prestationType', 'prestationDate', 'prestationAmount', 'mutuelleName', 'city', 'date'],
-    taskCategories: ['santé'],
+    taskCategories: ['santé', 'enfants-école'],
     template: `{{parentName}}
 {{parentAddress}}
 {{parentPostalCode}} {{parentCity}}
@@ -260,7 +260,7 @@ Vous remerciant par avance, je vous prie d'agréer, Madame, Monsieur, mes saluta
     category: 'sante_mutuelle',
     type: 'lettre',
     variables: ['parentName', 'parentPhone', 'patientName', 'consultationType', 'preferredDates', 'doctorName', 'city', 'date'],
-    taskCategories: ['santé'],
+    taskCategories: ['santé', 'enfants-école'],
     template: `{{city}}, le {{date}}
 
 À l'attention de {{doctorName}}

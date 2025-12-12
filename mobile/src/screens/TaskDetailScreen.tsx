@@ -184,6 +184,11 @@ export default function TaskDetailScreen({
   // Phone action sheet
   const [showPhoneActions, setShowPhoneActions] = useState(false);
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
+  
+  // Add phone modal (when contact name exists but no phone)
+  const [showAddPhoneModal, setShowAddPhoneModal] = useState(false);
+  const [addPhoneValue, setAddPhoneValue] = useState('');
+  const [savingPhone, setSavingPhone] = useState(false);
 
   useEffect(() => {
     loadSuggestedTemplates();
@@ -511,8 +516,29 @@ export default function TaskDetailScreen({
     }
   };
 
+  const handleAddPhone = async () => {
+    const phone = addPhoneValue.trim();
+    if (!phone) {
+      Alert.alert('Erreur', 'Veuillez entrer un numéro de téléphone.');
+      return;
+    }
+    setSavingPhone(true);
+    try {
+      const updated = await updateTask(task.id, { contactPhone: phone });
+      onTaskUpdated(updated);
+      setShowAddPhoneModal(false);
+      setAddPhoneValue('');
+    } catch (error) {
+      console.error('Failed to add phone:', error);
+      Alert.alert('Erreur', 'Impossible d\'ajouter le numéro.');
+    } finally {
+      setSavingPhone(false);
+    }
+  };
+
   const formattedDeadline = formatTaskDeadlineFrench(task.deadline);
-  const hasContact = task.contactEmail || task.contactPhone;
+  const hasContact = task.contactEmail || task.contactPhone || task.contactName;
+  const hasPhoneActions = !!task.contactPhone;
   const hasAttachment = task.imageUrl;
   const paymentContext = detectPaymentContext(task);
   const noTemplateMessage = paymentContext.isPayment && !paymentContext.isDispute
@@ -799,13 +825,15 @@ export default function TaskDetailScreen({
                     <Text style={styles.contactLabel}>
                       Contacter {task.contactName || 'le destinataire'}
                     </Text>
-                    <TouchableOpacity
-                      style={styles.contactDraftButton}
-                      onPress={() => handleContactAction(task.contactEmail ? 'email' : 'sms')}
-                    >
-                      <Feather name="edit-2" size={14} color="#6E7A84" />
-                      <Text style={styles.contactDraftButtonText}>Brouillon</Text>
-                    </TouchableOpacity>
+                    {(task.contactEmail || task.contactPhone) && (
+                      <TouchableOpacity
+                        style={styles.contactDraftButton}
+                        onPress={() => handleContactAction(task.contactEmail ? 'email' : 'sms')}
+                      >
+                        <Feather name="edit-2" size={14} color="#6E7A84" />
+                        <Text style={styles.contactDraftButtonText}>Brouillon</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                   <View style={styles.contactButtons}>
                     {task.contactEmail && (
@@ -822,7 +850,7 @@ export default function TaskDetailScreen({
                         <Text style={styles.contactButtonText}>Email</Text>
                       </TouchableOpacity>
                     )}
-                    {task.contactPhone && (
+                    {task.contactPhone ? (
                       <>
                         <TouchableOpacity
                           style={[styles.contactButton, styles.contactButtonSms]}
@@ -849,7 +877,15 @@ export default function TaskDetailScreen({
                           <Text style={styles.contactButtonText}>WhatsApp</Text>
                         </TouchableOpacity>
                       </>
-                    )}
+                    ) : task.contactName && !task.contactEmail ? (
+                      <TouchableOpacity
+                        style={[styles.contactButton, styles.contactButtonAdd]}
+                        onPress={() => setShowAddPhoneModal(true)}
+                      >
+                        <Feather name="plus" size={20} color="#FFFFFF" />
+                        <Text style={styles.contactButtonText}>Ajouter téléphone</Text>
+                      </TouchableOpacity>
+                    ) : null}
                   </View>
                 </View>
               )}
@@ -1040,6 +1076,54 @@ export default function TaskDetailScreen({
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
                     <Text style={styles.deleteModalConfirmText}>Supprimer</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Add Phone Modal */}
+        <Modal
+          visible={showAddPhoneModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowAddPhoneModal(false)}
+        >
+          <View style={styles.deleteModalOverlay}>
+            <View style={styles.deleteModalContent}>
+              <Feather name="phone" size={48} color="#3A82F7" />
+              <Text style={styles.deleteModalTitle}>Ajouter un téléphone</Text>
+              <Text style={styles.deleteModalText}>
+                Entrez le numéro de {task.contactName || 'ce contact'}
+              </Text>
+              <TextInput
+                style={styles.phoneInput}
+                placeholder="06 12 34 56 78"
+                value={addPhoneValue}
+                onChangeText={setAddPhoneValue}
+                keyboardType="phone-pad"
+                autoFocus
+              />
+              <View style={styles.deleteModalButtons}>
+                <TouchableOpacity
+                  style={styles.deleteModalCancel}
+                  onPress={() => {
+                    setShowAddPhoneModal(false);
+                    setAddPhoneValue('');
+                  }}
+                >
+                  <Text style={styles.deleteModalCancelText}>Annuler</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.deleteModalConfirm, { backgroundColor: '#3A82F7' }]}
+                  onPress={handleAddPhone}
+                  disabled={savingPhone}
+                >
+                  {savingPhone ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.deleteModalConfirmText}>Enregistrer</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -1692,6 +1776,10 @@ const styles = StyleSheet.create({
   contactButtonWhatsapp: {
     backgroundColor: '#25D366',
   },
+  contactButtonAdd: {
+    backgroundColor: '#6E7A84',
+    minWidth: 160,
+  },
   contactButtonText: {
     fontSize: 13,
     fontWeight: '600',
@@ -1818,6 +1906,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
     maxWidth: 320,
+  },
+  phoneInput: {
+    backgroundColor: '#F8F9FB',
+    borderWidth: 1,
+    borderColor: '#E9EEF2',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#2C3E50',
+    width: '100%',
+    marginVertical: 16,
+    textAlign: 'center',
   },
   deleteModalTitle: {
     fontSize: 18,
