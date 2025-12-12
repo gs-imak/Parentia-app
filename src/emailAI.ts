@@ -129,7 +129,8 @@ Règles importantes:
    - Cherche l'expéditeur ORIGINAL dans le corps ("De:", "From:", "Expéditeur:")
    - Utilise cet expéditeur original, pas celui qui a transféré
 
-2. FICHIERS PDF JOINTS:
+2. FICHIERS PDF JOINTS (SOURCE DE VÉRITÉ):
+   - ⚠️ RÈGLE CRITIQUE: Le PDF joint est TOUJOURS la source de vérité. Si le PDF contient un montant ou une date, IGNORER les montants/dates du corps de l'email.
    - Si un PDF est joint, son contenu sera fourni dans la section "CONTENU DU PDF JOINT"
    - Si le PDF ne peut pas être lu (message "[PDF JOINT: Impossible d'extraire le texte...]"):
      * Créer une tâche avec titre: "Vérifier document PDF - [expéditeur ou sujet]"
@@ -138,30 +139,32 @@ Règles importantes:
      * Description: "Document PDF joint nécessitant une vérification manuelle"
      * NE JAMAIS mettre skip: true
    - Analyser le PDF pour détecter: factures, relevés, convocations, documents officiels
-   - Si le PDF contient une FACTURE (mots-clés: "Facture", "Invoice", "Montant à payer", "Total TTC", "Date limite de paiement", "MONTANT À RÉGLER"):
-     * IMPORTANT: Extraire le MONTANT exact du PDF:
-       - Chercher: "Total TTC", "Montant à payer", "Total à régler", "MONTANT À RÉGLER", "TOTAL HT"
-       - Formats montants: "99,99€", "99.99€", "99,99 €", "99.99 €", "99.00 EUR" (AVEC ou SANS espace avant devise)
-       - Extraire le nombre même s'il y a un espace: "98.00 €" = 98.00€
-     * IMPORTANT: Extraire la DATE LIMITE du PDF:
-       - Chercher: "Date limite", "Échéance", "Date de paiement", "Paiement avant le", "Date 23/11/2025"
+   - Si le PDF contient une FACTURE:
+     * MONTANT - PRIORITÉ AU PDF:
+       - Chercher dans le PDF: "Total TTC", "Montant TTC", "Montant à régler", "Total à payer", "MONTANT À RÉGLER"
+       - ⚠️ IGNORER tout montant mentionné dans le corps de l'email - seul le montant du PDF compte
+       - Formats: "30,99€", "30.99€", "30,99 €", "30.99 €", "30,99 EUR"
+       - Si plusieurs montants dans le PDF, prendre celui près de "Total TTC" ou "Montant à régler"
+     * DATE - PRIORITÉ AU PDF:
+       - Chercher dans le PDF: "Date limite", "Échéance", "avant le", "Paiement avant"
+       - ⚠️ IGNORER toute date mentionnée dans le corps de l'email si le PDF a une date
        - Formats: JJ/MM/AAAA, DD-MM-YYYY, "le JJ/MM/AAAA"
-     * Créer une tâche de paiement avec le montant ET l'échéance extraits
-     * Titre: "Payer facture [fournisseur] - [montant]€" (ex: "Payer facture Selfbox - 98,00€")
-     * Description: Inclure le montant exact ET la date limite trouvée dans le PDF
-   - Si le PDF contient des chiffres mais PAS assez de contexte:
-     * Chercher TOUS les montants (chiffres avec "," ou "." suivis optionnellement d'un espace puis "€" ou "EUR")
-     * Utiliser le montant le plus élevé ou celui mentionné près de "Total" / "Montant" / "TTC" / "RÉGLER"
+     * Titre: "Payer facture [fournisseur] - [MONTANT DU PDF]€"
+     * Description: Inclure le montant ET la date extraits DU PDF
+   - Si le PDF contient des chiffres mais PAS de "Total TTC":
+     * Chercher le montant près de: "TTC", "Total", "Montant", "À régler", "À payer"
+     * En dernier recours: prendre le montant le plus significatif (pas les centimes seuls)
 
 3. DATE LIMITE (deadline):
-   - CRITIQUE: Utilise la date EXACTE visible dans l'email ou le PDF. Ne modifie PAS le jour ou le mois.
-   - Si tu vois "6 décembre" → deadline = 6 décembre 2025 (PAS le 3, PAS le 7)
-   - Si tu vois "31 décembre" ou "31/12" → deadline = 31 décembre 2025 (PAS le 1er janvier)
-   - Si tu vois "7 décembre" dans un courrier → deadline = 7 décembre 2025 minimum (pas avant)
-   - Nous sommes en décembre 2025. Pour les années ambiguës ou passées (2023, 2024), utilise 2025.
-   - Extraire en priorité du PDF (date d'échéance, date limite de paiement, date de convocation)
-   - Si AUCUNE date n'est visible → aujourd'hui + 7 jours
-   - NE JAMAIS inventer ou modifier une date visible. Utilise EXACTEMENT ce qui est écrit.
+   - ⚠️ PRIORITÉ: Si un PDF est joint avec une date, utiliser LA DATE DU PDF, pas celle de l'email.
+   - CRITIQUE: Utilise la date EXACTE visible. Ne modifie PAS le jour ou le mois.
+   - Exemples de dates à respecter exactement:
+     * "6 décembre" → 6 décembre 2025
+     * "31/12" → 31 décembre 2025
+     * "avant le 07.11.2025" → 7 novembre 2025
+   - Nous sommes en décembre 2025. Pour les années ambiguës ou passées, utilise 2025.
+   - Si AUCUNE date n'est visible (ni dans le PDF, ni dans l'email) → aujourd'hui + 7 jours
+   - NE JAMAIS inventer ou modifier une date visible.
 
 4. DESCRIPTION:
    - Résume l'action à faire
