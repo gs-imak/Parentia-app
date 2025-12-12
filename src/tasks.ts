@@ -75,6 +75,19 @@ function extractFirstPhoneNumber(text: string): string | null {
   return m?.[0]?.trim() || null;
 }
 
+function inferSuggestedTemplatesFromTitle(title: string): string[] | undefined {
+  const t = (title || '').toLowerCase();
+  // Normalize apostrophes and accents roughly by matching common variants
+  const hasHebergement = /attestation\s+d['’]?\s*h[ée]bergement/.test(t);
+  const hasDomicile = /(justificatif|attestation)\s+de\s+domicile/.test(t);
+  const hasHonneur = /attestation\s+sur\s+l['’]honneur/.test(t);
+
+  if (hasHebergement) return ['attestation_hebergement'];
+  if (hasDomicile) return ['attestation_domicile'];
+  if (hasHonneur) return ['attestation_honneur'];
+  return undefined;
+}
+
 function sanitizeSuggestedTemplatesForTask(
   suggestedTemplates: string[] | undefined,
   category: TaskCategory,
@@ -139,8 +152,11 @@ async function writeTasks(tasks: Task[]): Promise<void> {
 
 export async function createTask(taskData: Omit<Task, 'id' | 'createdAt' | 'status'>): Promise<Task> {
   const tasks = await readTasks();
+  const inferredTemplates = taskData.suggestedTemplates?.length
+    ? taskData.suggestedTemplates
+    : inferSuggestedTemplatesFromTitle(taskData.title);
   const sanitizedTemplates = sanitizeSuggestedTemplatesForTask(
-    taskData.suggestedTemplates,
+    inferredTemplates,
     taskData.category,
     taskData.title,
     taskData.description
@@ -182,6 +198,12 @@ export async function updateTask(id: string, updates: Partial<Omit<Task, 'id' | 
   if (index === -1) return null;
   
   const merged = { ...tasks[index], ...updates };
+
+  // If suggestions are missing, infer safe defaults for common attestation tasks.
+  if (!merged.suggestedTemplates || merged.suggestedTemplates.length === 0) {
+    const inferred = inferSuggestedTemplatesFromTitle(merged.title);
+    if (inferred) merged.suggestedTemplates = inferred;
+  }
 
   // If contactPhone is still missing, try to pull it from title/description.
   if (!merged.contactPhone) {

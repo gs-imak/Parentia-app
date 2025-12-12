@@ -12,10 +12,18 @@ import {
   TextInput,
   ScrollView,
   Alert,
-  Platform
+  Platform,
+  Image
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { fetchInbox, deleteInboxEntry, createTask, updateTask, getTaskById, type InboxEntry, type TaskCategory, type Task } from '../api/client';
+import PDFViewerModal from '../components/PDFViewerModal';
+
+function isProbablyPdfUrl(url: string): boolean {
+  const u = (url || '').toLowerCase();
+  const pathOnly = u.split('?')[0];
+  return pathOnly.endsWith('.pdf') || pathOnly.includes('.pdf/');
+}
 
 // Conditionally import DateTimePicker only for mobile
 let DateTimePicker: any = null;
@@ -51,9 +59,10 @@ interface InboxItemProps {
   entry: InboxEntry;
   onPress: (entry: InboxEntry) => void;
   onDelete: (entry: InboxEntry) => void;
+  onOpenAttachment: (url: string) => void;
 }
 
-function InboxItem({ entry, onPress, onDelete }: InboxItemProps) {
+function InboxItem({ entry, onPress, onDelete, onOpenAttachment }: InboxItemProps) {
   const isSuccess = entry.status === 'success';
   const isIgnored = entry.taskTitle === '(Newsletter/Promo - ignoré)';
   
@@ -113,7 +122,10 @@ function InboxItem({ entry, onPress, onDelete }: InboxItemProps) {
       {entry.attachmentUrl && (
         <TouchableOpacity 
           style={styles.attachmentBadge}
-          onPress={() => Linking.openURL(entry.attachmentUrl!)}
+          onPress={(e) => {
+            e.stopPropagation();
+            onOpenAttachment(entry.attachmentUrl!);
+          }}
         >
           <Feather name="paperclip" size={12} color="#6E7A84" />
           <Text style={styles.attachmentText}>Pièce jointe</Text>
@@ -158,6 +170,21 @@ export default function InboxScreen({ onOpenTaskDetail, refreshTrigger }: InboxS
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [loadingTask, setLoadingTask] = useState(false);
+
+  // Attachment viewer modals (same behavior as Tasks/TaskDetail)
+  const [showPdfViewer, setShowPdfViewer] = useState(false);
+  const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null);
+  const [showImageViewer, setShowImageViewer] = useState(false);
+  const [imageViewerUrl, setImageViewerUrl] = useState<string | null>(null);
+  const handleOpenAttachment = useCallback((url: string) => {
+    if (isProbablyPdfUrl(url)) {
+      setPdfViewerUrl(url);
+      setShowPdfViewer(true);
+    } else {
+      setImageViewerUrl(url);
+      setShowImageViewer(true);
+    }
+  }, []);
 
   const loadInbox = useCallback(async (isRefresh = false) => {
     try {
@@ -343,8 +370,13 @@ export default function InboxScreen({ onOpenTaskDetail, refreshTrigger }: InboxS
   }, [loadInbox]);
 
   const renderItem = useCallback(({ item }: { item: InboxEntry }) => (
-    <InboxItem entry={item} onPress={handleEntryPress} onDelete={handleDeleteFromList} />
-  ), [handleEntryPress, handleDeleteFromList]);
+    <InboxItem
+      entry={item}
+      onPress={handleEntryPress}
+      onDelete={handleDeleteFromList}
+      onOpenAttachment={handleOpenAttachment}
+    />
+  ), [handleEntryPress, handleDeleteFromList, handleOpenAttachment]);
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
@@ -626,6 +658,74 @@ export default function InboxScreen({ onOpenTaskDetail, refreshTrigger }: InboxS
           </View>
         </Modal>
       )}
+
+      {/* Image Viewer Modal */}
+      {imageViewerUrl && (
+        <Modal
+          visible={showImageViewer}
+          animationType="fade"
+          onRequestClose={() => setShowImageViewer(false)}
+        >
+          <View style={{ flex: 1, backgroundColor: '#F5F7FA' }}>
+            <View style={styles.viewerHeader}>
+              <TouchableOpacity onPress={() => setShowImageViewer(false)} style={styles.viewerHeaderButton}>
+                <Feather name="x" size={24} color="#2C3E50" />
+              </TouchableOpacity>
+              <Text style={styles.viewerHeaderTitle}>Pièce jointe</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  if (!imageViewerUrl) return;
+                  if (Platform.OS === 'web') {
+                    try {
+                      const urlParts = imageViewerUrl.split('?')[0].split('/');
+                      const rawName = urlParts[urlParts.length - 1] || 'piece-jointe';
+                      const filename = decodeURIComponent(rawName);
+                      const link = document.createElement('a');
+                      link.href = imageViewerUrl;
+                      link.download = filename;
+                      link.rel = 'noopener noreferrer';
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    } catch {
+                      window.open(imageViewerUrl, '_blank', 'noopener,noreferrer');
+                    }
+                  } else {
+                    Linking.openURL(imageViewerUrl);
+                  }
+                }}
+                style={styles.viewerHeaderButton}
+              >
+                <Feather name="download" size={20} color="#3A82F7" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView
+              style={{ flex: 1, backgroundColor: '#000000' }}
+              contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}
+              maximumZoomScale={3}
+              minimumZoomScale={1}
+            >
+              {/* Use RN Image on native, <img> on web */}
+              <Image
+                source={{ uri: imageViewerUrl }}
+                style={{ width: '100%', height: '100%' }}
+                resizeMode="contain"
+              />
+            </ScrollView>
+          </View>
+        </Modal>
+      )}
+
+      {/* PDF Viewer Modal */}
+      <PDFViewerModal
+        visible={showPdfViewer}
+        pdfUrl={pdfViewerUrl}
+        title="Pièce jointe"
+        onClose={() => {
+          setShowPdfViewer(false);
+          setPdfViewerUrl(null);
+        }}
+      />
     </View>
   );
 }
@@ -745,6 +845,28 @@ const styles = StyleSheet.create({
     color: '#6E7A84',
     marginLeft: 4,
     textDecorationLine: 'underline',
+  },
+  viewerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F2F5',
+    backgroundColor: '#FFFFFF',
+  },
+  viewerHeaderButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewerHeaderTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2C3E50',
   },
   emptyContainer: {
     flex: 1,

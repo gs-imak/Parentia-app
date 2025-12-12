@@ -136,6 +136,19 @@ function normalizePhoneForWhatsApp(input: string): string | null {
   return digits;
 }
 
+function inferContactNameFromTitle(title: string): string | null {
+  const t = (title || '').trim();
+  if (!t) return null;
+  // Common French patterns: "Envoyer un message à X", "Prévenir X", "Appeler X"
+  const m =
+    t.match(/(?:envoyer|prévenir|appeler|contacter)\s+(?:un\s+message\s+)?(?:à|a)\s+([^–\-:,]+)/i) ||
+    t.match(/message\s+(?:à|a)\s+([^–\-:,]+)/i);
+  const name = m?.[1]?.trim();
+  if (!name) return null;
+  // Avoid capturing trailing context like "pour ..." etc.
+  return name.split(/\s+(?:pour|concernant|au\s+sujet|afin)\s+/i)[0].trim();
+}
+
 function detectPaymentContext(task: Task) {
   const haystack = `${task.title} ${task.description || ''}`.toLowerCase();
   const isPayment = PAYMENT_KEYWORDS.some((kw) => haystack.includes(kw));
@@ -557,7 +570,8 @@ export default function TaskDetailScreen({
     }
     setSavingPhone(true);
     try {
-      const updated = await updateTask(task.id, { contactPhone: phone });
+      const inferredContactName = task.contactName || inferContactNameFromTitle(task.title) || undefined;
+      const updated = await updateTask(task.id, { contactPhone: phone, ...(inferredContactName ? { contactName: inferredContactName } : {}) });
       onTaskUpdated(updated);
       setShowAddPhoneModal(false);
       setAddPhoneValue('');
@@ -570,7 +584,8 @@ export default function TaskDetailScreen({
   };
 
   const formattedDeadline = formatTaskDeadlineFrench(task.deadline);
-  const hasContact = task.contactEmail || task.contactPhone || task.contactName;
+  const inferredContactName = task.contactName || inferContactNameFromTitle(task.title);
+  const hasContact = task.contactEmail || task.contactPhone || inferredContactName;
   const hasPhoneActions = !!task.contactPhone;
   const hasAttachment = task.imageUrl;
   const paymentContext = detectPaymentContext(task);
@@ -863,7 +878,7 @@ export default function TaskDetailScreen({
                 <View style={styles.contactSection}>
                   <View style={styles.contactHeaderRow}>
                     <Text style={styles.contactLabel}>
-                      Contacter {task.contactName || 'le destinataire'}
+                      Contacter {inferredContactName || 'le destinataire'}
                     </Text>
                     {(task.contactEmail || task.contactPhone) && (
                       <TouchableOpacity
@@ -917,7 +932,7 @@ export default function TaskDetailScreen({
                           <Text style={styles.contactButtonText}>WhatsApp</Text>
                         </TouchableOpacity>
                       </>
-                    ) : task.contactName ? (
+                    ) : inferredContactName ? (
                       <TouchableOpacity
                         style={[styles.contactButton, styles.contactButtonAdd]}
                         onPress={() => setShowAddPhoneModal(true)}
