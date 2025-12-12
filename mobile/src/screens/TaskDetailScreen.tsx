@@ -108,6 +108,12 @@ const DISPUTE_KEYWORDS = [
   'fraude',
 ];
 
+const PAYMENT_OPTIONAL_TEMPLATE_IDS = new Set([
+  'facture_contestation',
+  'contrat_resiliation',
+  'documents_reclamation',
+]);
+
 function detectPaymentContext(task: Task) {
   const haystack = `${task.title} ${task.description || ''}`.toLowerCase();
   const isPayment = PAYMENT_KEYWORDS.some((kw) => haystack.includes(kw));
@@ -118,8 +124,10 @@ function detectPaymentContext(task: Task) {
 function filterTemplatesForTask(templates: PDFTemplate[], task: Task) {
   const { isPayment, isDispute } = detectPaymentContext(task);
   
-  // No templates needed for simple payments
-  if (isPayment && !isDispute) return [];
+  // Payment tasks: keep a strict, safe set of optional templates (no attestations/etc)
+  if (isPayment && !isDispute) {
+    return templates.filter((t) => PAYMENT_OPTIONAL_TEMPLATE_IDS.has(t.id));
+  }
 
   // For contested invoices, only keep the contestation template
   if (isPayment && isDispute) {
@@ -227,7 +235,10 @@ export default function TaskDetailScreen({
 
       // For simple payment tasks, do not fallback to category templates
       if (paymentContext.isPayment && !paymentContext.isDispute) {
-        setTemplates([]);
+        // Safe fallback suggestions (invoice-related only)
+        const result = await fetchPDFTemplates();
+        const filtered = filterTemplatesForTask(result.templates, task);
+        setTemplates(filtered.slice(0, 3));
         setLoadingTemplates(false);
         return;
       }
@@ -505,7 +516,7 @@ export default function TaskDetailScreen({
   const hasAttachment = task.imageUrl;
   const paymentContext = detectPaymentContext(task);
   const noTemplateMessage = paymentContext.isPayment && !paymentContext.isDispute
-    ? 'Pas de document nécessaire pour une facture à payer.'
+    ? 'Aucun document obligatoire. Si besoin : contestation, résiliation ou réclamation.'
     : 'Aucun modèle suggéré pour cette catégorie.';
 
   // Phone/email detection in description
