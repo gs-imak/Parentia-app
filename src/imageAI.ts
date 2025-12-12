@@ -123,13 +123,14 @@ Règles importantes :
 9. EXTRACTION CONTACT :
    - Si une adresse email est visible dans le document, l'extraire
    - Si un numéro de téléphone est visible, l'extraire (format: 0X XX XX XX XX ou +33...)
-   - CRITIQUE pour contactName - C'est L'EXPÉDITEUR du message, PAS le destinataire:
-     * Pour un message/email/lettre: contactName = celui qui ENVOIE le message, celui qui SIGNE
-     * Pour une capture WhatsApp/SMS: contactName = le nom en haut de la conversation (l'interlocuteur)
-     * NE JAMAIS extraire le nom du DESTINATAIRE (celui qui reçoit le message)
-     * Exemple: Si "M. Alagna" envoie un message à "M. Cochennec" → contactName = "M. Alagna"
-     * Exemple: Si la lettre est signée par "M. Alagna" et adressée à "M. Cochennec" → contactName = "M. Alagna"
-     * Chercher: signature en bas, nom après "De:", nom de l'interlocuteur dans une conversation
+   - CRITIQUE pour contactName:
+     * Pour une CAPTURE D'ÉCRAN SMS/iMessage/WhatsApp:
+       - LE NOM EST EN HAUT DE L'ÉCRAN dans l'en-tête de la conversation
+       - Exemple: si tu vois "Alagna" en haut de l'écran → contactName = "Alagna"
+       - IGNORER tout texte de signature dans le corps du message
+       - NE JAMAIS extraire "Président du..." ou autre titre du corps du message
+     * Pour une lettre/email: contactName = celui qui signe
+     * Le nom dans L'EN-TÊTE de l'app de messagerie EST le contact
 
 10. TEMPLATES PDF SUGGÉRÉS :
    - IMPORTANT: Sois TRÈS conservateur avec les suggestions. NE suggère un template que s'il est VRAIMENT pertinent.
@@ -161,7 +162,7 @@ Réponds UNIQUEMENT avec un JSON valide (pas de texte avant ou après) :
   "confidence": number (0-1, confiance dans l'analyse),
   "contactEmail": "string (email extrait si visible, sinon omis)",
   "contactPhone": "string (téléphone extrait si visible, sinon omis)",
-  "contactName": "string (NOM PROPRE uniquement: 'M. Alagna', 'Jean Martin' - JAMAIS de titres comme 'Président du...')",
+  "contactName": "string (pour SMS/WhatsApp: nom en HAUT de l'écran comme 'Alagna' - JAMAIS le texte du message)",
   "suggestedTemplates": ["template_id1", "template_id2"] (IDs des templates pertinents, max 3, ou omis)
 }`;
 }
