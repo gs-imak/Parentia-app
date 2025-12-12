@@ -888,7 +888,7 @@ export default function TaskDetailScreen({
                           <Text style={styles.contactButtonText}>WhatsApp</Text>
                         </TouchableOpacity>
                       </>
-                    ) : task.contactName && !task.contactEmail ? (
+                    ) : task.contactName ? (
                       <TouchableOpacity
                         style={[styles.contactButton, styles.contactButtonAdd]}
                         onPress={() => setShowAddPhoneModal(true)}
