@@ -101,21 +101,20 @@ export default function PDFViewerModal({
 
         {/* PDF Viewer */}
         {Platform.OS === 'web' ? (
-          // iOS Safari cannot render PDFs inline via object/iframe - show open button instead
+          // iOS Safari is unreliable with <object>; use <iframe> for inline viewing.
           isIOSWeb() ? (
-            <View style={styles.nativeContainer}>
-              <Feather name="file-text" size={64} color="#3A82F7" style={{ marginBottom: 16 }} />
-              <Text style={styles.nativeText}>
-                Safari sur iOS ne permet pas d'afficher les PDF directement.
-              </Text>
-              <TouchableOpacity
-                style={styles.openButton}
-                onPress={() => window.open(pdfUrl, '_blank', 'noopener,noreferrer')}
-              >
-                <Feather name="external-link" size={20} color="#FFFFFF" />
-                <Text style={styles.openButtonText}>Ouvrir le PDF</Text>
-              </TouchableOpacity>
-            </View>
+            // @ts-ignore - iframe is valid on web output
+            <iframe
+              src={`${pdfUrl}#view=FitH`}
+              title={title}
+              style={{
+                flex: 1,
+                width: '100%',
+                height: '100%',
+                border: 'none',
+                backgroundColor: '#FFFFFF',
+              }}
+            />
           ) : (
             <object
               data={`${pdfUrl}#view=FitH`}
