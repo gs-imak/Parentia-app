@@ -101,26 +101,11 @@ export default function PDFViewerModal({
 
         {/* PDF Viewer */}
         {Platform.OS === 'web' ? (
-          // iOS Safari is unreliable with <object>; use <iframe> for inline viewing.
-          isIOSWeb() ? (
-            // @ts-ignore - iframe is valid on web output
-            <iframe
-              src={`${pdfUrl}#view=FitH`}
-              title={title}
-              style={{
-                flex: 1,
-                width: '100%',
-                height: '100%',
-                border: 'none',
-                backgroundColor: '#FFFFFF',
-              }}
-            />
-          ) : (
+          <View style={styles.webViewerContainer}>
             <object
               data={`${pdfUrl}#view=FitH`}
               type="application/pdf"
               style={{
-                flex: 1,
                 width: '100%',
                 height: '100%',
               }}
@@ -132,7 +117,23 @@ export default function PDFViewerModal({
                 </a>
               </p>
             </object>
-          )
+
+            {/* iOS Safari fallback: keep correct FitH zoom inline when possible, but offer a reliable escape hatch */}
+            {isIOSWeb() && (
+              <View style={styles.iosHintBar}>
+                <Text style={styles.iosHintText}>
+                  Si l’affichage est vide, ouvrez le PDF dans un nouvel onglet.
+                </Text>
+                <TouchableOpacity
+                  style={styles.iosHintButton}
+                  onPress={() => window.open(pdfUrl, '_blank', 'noopener,noreferrer')}
+                >
+                  <Feather name="external-link" size={16} color="#3A82F7" />
+                  <Text style={styles.iosHintButtonText}>Ouvrir</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         ) : (
           <View style={styles.nativeContainer}>
             <Text style={styles.nativeText}>
@@ -156,6 +157,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F5F7FA',
+  },
+  webViewerContainer: {
+    flex: 1,
+    // Critical for web/Safari: allow the <object> to size properly inside a flex column.
+    // Without this, Safari can end up with a 0-height object -> blank viewer.
+    minHeight: 0 as any,
   },
   header: {
     flexDirection: 'row',
@@ -210,5 +217,40 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  iosHintBar: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 12,
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    borderWidth: 1,
+    borderColor: '#E9EEF2',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  iosHintText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#6E7A84',
+  },
+  iosHintButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: '#EEF5FF',
+  },
+  iosHintButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#3A82F7',
   },
 });
