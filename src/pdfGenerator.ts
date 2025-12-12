@@ -8,8 +8,7 @@ import { getTemplateById, type PDFTemplate } from './pdfTemplates.js';
 import { uploadAttachment } from './supabase.js';
 import { getProfile } from './profile.js';
 import { getTaskById } from './tasks.js';
-import { extractPdfText, isPdf } from './pdfParser.js';
-import { ocrTextFromUrl } from './ocr.js';
+import { extractPdfText } from './pdfParser.js';
 
 export interface GeneratePDFInput {
   templateId: string;
@@ -89,58 +88,9 @@ function normalizeReasonText(text: string): string {
   return s.trim();
 }
 
-const FRENCH_MONTH_NAMES = [
-  'janvier',
-  'février',
-  'mars',
-  'avril',
-  'mai',
-  'juin',
-  'juillet',
-  'août',
-  'septembre',
-  'octobre',
-  'novembre',
-  'décembre',
-];
-
-function dmyToFrenchLongDate(dmy: string): string | null {
-  const m = String(dmy || '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (!m) return null;
-  const day = Number(m[1]);
-  const month = Number(m[2]);
-  const year = Number(m[3]);
-  if (!day || !month || month < 1 || month > 12 || !year) return null;
-  return `${day} ${FRENCH_MONTH_NAMES[month - 1]} ${year}`;
-}
-
-function isMedicalAppointmentContext(text: string): boolean {
-  const s = (text || '').toLowerCase();
-  return /(\brdv\b|rendez[-\s]?vous|consultation|médecin|docteur|p[ée]diatr|dentist|ophtalm|orthophon|kin[ée]|sage[-\s]?femme|h[ôo]pital|clinique)/i.test(s);
-}
-
-function deriveStandardAbsenceReason(taskTitle: string, taskDescription: string, absenceDateDmy?: string): string | null {
-  const context = `${taskTitle || ''} ${taskDescription || ''}`.trim();
-  if (!context) return null;
-  if (!absenceDateDmy) return null;
-  if (!isMedicalAppointmentContext(context)) return null;
-  const longDate = dmyToFrenchLongDate(absenceDateDmy) || absenceDateDmy;
-  // Neutral, administrative phrasing (no sensitive info).
-  return `rendez-vous médical programmé le ${longDate}`;
-}
-
-function deriveStandardContestationReason(vars: Record<string, string>): string | null {
-  const invoiceRef = vars.invoiceRef;
-  const invoiceDate = vars.invoiceDate;
-  const invoiceAmount = vars.invoiceAmount;
-  const providerName = vars.providerName;
-  // If we have at least one strong factual anchor, we can generate a neutral reason.
-  if (!invoiceRef && !invoiceDate && !invoiceAmount && !providerName) return null;
-  // Neutral, administrative phrasing: asks for verification, does not invent specific allegations.
-  return [
-    `Je sollicite une vérification du détail de la facturation et du montant indiqué.`,
-    `Je vous remercie de bien vouloir me transmettre un justificatif détaillé (prestations/consommations) et, le cas échéant, procéder à la régularisation correspondante.`,
-  ].join('\n');
+function defaultContestationReason(): string {
+  // Deterministic, non-accusatory, administratively credible.
+  return `Je conteste le montant indiqué et vous demande une vérification détaillée de cette facture.`;
 }
 
 function extractInvoiceRefFromText(text: string): string | null {
@@ -177,85 +127,6 @@ function extractEuroAmount(text: string): string | null {
   return m[1].replace(',', '.');
 }
 
-function extractProviderName(text: string): string | null {
-  const s = text || '';
-  
-  // Pattern 1: Domain-like name (company.fr, company.com)
-  const domainMatch = s.match(/([A-Za-zÀ-ÿ0-9&.'-]+\.(?:fr|com|net|org|eu))/i);
-  if (domainMatch?.[1]) return domainMatch[1].trim();
-  
-  // Pattern 2: After "De:" or "From:" or at start of email-style header
-  const fromMatch = s.match(/(?:de|from|expéditeur)\s*:\s*([A-Za-zÀ-ÿ0-9\s&.'-]{3,40})/i);
-  if (fromMatch?.[1]) return fromMatch[1].trim();
-  
-  // Pattern 3: Company indicators (SAS, SARL, SA, SCI, etc.)
-  const companyMatch = s.match(/([A-Za-zÀ-ÿ0-9\s&.'-]{2,30})\s*(?:SAS|SARL|SA|SCI|EURL|AUTO-ENTREPRENEUR)/i);
-  if (companyMatch?.[1]) return companyMatch[1].trim();
-  
-  // Pattern 4: First non-empty, non-generic line (fallback)
-  const lines = s.split('\n').map(l => l.trim()).filter(l => l.length > 2 && l.length < 50);
-  for (const line of lines.slice(0, 5)) {
-    if (!/^(facture|invoice|date|page|n°|total|objet|madame|monsieur|\d)/i.test(line)) {
-      return line;
-    }
-  }
-  
-  return null;
-}
-
-function extractServiceName(text: string): string | null {
-  const s = text || '';
-  
-  // Pattern 1: After "Désignation" or "Description" header
-  const afterHeader = s.match(/(?:désignation|description|libellé|produit|service)[^\n]*\n([A-Za-zÀ-ÿ0-9\s:.\-]+?)(?:\s+du\s+|\s+\d|\s+€|\n)/i);
-  if (afterHeader?.[1] && afterHeader[1].trim().length > 3) return afterHeader[1].trim();
-  
-  // Pattern 2: Common service patterns
-  const patterns: RegExp[] = [
-    /(Box\s+(?:individuel|collectif)\s*:\s*[A-Z0-9]+)/i,  // Storage boxes
-    /(Abonnement\s+[A-Za-zÀ-ÿ0-9\s]+)/i,                  // Subscriptions
-    /(Forfait\s+[A-Za-zÀ-ÿ0-9\s]+)/i,                     // Plans
-    /(Location\s+[A-Za-zÀ-ÿ0-9\s]+)/i,                    // Rentals
-    /(Électricité|Gaz|Internet|Mobile|Téléphone)[^\n€]*/i, // Utilities
-    /(Assurance\s+[A-Za-zÀ-ÿ0-9\s]+)/i,                   // Insurance
-  ];
-  
-  for (const re of patterns) {
-    const m = s.match(re);
-    if (m?.[1]) {
-      const service = m[1].trim();
-      if (service.length > 3 && service.length < 60) return service;
-    }
-  }
-  
-  return null;
-}
-
-function extractCustomerRef(text: string): string | null {
-  const s = text || '';
-  const patterns: RegExp[] = [
-    /(?:v\/réf|votre\s*r[ée]f(?:[ée]rence)?|r[ée]f\.?\s*client|client\s*n[°o]?)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{2,})/i,
-    /(?:n[°o]?\s*client|customer\s*(?:id|ref|no))\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{2,})/i,
-  ];
-  for (const re of patterns) {
-    const m = s.match(re);
-    if (m?.[1]) return m[1].trim();
-  }
-  return null;
-}
-
-function extractContractRef(text: string): string | null {
-  const s = text || '';
-  const patterns: RegExp[] = [
-    /(?:contrat|contract)\s*(?:n[°o]?|ref)?\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{2,})/i,
-    /(?:r[ée]f\.?\s*contrat)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{2,})/i,
-  ];
-  for (const re of patterns) {
-    const m = s.match(re);
-    if (m?.[1]) return m[1].trim();
-  }
-  return null;
-}
 
 function extractFilenameFromUrl(url: string): string | null {
   try {
@@ -287,45 +158,6 @@ function extractInvoiceDateFromText(text: string): string | null {
   return null;
 }
 
-const FRENCH_MONTHS: Record<string, number> = {
-  'janvier': 1, 'février': 2, 'mars': 3, 'avril': 4, 'mai': 5, 'juin': 6,
-  'juillet': 7, 'août': 8, 'septembre': 9, 'octobre': 10, 'novembre': 11, 'décembre': 12,
-};
-
-/**
- * Extract a date from French text (e.g., "15 décembre", "le 15/12", "rendez-vous le 15")
- * Returns formatted DD/MM/YYYY string or null
- */
-function extractFrenchDateFromText(text: string): string | null {
-  const s = (text || '').toLowerCase();
-  
-  // Pattern 1: "15 décembre 2024" or "15 décembre"
-  const monthPattern = /(\d{1,2})\s+(janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)(?:\s+(\d{4}))?/i;
-  const monthMatch = s.match(monthPattern);
-  if (monthMatch) {
-    const day = parseInt(monthMatch[1], 10);
-    const month = FRENCH_MONTHS[monthMatch[2].toLowerCase()];
-    const year = monthMatch[3] ? parseInt(monthMatch[3], 10) : new Date().getFullYear();
-    if (day >= 1 && day <= 31 && month) {
-      return `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${year}`;
-    }
-  }
-  
-  // Pattern 2: "le 15/12" or "15/12/2024"
-  const slashPattern = /(?:le\s+)?(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/;
-  const slashMatch = s.match(slashPattern);
-  if (slashMatch) {
-    const day = parseInt(slashMatch[1], 10);
-    const month = parseInt(slashMatch[2], 10);
-    let year = slashMatch[3] ? parseInt(slashMatch[3], 10) : new Date().getFullYear();
-    if (year < 100) year += 2000; // Handle 2-digit years
-    if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
-      return `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${year}`;
-    }
-  }
-  
-  return null;
-}
 
 async function fetchAndExtractPdfText(url: string): Promise<string | null> {
   try {
@@ -445,155 +277,63 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
     variables.doctorName = task.contactName;
   }
   
-  // Try to extract specific date from description/title (e.g., "rendez-vous le 15 décembre")
-  const contextText = `${task.title || ''} ${task.description || ''}`;
-  const extractedDate = extractFrenchDateFromText(contextText);
-  
-  // Task deadline as a potential date (fallback)
+  // Task deadline as the date reference for the whitelisted documents
   if (task.deadline) {
     const deadlineFormatted = formatDateFrench(task.deadline);
-    // Use extracted date if available, otherwise fallback to deadline
-    variables.absenceDate = extractedDate || deadlineFormatted;
-    variables.prestationDate = extractedDate || deadlineFormatted;
-    variables.sortieDate = extractedDate || deadlineFormatted;
-    variables.startDate = extractedDate || deadlineFormatted;
-    variables.effectiveDate = extractedDate || deadlineFormatted;
+    variables.absenceDate = deadlineFormatted;
+    variables.prestationDate = deadlineFormatted;
+    variables.sortieDate = deadlineFormatted;
+    variables.startDate = deadlineFormatted;
+    variables.effectiveDate = deadlineFormatted;
     variables.leaveDate = deadlineFormatted;
     variables.resiliationDate = deadlineFormatted;
-  } else if (extractedDate) {
-    // No deadline but extracted a date from text
-    variables.absenceDate = extractedDate;
-    variables.prestationDate = extractedDate;
-    variables.sortieDate = extractedDate;
-    variables.startDate = extractedDate;
-    variables.effectiveDate = extractedDate;
   }
 
-  // Use task description as best-effort prefill for common "reason/type" fields.
-  // For school absence PDFs, prefer a neutral, standard administrative phrasing when we detect a medical appointment + date.
+  // Use task description as the direct motive/type content for whitelisted templates
   if (task.description && task.description.trim()) {
     const cleaned = normalizeReasonText(task.description);
-    if (!variables.contestationReason) variables.contestationReason = cleaned;
-    if (!variables.consultationType) variables.consultationType = cleaned;
-    if (!variables.prestationType) variables.prestationType = cleaned;
-    if (!variables.certificateReason) variables.certificateReason = cleaned;
-  }
-
-  const derivedAbsenceReason = deriveStandardAbsenceReason(task.title || '', task.description || '', variables.absenceDate);
-  if (derivedAbsenceReason) {
-    variables.absenceReason = derivedAbsenceReason;
-  } else if (task.description && task.description.trim()) {
-    // Fallback: keep previous behavior for non-medical / unknown contexts.
-    const cleaned = normalizeReasonText(task.description);
     if (!variables.absenceReason) variables.absenceReason = cleaned;
+    if (!variables.prestationType) variables.prestationType = cleaned;
+    if (!variables.contestationReason) variables.contestationReason = cleaned;
+    if (!variables.declarationContent) variables.declarationContent = cleaned;
   }
 
-  // Invoice heuristics (best-effort) for contestation templates
+  // If not provided, keep a deterministic default for remboursement (explicitly a consultation)
+  if (!variables.prestationType) variables.prestationType = 'consultation';
+
+  // Contestation de facture: if a PDF is present, it is authoritative for invoice number / amount / date.
   const invoiceContextText = `${task.title || ''}\n${task.description || ''}`;
-  const looksLikeInvoiceTask = /facture|invoice|selfbox|r[ée]f/i.test(invoiceContextText);
-  if (looksLikeInvoiceTask) {
-    const fromTitle = extractInvoiceRefFromText(task.title || '');
-    const fromDescription = extractInvoiceRefFromText(task.description || '');
+  const fromTitle = extractInvoiceRefFromText(task.title || '');
+  const fromDescription = extractInvoiceRefFromText(task.description || '');
+  const fromTextAmount = extractEuroAmount(invoiceContextText);
 
-    const attachmentFilename = task.imageUrl ? extractFilenameFromUrl(task.imageUrl) : null;
-    const fromFilename = attachmentFilename ? extractInvoiceRefFromText(attachmentFilename) : null;
+  const attachmentFilename = task.imageUrl ? extractFilenameFromUrl(task.imageUrl) : null;
+  const fromFilename = attachmentFilename ? extractInvoiceRefFromText(attachmentFilename) : null;
 
-    // Try to extract from attached PDF content (best-effort)
-    let fromPdfContent: string | null = null;
-    let amountFromPdf: string | null = null;
-    let dateFromPdf: string | null = null;
-    let providerFromPdf: string | null = null;
-    let serviceFromPdf: string | null = null;
-    let customerRefFromPdf: string | null = null;
-    let contractRefFromPdf: string | null = null;
-    
-    // Always try to extract from the attachment URL when present.
-    // Relying on filename extension is fragile (signed URLs / missing .pdf suffix).
-    if (task.imageUrl) {
-      try {
-        let extractedText: string | null = await fetchAndExtractPdfText(task.imageUrl);
-        
-        // Scanned PDF: try OCR fallback if no text layer
-        if (!extractedText) {
-          const ocrText = await ocrTextFromUrl(task.imageUrl);
-          if (ocrText) {
-            console.log('[PDF] OCR fallback used for invoice extraction');
-            extractedText = ocrText;
-          }
-        }
-        
-        if (extractedText) {
-          console.log('[PDF] Extracted text length:', extractedText.length);
-          fromPdfContent = extractInvoiceRefFromText(extractedText);
-          amountFromPdf = extractEuroAmount(extractedText);
-          dateFromPdf = extractInvoiceDateFromText(extractedText);
-          providerFromPdf = extractProviderName(extractedText);
-          serviceFromPdf = extractServiceName(extractedText);
-          customerRefFromPdf = extractCustomerRef(extractedText);
-          contractRefFromPdf = extractContractRef(extractedText);
-          
-          console.log('[PDF] Extraction results:', {
-            invoiceRef: fromPdfContent,
-            amount: amountFromPdf,
-            date: dateFromPdf,
-            provider: providerFromPdf,
-            service: serviceFromPdf,
-            customerRef: customerRefFromPdf,
-            contractRef: contractRefFromPdf,
-          });
-        }
-      } catch (err) {
-        console.warn('[PDF] Failed to extract text from attached PDF:', err);
-      }
-    }
+  let fromPdfRef: string | null = null;
+  let fromPdfAmount: string | null = null;
+  let fromPdfDate: string | null = null;
 
-    const invoiceRef = fromTitle || fromDescription || fromFilename || fromPdfContent;
-    if (invoiceRef && !variables.invoiceRef) {
-      variables.invoiceRef = invoiceRef;
-    }
-
-    const amount = extractEuroAmount(invoiceContextText) || amountFromPdf;
-    if (amount && !variables.invoiceAmount) {
-      variables.invoiceAmount = amount;
-    }
-
-    if (dateFromPdf && !variables.invoiceDate) {
-      variables.invoiceDate = dateFromPdf;
-    }
-    
-    // Provider name from PDF (if not already set from task contactName)
-    if (providerFromPdf && !variables.providerName) {
-      variables.providerName = providerFromPdf;
-    }
-    
-    // Service name for contract templates
-    if (serviceFromPdf && !variables.serviceName) {
-      variables.serviceName = serviceFromPdf;
-    }
-    
-    // Customer/contract references
-    if (customerRefFromPdf && !variables.customerRef) {
-      variables.customerRef = customerRefFromPdf;
-    }
-    if (contractRefFromPdf && !variables.contractRef) {
-      variables.contractRef = contractRefFromPdf;
-    }
-    
-    // Map invoiceRef to ALL ref variables as fallback (prevents blank references across templates)
-    if (invoiceRef) {
-      if (!variables.contractRef) variables.contractRef = invoiceRef;
-      if (!variables.customerRef) variables.customerRef = invoiceRef;
-      if (!variables.mutuelleRef) variables.mutuelleRef = invoiceRef;
+  if (task.imageUrl) {
+    const extractedText = await fetchAndExtractPdfText(task.imageUrl);
+    if (extractedText) {
+      fromPdfRef = extractInvoiceRefFromText(extractedText);
+      fromPdfAmount = extractEuroAmount(extractedText);
+      fromPdfDate = extractInvoiceDateFromText(extractedText);
     }
   }
 
-  // For invoice contestation PDFs, avoid copying raw task text into the "motifs".
-  // If the user didn't provide a specific reason, generate a neutral administrative phrase based on extracted facts.
+  // Priority: PDF (if present) → then other sources
+  const invoiceRef = fromPdfRef || fromTitle || fromDescription || fromFilename;
+  if (invoiceRef && !variables.invoiceRef) variables.invoiceRef = invoiceRef;
+
+  const invoiceAmount = fromPdfAmount || fromTextAmount;
+  if (invoiceAmount && !variables.invoiceAmount) variables.invoiceAmount = invoiceAmount;
+
+  if (fromPdfDate && !variables.invoiceDate) variables.invoiceDate = fromPdfDate;
+
   const currentContestation = (variables.contestationReason || '').trim();
-  if (!currentContestation || currentContestation.length < 12) {
-    const standard = deriveStandardContestationReason(variables);
-    if (standard) variables.contestationReason = standard;
-  }
+  if (!currentContestation) variables.contestationReason = defaultContestationReason();
   
   return variables;
 }

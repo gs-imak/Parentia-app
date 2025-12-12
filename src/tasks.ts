@@ -35,40 +35,19 @@ export interface Task {
 // ============================================
 // Milestone 5 – FROZEN suggestion logic
 // ============================================
-// Hard whitelist: ONLY these 5 templates may be auto-suggested.
-// All other templates remain accessible via "Voir tous les modèles".
-const SUGGESTION_WHITELIST = new Set([
-  'ecole_absence',           // Justificatif d'absence école
-  'creche_absence',          // Justificatif d'absence crèche
-  'sante_demande_remboursement', // Demande de remboursement mutuelle
-  'facture_contestation',    // Contestation de facture
-  'attestation_honneur',     // Attestation sur l'honneur
-]);
-
-// Known providers for invoice detection
-const KNOWN_PROVIDERS = ['edf', 'selfbox', 'orange', 'sosh', 'sfr', 'free', 'bouygues', 'engie'];
-
 function normalizeText(s: string): string {
   return (s || '').toLowerCase();
-}
-
-function extractFirstPhoneNumber(text: string): string | null {
-  const s = text || '';
-  // French phone numbers with optional separators, with 0X... or +33 / 0033
-  const phoneRegex = /(?:(?:\+|00)33|0)\s?[1-9](?:[\s.-]?[0-9]{2}){4}/;
-  const m = s.match(phoneRegex);
-  return m?.[0]?.trim() || null;
 }
 
 /**
  * Milestone 5 – Flat decision table (FROZEN)
  * 
- * Rules (applied in order, FIRST MATCH WINS, ONE document only):
- * 1. absence + école       → ecole_absence
- * 2. absence + crèche      → creche_absence
+ * Rules (apply exactly as written; NO stacking; NO prioritization; NO chaining):
+ * - absence + école                    → ecole_absence
+ * - absence + crèche                   → creche_absence
  * 3. rendez-vous médical OR consultation → sante_demande_remboursement
- * 4. facture OR montant € OR fournisseur → facture_contestation
- * 5. "attestation sur l'honneur"         → attestation_honneur
+ * - facture OR montant € OR fournisseur → facture_contestation
+ * - contains "attestation sur l'honneur" → attestation_honneur
  * 
  * If no rule matches exactly → suggest NOTHING.
  * If multiple keywords exist but don't clearly match one rule → suggest NOTHING.
@@ -78,43 +57,23 @@ function inferSuggestedTemplatesDeterministic(
 ): string[] | undefined {
   const haystack = normalizeText(`${task.title || ''} ${task.description || ''}`);
 
-  // Rule 1: absence + crèche → creche_absence
-  if (haystack.includes('absence') && (haystack.includes('crèche') || haystack.includes('creche'))) {
-    return ['creche_absence'];
-  }
+  // Evaluate each rule independently; if not exactly ONE match → suggest nothing.
+  const matches: Array<{ id: string; ok: boolean }> = [
+    { id: 'ecole_absence', ok: haystack.includes('absence') && haystack.includes('école') },
+    { id: 'creche_absence', ok: haystack.includes('absence') && haystack.includes('crèche') },
+    { id: 'sante_demande_remboursement', ok: haystack.includes('rendez-vous médical') || haystack.includes('consultation') },
+    { id: 'facture_contestation', ok: haystack.includes('facture') || haystack.includes('montant €') || haystack.includes('fournisseur') },
+    {
+      id: 'attestation_honneur',
+      ok:
+        haystack.includes("attestation sur l'honneur") ||
+        haystack.includes("attestation sur l’honneur"),
+    },
+  ];
 
-  // Rule 2: absence + école → ecole_absence
-  if (haystack.includes('absence') && (haystack.includes('école') || haystack.includes('ecole'))) {
-    return ['ecole_absence'];
-  }
-
-  // Rule 3: rendez-vous médical OR consultation → sante_demande_remboursement
-  const hasMedical =
-    haystack.includes('rendez-vous médical') ||
-    haystack.includes('rendez vous médical') ||
-    haystack.includes('rdv médical') ||
-    haystack.includes('rdv medical') ||
-    haystack.includes('consultation');
-  if (hasMedical) {
-    return ['sante_demande_remboursement'];
-  }
-
-  // Rule 4: facture OR montant € OR fournisseur → facture_contestation
-  const hasInvoice =
-    haystack.includes('facture') ||
-    /montant\s*€|\d+\s*€|\d+€/.test(haystack) ||
-    KNOWN_PROVIDERS.some((p) => haystack.includes(p));
-  if (hasInvoice) {
-    return ['facture_contestation'];
-  }
-
-  // Rule 5: "attestation sur l'honneur" → attestation_honneur
-  if (/attestation\s+sur\s+l['']?honneur/.test(haystack)) {
-    return ['attestation_honneur'];
-  }
-
-  // No match → suggest nothing
-  return undefined;
+  const matched = matches.filter((m) => m.ok);
+  if (matched.length !== 1) return undefined;
+  return [matched[0].id];
 }
 
 const TaskSchema = z.object({
@@ -158,16 +117,9 @@ export async function createTask(taskData: Omit<Task, 'id' | 'createdAt' | 'stat
   // Milestone 5 FROZEN: deterministic suggestions from flat decision table
   const suggestedTemplates = inferSuggestedTemplatesDeterministic(taskData);
 
-  // Contact fallback: if AI didn't set a phone number but one is visible in the task text, persist it.
-  const phoneFromText =
-    taskData.contactPhone ||
-    extractFirstPhoneNumber(`${taskData.title || ''}\n${taskData.description || ''}`) ||
-    undefined;
-
   const newTask: Task = {
     ...taskData,
     suggestedTemplates,
-    contactPhone: phoneFromText,
     id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
     status: 'todo',
     createdAt: new Date().toISOString(),
@@ -197,12 +149,6 @@ export async function updateTask(id: string, updates: Partial<Omit<Task, 'id' | 
 
   // Milestone 5 FROZEN: recompute deterministic suggestions from flat decision table
   merged.suggestedTemplates = inferSuggestedTemplatesDeterministic(merged);
-
-  // If contactPhone is still missing, try to pull it from title/description.
-  if (!merged.contactPhone) {
-    const autoPhone = extractFirstPhoneNumber(`${merged.title || ''}\n${merged.description || ''}`);
-    if (autoPhone) merged.contactPhone = autoPhone;
-  }
 
   tasks[index] = merged;
   await writeTasks(tasks);
