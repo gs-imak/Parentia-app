@@ -441,6 +441,7 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
     variables.recipientName = task.contactName;
     variables.providerName = task.contactName;
     variables.schoolName = task.contactName;
+    variables.crecheName = task.contactName;
     variables.doctorName = task.contactName;
   }
   

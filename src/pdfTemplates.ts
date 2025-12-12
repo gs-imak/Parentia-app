@@ -52,6 +52,27 @@ Je vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distin
 {{parentName}}`
   },
   {
+    id: 'creche_absence',
+    label: 'Justificatif d\'absence crèche',
+    category: 'creche',
+    type: 'lettre',
+    variables: ['parentName', 'childName', 'absenceDate', 'absenceReason', 'crecheName', 'city', 'date'],
+    taskCategories: ['enfants-école', 'administratif'],
+    template: `{{city}}, le {{date}}
+
+Objet : Justificatif d'absence de {{childName}}
+
+Madame, Monsieur,
+
+Je soussigné(e) {{parentName}}, parent de {{childName}}, vous prie de bien vouloir excuser son absence du {{absenceDate}} au sein de la crèche {{crecheName}}.
+
+Cette absence est due à : {{absenceReason}}.
+
+Je vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distinguées.
+
+{{parentName}}`
+  },
+  {
     id: 'ecole_autorisation_sortie',
     label: 'Autorisation de sortie scolaire',
     category: 'ecole',
@@ -345,7 +366,7 @@ Veuillez agréer, Madame, Monsieur, l'expression de mes salutations distinguées
     category: 'attestation',
     type: 'attestation',
     variables: ['hostName', 'hostAddress', 'hostPostalCode', 'hostCity', 'guestName', 'guestBirthDate', 'guestBirthPlace', 'startDate', 'city', 'date'],
-    taskCategories: ['administratif'],  // Removed 'logement' - this is for admin purposes (visa, ID), not housing bills
+    taskCategories: ['administratif', 'logement'],  // Deterministic rules may suggest for housing/identity tasks; keep out of payment flows via keyword rules
     template: `ATTESTATION D'HÉBERGEMENT
 
 Je soussigné(e) {{hostName}}, demeurant au :
@@ -374,7 +395,7 @@ Signature :
     category: 'attestation',
     type: 'attestation',
     variables: ['declarantName', 'declarantAddress', 'declarantPostalCode', 'declarantCity', 'declarationContent', 'city', 'date'],
-    taskCategories: ['administratif'],
+    taskCategories: ['administratif', 'logement'],
     template: `ATTESTATION SUR L'HONNEUR
 
 Je soussigné(e) {{declarantName}}, demeurant au :
@@ -457,7 +478,7 @@ Je vous remercie par avance et vous prie d'agréer, Madame, Monsieur, mes saluta
     category: 'attestation',
     type: 'attestation',
     variables: ['declarantName', 'declarantAddress', 'declarantPostalCode', 'declarantCity', 'residenceSince', 'city', 'date'],
-    taskCategories: ['administratif'],  // Removed 'logement' - proof of address is admin, not related to housing bills
+    taskCategories: ['administratif', 'logement'],  // Deterministic rules may suggest for housing/identity tasks; keep out of payment flows via keyword rules
     template: `ATTESTATION DE DOMICILE
 
 Je soussigné(e) {{declarantName}}, atteste sur l'honneur résider à l'adresse suivante :

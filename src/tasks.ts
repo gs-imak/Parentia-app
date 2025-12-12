@@ -33,38 +33,60 @@ export interface Task {
   suggestedTemplates?: string[]; // AI-suggested PDF template IDs
 }
 
-// Keywords used to detect payment-related tasks (for template filtering)
-const PAYMENT_KEYWORDS = [
-  'payer',
-  'paiement',
-  'facture',
-  'à régler',
-  'regler',
-  'règlement',
-  'échéance',
-  'montant',
-  'prélèvement',
-  'prelevement'
-];
+// ============================================
+// Deterministic suggestion logic (Milestone 5)
+// ============================================
+function normalizeText(s: string): string {
+  return (s || '').toLowerCase();
+}
 
-const DISPUTE_KEYWORDS = [
-  'contestation',
-  'contester',
-  'réclamation',
-  'reclamation',
-  'litige',
-  'erreur',
-  'incorrect',
-  'abusif',
-  'double',
-  'fraude'
-];
+function hasAny(haystack: string, needles: string[]): boolean {
+  return needles.some((n) => haystack.includes(n));
+}
 
-function detectPaymentContext(title: string, description?: string) {
-  const haystack = `${title} ${description || ''}`.toLowerCase();
-  const isPayment = PAYMENT_KEYWORDS.some((kw) => haystack.includes(kw));
-  const isDispute = DISPUTE_KEYWORDS.some((kw) => haystack.includes(kw));
-  return { isPayment, isDispute };
+function isSchoolOrCrecheTask(haystack: string): boolean {
+  return hasAny(haystack, [
+    'absence',
+    'école',
+    'ecole',
+    'crèche',
+    'creche',
+    'retard',
+    'rendez-vous médical enfant',
+    'rendez vous médical enfant',
+    'rdv médical enfant',
+    'rdv medical enfant',
+  ]);
+}
+
+function isHealthTask(haystack: string): boolean {
+  return hasAny(haystack, [
+    'rendez-vous médical',
+    'rendez vous médical',
+    'rdv médical',
+    'rdv medical',
+    'médecin',
+    'medecin',
+    'pédiatre',
+    'pediatre',
+    'consultation',
+  ]);
+}
+
+function isInvoiceOrContractTask(haystack: string): boolean {
+  // Keep simple & explicit as requested
+  return (
+    haystack.includes('facture') ||
+    haystack.includes('invoice') ||
+    haystack.includes('€') ||
+    haystack.includes('eur') ||
+    haystack.includes('montant') ||
+    hasAny(haystack, ['edf', 'selfbox', 'orange', 'sosh', 'sfr', 'free', 'bouygues', 'engie'])
+  );
+}
+
+function isHousingIdentityTask(haystack: string): boolean {
+  return hasAny(haystack, ['domicile', 'hébergement', 'hebergement', 'adresse', 'attestation']);
 }
 
 function extractFirstPhoneNumber(text: string): string | null {
@@ -75,17 +97,48 @@ function extractFirstPhoneNumber(text: string): string | null {
   return m?.[0]?.trim() || null;
 }
 
-function inferSuggestedTemplatesFromTitle(title: string): string[] | undefined {
-  const t = (title || '').toLowerCase();
-  // Normalize apostrophes and accents roughly by matching common variants
-  const hasHebergement = /attestation\s+d['’]?\s*h[ée]bergement/.test(t);
-  const hasDomicile = /(justificatif|attestation)\s+de\s+domicile/.test(t);
-  const hasHonneur = /attestation\s+sur\s+l['’]honneur/.test(t);
+function inferSuggestedTemplatesDeterministic(
+  task: Pick<Task, 'title' | 'description' | 'category' | 'source'>
+): string[] | undefined {
+  const haystack = normalizeText(`${task.title || ''}\n${task.description || ''}\n${task.source || ''}\n${task.category || ''}`);
 
-  if (hasHebergement) return ['attestation_hebergement'];
-  if (hasDomicile) return ['attestation_domicile'];
-  if (hasHonneur) return ['attestation_honneur'];
-  return undefined;
+  const suggestions: string[] = [];
+
+  // 1) School / crèche
+  if (isSchoolOrCrecheTask(haystack)) {
+    // Default: justificatif d'absence (école ou crèche)
+    if (haystack.includes('crèche') || haystack.includes('creche')) {
+      suggestions.push('creche_absence');
+    } else {
+      suggestions.push('ecole_absence');
+    }
+    // "Message d'information à l'école" is handled via contact actions (not a PDF template).
+  }
+
+  // 2) Health / medical appointments
+  if (isHealthTask(haystack)) {
+    suggestions.push('sante_rdv_medical', 'sante_demande_remboursement');
+  }
+
+  // 3) Invoices / contracts
+  if (isInvoiceOrContractTask(haystack)) {
+    suggestions.push('facture_contestation', 'contrat_resiliation');
+  }
+
+  // 4-5) Housing / identity + generic attestations
+  if (isHousingIdentityTask(haystack)) {
+    // Select based on wording
+    if (/attestation\s+sur\s+l['’]honneur/.test(haystack)) suggestions.push('attestation_honneur');
+    if (/attestation\s+d['’]?\s*h[ée]bergement/.test(haystack) || haystack.includes('hébergement') || haystack.includes('hebergement')) {
+      suggestions.push('attestation_hebergement');
+    }
+    if (haystack.includes('domicile') || haystack.includes('adresse')) {
+      suggestions.push('attestation_domicile');
+    }
+  }
+
+  const unique = Array.from(new Set(suggestions)).slice(0, 3);
+  return unique.length > 0 ? unique : undefined;
 }
 
 function sanitizeSuggestedTemplatesForTask(
@@ -96,19 +149,9 @@ function sanitizeSuggestedTemplatesForTask(
 ): string[] | undefined {
   if (!suggestedTemplates || suggestedTemplates.length === 0) return undefined;
 
-  const { isPayment, isDispute } = detectPaymentContext(title, description);
-
-  // For simple payment tasks, never persist any template suggestions
-  if (isPayment && !isDispute) return undefined;
-
   // Only keep templates that match the task category
   const allowed = new Set(getSuggestedTemplateIds(category));
   let filtered = suggestedTemplates.filter((id) => allowed.has(id));
-
-  // For contested invoices, keep only the contestation template
-  if (isPayment && isDispute) {
-    filtered = filtered.filter((id) => id === 'facture_contestation');
-  }
 
   // Deduplicate and cap to 3
   const unique = Array.from(new Set(filtered)).slice(0, 3);
@@ -152,9 +195,8 @@ async function writeTasks(tasks: Task[]): Promise<void> {
 
 export async function createTask(taskData: Omit<Task, 'id' | 'createdAt' | 'status'>): Promise<Task> {
   const tasks = await readTasks();
-  const inferredTemplates = taskData.suggestedTemplates?.length
-    ? taskData.suggestedTemplates
-    : inferSuggestedTemplatesFromTitle(taskData.title);
+  // Milestone 5 deterministic suggestions (do not rely on AI suggestions)
+  const inferredTemplates = inferSuggestedTemplatesDeterministic(taskData);
   const sanitizedTemplates = sanitizeSuggestedTemplatesForTask(
     inferredTemplates,
     taskData.category,
@@ -199,11 +241,8 @@ export async function updateTask(id: string, updates: Partial<Omit<Task, 'id' | 
   
   const merged = { ...tasks[index], ...updates };
 
-  // If suggestions are missing, infer safe defaults for common attestation tasks.
-  if (!merged.suggestedTemplates || merged.suggestedTemplates.length === 0) {
-    const inferred = inferSuggestedTemplatesFromTitle(merged.title);
-    if (inferred) merged.suggestedTemplates = inferred;
-  }
+  // Recompute deterministic suggestions on update (stable & predictable)
+  merged.suggestedTemplates = inferSuggestedTemplatesDeterministic(merged);
 
   // If contactPhone is still missing, try to pull it from title/description.
   if (!merged.contactPhone) {
