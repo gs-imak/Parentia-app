@@ -180,6 +180,11 @@ export default function TaskDetailScreen({
   // PDF viewer modal
   const [showPdfViewer, setShowPdfViewer] = useState(false);
   const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null);
+
+  // Invoice ref override (for scanned PDFs where extraction is impossible)
+  const [showInvoiceRefModal, setShowInvoiceRefModal] = useState(false);
+  const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null);
+  const [invoiceRefOverride, setInvoiceRefOverride] = useState('');
   
   // Phone action sheet
   const [showPhoneActions, setShowPhoneActions] = useState(false);
@@ -272,13 +277,14 @@ export default function TaskDetailScreen({
     }
   };
 
-  const handleGeneratePdf = async (templateId: string) => {
+  const doGeneratePdf = async (templateId: string, variables?: Record<string, string>) => {
     setGeneratingPdf(templateId);
     try {
       // Generate PDF and get URL
       const result = await generatePDF({
         templateId,
         taskId: task.id,
+        variables,
       });
       
       if (result.pdfUrl) {
@@ -294,6 +300,17 @@ export default function TaskDetailScreen({
     } finally {
       setGeneratingPdf(null);
     }
+  };
+
+  const handleGeneratePdf = async (templateId: string) => {
+    // For invoice contestation, offer an override input because scanned PDFs have no text layer -> auto extraction may fail.
+    if (templateId === 'facture_contestation') {
+      setPendingTemplateId(templateId);
+      setInvoiceRefOverride('');
+      setShowInvoiceRefModal(true);
+      return;
+    }
+    await doGeneratePdf(templateId);
   };
 
   const handleContactAction = async (channel: 'email' | 'sms' | 'whatsapp') => {
@@ -1499,6 +1516,59 @@ export default function TaskDetailScreen({
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
+        </Modal>
+
+        {/* Invoice Ref Override Modal (Contestation de facture) */}
+        <Modal
+          visible={showInvoiceRefModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowInvoiceRefModal(false)}
+        >
+          <View style={styles.deleteModalOverlay}>
+            <View style={styles.deleteModalContent}>
+              <Feather name="file-text" size={48} color="#3A82F7" />
+              <Text style={styles.deleteModalTitle}>Numéro de facture</Text>
+              <Text style={styles.deleteModalText}>
+                Si la facture jointe est un scan (image), l’extraction automatique peut échouer.
+                Vous pouvez saisir le numéro (ex: CE25/3924) ou laisser vide pour tenter l’auto.
+              </Text>
+              <TextInput
+                style={styles.phoneInput}
+                placeholder="Ex: CE25/3924"
+                value={invoiceRefOverride}
+                onChangeText={setInvoiceRefOverride}
+                autoCapitalize="characters"
+                autoCorrect={false}
+              />
+              <View style={styles.deleteModalButtons}>
+                <TouchableOpacity
+                  style={styles.deleteModalCancel}
+                  onPress={() => {
+                    setShowInvoiceRefModal(false);
+                    setPendingTemplateId(null);
+                    setInvoiceRefOverride('');
+                  }}
+                >
+                  <Text style={styles.deleteModalCancelText}>Annuler</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.deleteModalConfirm, { backgroundColor: '#3A82F7' }]}
+                  onPress={async () => {
+                    const templateId = pendingTemplateId;
+                    setShowInvoiceRefModal(false);
+                    setPendingTemplateId(null);
+                    const ref = invoiceRefOverride.trim();
+                    setInvoiceRefOverride('');
+                    if (!templateId) return;
+                    await doGeneratePdf(templateId, ref ? { invoiceRef: ref } : undefined);
+                  }}
+                >
+                  <Text style={styles.deleteModalConfirmText}>Générer</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
         </Modal>
 
         {/* PDF Viewer Modal */}
