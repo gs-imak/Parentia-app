@@ -89,6 +89,46 @@ function normalizeReasonText(text: string): string {
   return s.trim();
 }
 
+const FRENCH_MONTH_NAMES = [
+  'janvier',
+  'février',
+  'mars',
+  'avril',
+  'mai',
+  'juin',
+  'juillet',
+  'août',
+  'septembre',
+  'octobre',
+  'novembre',
+  'décembre',
+];
+
+function dmyToFrenchLongDate(dmy: string): string | null {
+  const m = String(dmy || '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return null;
+  const day = Number(m[1]);
+  const month = Number(m[2]);
+  const year = Number(m[3]);
+  if (!day || !month || month < 1 || month > 12 || !year) return null;
+  return `${day} ${FRENCH_MONTH_NAMES[month - 1]} ${year}`;
+}
+
+function isMedicalAppointmentContext(text: string): boolean {
+  const s = (text || '').toLowerCase();
+  return /(\brdv\b|rendez[-\s]?vous|consultation|médecin|docteur|p[ée]diatr|dentist|ophtalm|orthophon|kin[ée]|sage[-\s]?femme|h[ôo]pital|clinique)/i.test(s);
+}
+
+function deriveStandardAbsenceReason(taskTitle: string, taskDescription: string, absenceDateDmy?: string): string | null {
+  const context = `${taskTitle || ''} ${taskDescription || ''}`.trim();
+  if (!context) return null;
+  if (!absenceDateDmy) return null;
+  if (!isMedicalAppointmentContext(context)) return null;
+  const longDate = dmyToFrenchLongDate(absenceDateDmy) || absenceDateDmy;
+  // Neutral, administrative phrasing (no sensitive info).
+  return `rendez-vous médical programmé le ${longDate}`;
+}
+
 function extractInvoiceRefFromText(text: string): string | null {
   const s = text || '';
 
@@ -414,13 +454,22 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
     variables.effectiveDate = extractedDate;
   }
 
-  // Use task description as best-effort prefill for common "reason/type" fields
+  // Use task description as best-effort prefill for common "reason/type" fields.
+  // For school absence PDFs, prefer a neutral, standard administrative phrasing when we detect a medical appointment + date.
   if (task.description && task.description.trim()) {
     const cleaned = normalizeReasonText(task.description);
-    if (!variables.absenceReason) variables.absenceReason = cleaned;
     if (!variables.contestationReason) variables.contestationReason = cleaned;
     if (!variables.consultationType) variables.consultationType = cleaned;
     if (!variables.certificateReason) variables.certificateReason = cleaned;
+  }
+
+  const derivedAbsenceReason = deriveStandardAbsenceReason(task.title || '', task.description || '', variables.absenceDate);
+  if (derivedAbsenceReason) {
+    variables.absenceReason = derivedAbsenceReason;
+  } else if (task.description && task.description.trim()) {
+    // Fallback: keep previous behavior for non-medical / unknown contexts.
+    const cleaned = normalizeReasonText(task.description);
+    if (!variables.absenceReason) variables.absenceReason = cleaned;
   }
 
   // Invoice heuristics (best-effort) for contestation templates
