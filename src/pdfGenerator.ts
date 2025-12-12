@@ -358,7 +358,9 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
     let amountFromPdf: string | null = null;
     let dateFromPdf: string | null = null;
     
-    if (task.imageUrl && isPdf('', task.imageUrl)) {
+    // Always try to extract from the attachment URL when present.
+    // Relying on filename extension is fragile (signed URLs / missing .pdf suffix).
+    if (task.imageUrl) {
       try {
         const pdfText = await fetchAndExtractPdfText(task.imageUrl);
         if (pdfText) {
