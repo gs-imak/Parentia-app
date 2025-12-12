@@ -298,8 +298,12 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
     if (!variables.declarationContent) variables.declarationContent = cleaned;
   }
 
-  // If not provided, keep a deterministic default for remboursement (explicitly a consultation)
-  if (!variables.prestationType) variables.prestationType = 'consultation';
+  // Deterministic defaults (no inference), to keep generated documents administratively credible.
+  // Mutuelle: template already explicitly references a consultation; leave prestationType empty if unknown.
+  if (!variables.prestationType) variables.prestationType = '';
+  if (!variables.declarationContent) {
+    variables.declarationContent = `Je déclare sur l'honneur que les informations ci-dessus sont exactes.`;
+  }
 
   // Contestation de facture: if a PDF is present, it is authoritative for invoice number / amount / date.
   const invoiceContextText = `${task.title || ''}\n${task.description || ''}`;
