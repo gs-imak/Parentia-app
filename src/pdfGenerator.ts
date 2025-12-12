@@ -53,10 +53,38 @@ function fillTemplate(template: string, variables: Record<string, string>): stri
     filled = filled.replace(regex, value || '');
   }
   
+  // Normalize common typography issues after substitution (keeps PDFs readable)
+  filled = normalizeFilledPdfText(filled);
+
   // Clean up any remaining unfilled variables
   filled = filled.replace(/\{\{[^}]+\}\}/g, '____________');
   
   return filled;
+}
+
+function normalizeFilledPdfText(text: string): string {
+  let s = text || '';
+
+  // 1) Prevent "double dots" / "..." artifacts from user/task text.
+  // Convert any run of 2+ dots into a single ellipsis character.
+  s = s.replace(/\.{2,}/g, '…');
+
+  // 2) Avoid wrapping the euro sign on its own line (keep amount + € together).
+  // Replace "98.00 €" => "98.00 €" (NBSP).
+  s = s.replace(/(\d(?:[\d.,\s]*\d)?)\s*€/g, (_m, amount) => `${String(amount).trim()}\u00A0€`);
+
+  // 3) Avoid "€." being split weirdly by ensuring punctuation stays attached.
+  s = s.replace(/\u00A0€\s+\./g, '\u00A0€.');
+
+  return s;
+}
+
+function normalizeReasonText(text: string): string {
+  let s = (text || '').trim();
+  if (!s) return s;
+  // Collapse trailing ellipsis/dots into a single period (the template already adds punctuation around it).
+  s = s.replace(/[.…]+$/g, '');
+  return s.trim();
 }
 
 function extractInvoiceRefFromText(text: string): string | null {
@@ -213,10 +241,11 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
 
   // Use task description as best-effort prefill for common "reason/type" fields
   if (task.description && task.description.trim()) {
-    if (!variables.absenceReason) variables.absenceReason = task.description;
-    if (!variables.contestationReason) variables.contestationReason = task.description;
-    if (!variables.consultationType) variables.consultationType = task.description;
-    if (!variables.certificateReason) variables.certificateReason = task.description;
+    const cleaned = normalizeReasonText(task.description);
+    if (!variables.absenceReason) variables.absenceReason = cleaned;
+    if (!variables.contestationReason) variables.contestationReason = cleaned;
+    if (!variables.consultationType) variables.consultationType = cleaned;
+    if (!variables.certificateReason) variables.certificateReason = cleaned;
   }
 
   // Invoice heuristics (best-effort) for contestation templates
