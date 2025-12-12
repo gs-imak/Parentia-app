@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -23,6 +23,22 @@ export default function PDFViewerModal({
   title = 'Document PDF',
   onClose,
 }: PDFViewerModalProps) {
+  const [showHint, setShowHint] = useState(false);
+  const [hintDismissed, setHintDismissed] = useState(false);
+
+  // Reset hint state when modal opens with a new PDF
+  useEffect(() => {
+    if (visible && pdfUrl) {
+      setHintDismissed(false);
+      setShowHint(false);
+      // Only show hint after 3 seconds if PDF might not have loaded
+      const timer = setTimeout(() => {
+        if (!hintDismissed) setShowHint(true);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [visible, pdfUrl]);
+
   const isIOSWeb = () => {
     if (Platform.OS !== 'web') return false;
     try {
@@ -118,11 +134,11 @@ export default function PDFViewerModal({
               </p>
             </object>
 
-            {/* iOS Safari fallback: keep correct FitH zoom inline when possible, but offer a reliable escape hatch */}
-            {isIOSWeb() && (
+            {/* iOS Safari fallback: show hint after 3s delay, dismissible */}
+            {isIOSWeb() && showHint && !hintDismissed && (
               <View style={styles.iosHintBar}>
                 <Text style={styles.iosHintText}>
-                  Si l’affichage est vide, ouvrez le PDF dans un nouvel onglet.
+                  PDF non visible ?
                 </Text>
                 <TouchableOpacity
                   style={styles.iosHintButton}
@@ -130,6 +146,12 @@ export default function PDFViewerModal({
                 >
                   <Feather name="external-link" size={16} color="#3A82F7" />
                   <Text style={styles.iosHintButtonText}>Ouvrir</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.iosHintDismiss}
+                  onPress={() => setHintDismissed(true)}
+                >
+                  <Feather name="x" size={18} color="#6E7A84" />
                 </TouchableOpacity>
               </View>
             )}
@@ -220,37 +242,37 @@ const styles = StyleSheet.create({
   },
   iosHintBar: {
     position: 'absolute',
-    left: 12,
-    right: 12,
-    bottom: 12,
-    backgroundColor: 'rgba(255,255,255,0.96)',
-    borderWidth: 1,
-    borderColor: '#E9EEF2',
-    borderRadius: 12,
+    left: 16,
+    right: 16,
+    bottom: 16,
+    backgroundColor: 'rgba(44,62,80,0.95)',
+    borderRadius: 10,
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
+    gap: 10,
   },
   iosHintText: {
-    flex: 1,
-    fontSize: 12,
-    color: '#6E7A84',
+    fontSize: 13,
+    color: '#FFFFFF',
   },
   iosHintButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingVertical: 8,
+    gap: 5,
+    paddingVertical: 6,
     paddingHorizontal: 10,
-    borderRadius: 10,
-    backgroundColor: '#EEF5FF',
+    borderRadius: 6,
+    backgroundColor: '#3A82F7',
   },
   iosHintButtonText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#3A82F7',
+    color: '#FFFFFF',
+  },
+  iosHintDismiss: {
+    padding: 4,
+    marginLeft: 'auto',
   },
 });
