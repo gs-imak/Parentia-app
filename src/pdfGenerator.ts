@@ -8,6 +8,7 @@ import { getTemplateById, type PDFTemplate } from './pdfTemplates.js';
 import { uploadAttachment } from './supabase.js';
 import { getProfile } from './profile.js';
 import { getTaskById } from './tasks.js';
+import { extractPdfText, isPdf } from './pdfParser.js';
 
 export interface GeneratePDFInput {
   templateId: string;
@@ -124,6 +125,40 @@ function extractFilenameFromUrl(url: string): string | null {
     if (!last) return null;
     return decodeURIComponent(last);
   } catch {
+    return null;
+  }
+}
+
+function extractInvoiceDateFromText(text: string): string | null {
+  const s = text || '';
+  
+  // Common French date patterns: "15/12/2024", "15 décembre 2024", "15-12-2024"
+  const patterns: RegExp[] = [
+    /(?:date\s*(?:de\s*)?facture|factur[ée]e?\s*(?:le|du)?)\s*:?\s*(\d{1,2}[\s/-]\d{1,2}[\s/-]\d{2,4})/i,
+    /(?:date\s*(?:de\s*)?facture|factur[ée]e?\s*(?:le|du)?)\s*:?\s*(\d{1,2}\s+(?:janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)\s+\d{4})/i,
+    /(\d{1,2}\/\d{1,2}\/\d{2,4})/,
+  ];
+  
+  for (const re of patterns) {
+    const m = s.match(re);
+    if (m?.[1]) return m[1];
+  }
+  
+  return null;
+}
+
+async function fetchAndExtractPdfText(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.warn(`[PDF] Failed to fetch PDF: ${response.status}`);
+      return null;
+    }
+    
+    const buffer = Buffer.from(await response.arrayBuffer());
+    return await extractPdfText(buffer);
+  } catch (err) {
+    console.warn('[PDF] Error fetching/extracting PDF:', err);
     return null;
   }
 }
@@ -258,14 +293,36 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
     const attachmentFilename = task.imageUrl ? extractFilenameFromUrl(task.imageUrl) : null;
     const fromFilename = attachmentFilename ? extractInvoiceRefFromText(attachmentFilename) : null;
 
-    const invoiceRef = fromTitle || fromDescription || fromFilename;
+    // Try to extract from attached PDF content (best-effort)
+    let fromPdfContent: string | null = null;
+    let amountFromPdf: string | null = null;
+    let dateFromPdf: string | null = null;
+    
+    if (task.imageUrl && isPdf('', task.imageUrl)) {
+      try {
+        const pdfText = await fetchAndExtractPdfText(task.imageUrl);
+        if (pdfText) {
+          fromPdfContent = extractInvoiceRefFromText(pdfText);
+          amountFromPdf = extractEuroAmount(pdfText);
+          dateFromPdf = extractInvoiceDateFromText(pdfText);
+        }
+      } catch (err) {
+        console.warn('[PDF] Failed to extract text from attached PDF:', err);
+      }
+    }
+
+    const invoiceRef = fromTitle || fromDescription || fromFilename || fromPdfContent;
     if (invoiceRef && !variables.invoiceRef) {
       variables.invoiceRef = invoiceRef;
     }
 
-    const amount = extractEuroAmount(invoiceContextText);
+    const amount = extractEuroAmount(invoiceContextText) || amountFromPdf;
     if (amount && !variables.invoiceAmount) {
       variables.invoiceAmount = amount;
+    }
+
+    if (dateFromPdf && !variables.invoiceDate) {
+      variables.invoiceDate = dateFromPdf;
     }
   }
   

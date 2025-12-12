@@ -596,19 +596,32 @@ Réf. client : {{customerRef}}
 {{providerName}}
 Service Réclamations
 
-Objet : Contestation de la facture n°{{invoiceRef}}
+Lettre recommandée avec accusé de réception
+
+Objet : Contestation de la facture n°{{invoiceRef}} – Demande de vérification et régularisation
 
 Madame, Monsieur,
 
-Je me permets de contester la facture n°{{invoiceRef}} du {{invoiceDate}}, d'un montant de {{invoiceAmount}} €.
+Par la présente, je conteste formellement la facture n°{{invoiceRef}} émise le {{invoiceDate}}, d'un montant de {{invoiceAmount}} €, dont vous trouverez copie en pièce jointe.
 
-En effet, {{contestationReason}}.
+Les motifs de ma contestation sont les suivants :
+{{contestationReason}}
 
-Je vous prie de bien vouloir procéder à la vérification et, le cas échéant, à la régularisation de ma situation.
+En conséquence, je vous demande de bien vouloir :
+1. Procéder à une vérification détaillée de cette facture
+2. Suspendre toute procédure de recouvrement le temps de l'instruction de ce dossier
+3. Me transmettre un justificatif détaillé des prestations ou consommations facturées
+4. Procéder, le cas échéant, à l'émission d'un avoir ou d'une facture rectificative
 
-Dans l'attente de votre réponse, je vous prie d'agréer, Madame, Monsieur, mes salutations distinguées.
+Conformément aux dispositions du Code de la consommation, je vous rappelle que le délai de réponse à une réclamation écrite est de 30 jours.
 
-{{customerName}}`
+Je me tiens à votre disposition pour tout renseignement complémentaire et vous prie de m'adresser votre réponse par écrit à l'adresse ci-dessus.
+
+Dans l'attente de votre réponse, je vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distinguées.
+
+{{customerName}}
+
+P.J. : Copie de la facture contestée`
   },
 
   // ============================================
