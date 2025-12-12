@@ -491,6 +491,11 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
     if (contractRefFromPdf && !variables.contractRef) {
       variables.contractRef = contractRefFromPdf;
     }
+    
+    // Use invoiceRef as contractRef fallback (invoice number often serves as contract reference)
+    if (invoiceRef && !variables.contractRef) {
+      variables.contractRef = invoiceRef;
+    }
   }
   
   return variables;
