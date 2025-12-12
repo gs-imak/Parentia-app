@@ -187,12 +187,18 @@ Règles importantes:
 7. EXTRACTION CONTACT:
    - Extraire l'email de l'expéditeur original (pas l'email de transfert)
    - Si un numéro de téléphone est visible dans l'email ou le PDF, l'extraire
-   - IMPORTANT pour contactName - Extraire LE NOM DE LA PERSONNE À CONTACTER:
-     * Chercher les noms propres avec civilités: "M.", "Mme", "Mr", "Mrs", "Monsieur", "Madame" + nom
-     * Exemples valides: "M. Alagna", "Mme Dupont", "Jean Martin"
-     * NE PAS extraire: titres de postes, noms d'organisations, adresses, références
-     * Si l'email mentionne une personne spécifique à contacter → utiliser ce nom
-     * Si aucun nom de personne n'est identifiable → utiliser le nom de l'organisation/expéditeur
+   - IMPORTANT pour contactName - Extraire LE NOM DE LA PERSONNE:
+     * PRIORITÉ 1: Chercher dans la signature de l'email (nom après "Cordialement", "Bien à vous", etc.)
+     * PRIORITÉ 2: Chercher le nom de l'expéditeur (après "De:" ou dans l'en-tête)
+     * PRIORITÉ 3: Chercher les noms avec civilités: "M.", "Mme", "Mr", "Mrs" + NOM DE FAMILLE
+     * Exemples VALIDES: "M. Alagna", "Mme Dupont", "Jean Martin", "Poppy"
+     * ⚠️ NE JAMAIS EXTRAIRE comme contactName:
+       - Titres/postes: "Président", "Directeur", "Secrétaire", "Responsable"
+       - Organisations: "CS 34", "Conseil syndical", "Copropriété"
+       - Adresses: noms de rues, codes postaux
+       - Références: numéros de dossier, codes
+     * Si "Président du CS 34" est visible mais l'expéditeur est "M. Alagna" → contactName = "M. Alagna"
+     * TOUJOURS extraire le NOM PROPRE de la personne, jamais son titre ou fonction
 
 8. TEMPLATES PDF SUGGÉRÉS (règles strictes):
    - Règle de base: pour un paiement ou prélèvement normal ("payer facture", "montant à régler", "paiement avant le", "prélèvement automatique"), suggestedTemplates doit être VIDE ou absent. Aucun document n'est nécessaire pour payer.
@@ -275,7 +281,7 @@ Réponds UNIQUEMENT avec un JSON valide (pas de texte avant ou après):
   "originalSender": "string (expéditeur original si email transféré, sinon omis)",
   "contactEmail": "string (email de contact extrait, sinon omis)",
   "contactPhone": "string (téléphone extrait au format 0X XX XX XX XX ou +33, sinon omis)",
-  "contactName": "string (nom de la PERSONNE à contacter: 'M. Dupont', 'Jean Martin', etc. - PAS de titres/postes/références)",
+  "contactName": "string (NOM PROPRE uniquement: 'M. Alagna', 'Jean Martin' - JAMAIS de titres comme 'Président du...')",
   "suggestedTemplates": ["template_id1", "template_id2"] (IDs des templates pertinents, max 3, ou omis),
   "metadata": {
     "emailType": "string (ex: facture, convocation, rdv, impôts, newsletter, promo)",
