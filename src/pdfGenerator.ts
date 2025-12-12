@@ -123,6 +123,64 @@ function extractEuroAmount(text: string): string | null {
   return m[1].replace(',', '.');
 }
 
+function extractProviderName(text: string): string | null {
+  const s = text || '';
+  // First line is often the company name
+  const firstLine = s.split('\n')[0]?.trim();
+  if (firstLine && firstLine.length > 2 && firstLine.length < 50 && !/^(facture|invoice|date)/i.test(firstLine)) {
+    return firstLine;
+  }
+  // Fallback: look for domain-like name
+  const domainMatch = s.match(/([A-Za-zÀ-ÿ0-9&.'-]+\.(?:fr|com|net))/i);
+  if (domainMatch?.[1]) return domainMatch[1].trim();
+  return null;
+}
+
+function extractServiceName(text: string): string | null {
+  const s = text || '';
+  // Look for "Box individuel/collectif : XXX" pattern
+  const boxMatch = s.match(/(Box\s+(?:individuel|collectif)\s*:\s*[A-Z0-9]+)/i);
+  if (boxMatch?.[1]) return boxMatch[1].trim();
+  // Look for service line after "Désignation" header
+  const afterDesig = s.match(/Désignation[^\n]*\n([A-Za-zÀ-ÿ0-9\s:.\-]+?)(?:\s+du\s+|\s+\d)/i);
+  if (afterDesig?.[1]) return afterDesig[1].trim();
+  // Generic service patterns
+  const patterns: RegExp[] = [
+    /(?:abonnement|location|service)\s*[:\-]?\s*([A-Za-zÀ-ÿ0-9\s:.\-]{3,40})/i,
+  ];
+  for (const re of patterns) {
+    const m = s.match(re);
+    if (m?.[1]) return m[1].trim();
+  }
+  return null;
+}
+
+function extractCustomerRef(text: string): string | null {
+  const s = text || '';
+  const patterns: RegExp[] = [
+    /(?:v\/réf|votre\s*r[ée]f(?:[ée]rence)?|r[ée]f\.?\s*client|client\s*n[°o]?)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{2,})/i,
+    /(?:n[°o]?\s*client|customer\s*(?:id|ref|no))\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{2,})/i,
+  ];
+  for (const re of patterns) {
+    const m = s.match(re);
+    if (m?.[1]) return m[1].trim();
+  }
+  return null;
+}
+
+function extractContractRef(text: string): string | null {
+  const s = text || '';
+  const patterns: RegExp[] = [
+    /(?:contrat|contract)\s*(?:n[°o]?|ref)?\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{2,})/i,
+    /(?:r[ée]f\.?\s*contrat)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{2,})/i,
+  ];
+  for (const re of patterns) {
+    const m = s.match(re);
+    if (m?.[1]) return m[1].trim();
+  }
+  return null;
+}
+
 function extractFilenameFromUrl(url: string): string | null {
   try {
     const withoutQuery = url.split('?')[0];
@@ -357,25 +415,45 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
     let fromPdfContent: string | null = null;
     let amountFromPdf: string | null = null;
     let dateFromPdf: string | null = null;
+    let providerFromPdf: string | null = null;
+    let serviceFromPdf: string | null = null;
+    let customerRefFromPdf: string | null = null;
+    let contractRefFromPdf: string | null = null;
     
     // Always try to extract from the attachment URL when present.
     // Relying on filename extension is fragile (signed URLs / missing .pdf suffix).
     if (task.imageUrl) {
       try {
-        const pdfText = await fetchAndExtractPdfText(task.imageUrl);
-        if (pdfText) {
-          fromPdfContent = extractInvoiceRefFromText(pdfText);
-          amountFromPdf = extractEuroAmount(pdfText);
-          dateFromPdf = extractInvoiceDateFromText(pdfText);
-        } else {
-          // Scanned PDF: try OCR fallback if configured.
+        let extractedText: string | null = await fetchAndExtractPdfText(task.imageUrl);
+        
+        // Scanned PDF: try OCR fallback if no text layer
+        if (!extractedText) {
           const ocrText = await ocrTextFromUrl(task.imageUrl);
           if (ocrText) {
             console.log('[PDF] OCR fallback used for invoice extraction');
-            fromPdfContent = extractInvoiceRefFromText(ocrText);
-            amountFromPdf = extractEuroAmount(ocrText);
-            dateFromPdf = extractInvoiceDateFromText(ocrText);
+            extractedText = ocrText;
           }
+        }
+        
+        if (extractedText) {
+          console.log('[PDF] Extracted text length:', extractedText.length);
+          fromPdfContent = extractInvoiceRefFromText(extractedText);
+          amountFromPdf = extractEuroAmount(extractedText);
+          dateFromPdf = extractInvoiceDateFromText(extractedText);
+          providerFromPdf = extractProviderName(extractedText);
+          serviceFromPdf = extractServiceName(extractedText);
+          customerRefFromPdf = extractCustomerRef(extractedText);
+          contractRefFromPdf = extractContractRef(extractedText);
+          
+          console.log('[PDF] Extraction results:', {
+            invoiceRef: fromPdfContent,
+            amount: amountFromPdf,
+            date: dateFromPdf,
+            provider: providerFromPdf,
+            service: serviceFromPdf,
+            customerRef: customerRefFromPdf,
+            contractRef: contractRefFromPdf,
+          });
         }
       } catch (err) {
         console.warn('[PDF] Failed to extract text from attached PDF:', err);
@@ -394,6 +472,24 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
 
     if (dateFromPdf && !variables.invoiceDate) {
       variables.invoiceDate = dateFromPdf;
+    }
+    
+    // Provider name from PDF (if not already set from task contactName)
+    if (providerFromPdf && !variables.providerName) {
+      variables.providerName = providerFromPdf;
+    }
+    
+    // Service name for contract templates
+    if (serviceFromPdf && !variables.serviceName) {
+      variables.serviceName = serviceFromPdf;
+    }
+    
+    // Customer/contract references
+    if (customerRefFromPdf && !variables.customerRef) {
+      variables.customerRef = customerRefFromPdf;
+    }
+    if (contractRefFromPdf && !variables.contractRef) {
+      variables.contractRef = contractRefFromPdf;
     }
   }
   
