@@ -9,6 +9,7 @@ import { uploadAttachment } from './supabase.js';
 import { getProfile } from './profile.js';
 import { getTaskById } from './tasks.js';
 import { extractPdfText, isPdf } from './pdfParser.js';
+import { ocrTextFromUrl } from './ocr.js';
 
 export interface GeneratePDFInput {
   templateId: string;
@@ -364,6 +365,15 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
           fromPdfContent = extractInvoiceRefFromText(pdfText);
           amountFromPdf = extractEuroAmount(pdfText);
           dateFromPdf = extractInvoiceDateFromText(pdfText);
+        } else {
+          // Scanned PDF: try OCR fallback if configured.
+          const ocrText = await ocrTextFromUrl(task.imageUrl);
+          if (ocrText) {
+            console.log('[PDF] OCR fallback used for invoice extraction');
+            fromPdfContent = extractInvoiceRefFromText(ocrText);
+            amountFromPdf = extractEuroAmount(ocrText);
+            dateFromPdf = extractInvoiceDateFromText(ocrText);
+          }
         }
       } catch (err) {
         console.warn('[PDF] Failed to extract text from attached PDF:', err);
