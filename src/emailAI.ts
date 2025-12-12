@@ -187,7 +187,12 @@ Règles importantes:
 7. EXTRACTION CONTACT:
    - Extraire l'email de l'expéditeur original (pas l'email de transfert)
    - Si un numéro de téléphone est visible dans l'email ou le PDF, l'extraire
-   - Extraire le nom de l'expéditeur ou de l'organisation
+   - IMPORTANT pour contactName - Extraire LE NOM DE LA PERSONNE À CONTACTER:
+     * Chercher les noms propres avec civilités: "M.", "Mme", "Mr", "Mrs", "Monsieur", "Madame" + nom
+     * Exemples valides: "M. Alagna", "Mme Dupont", "Jean Martin"
+     * NE PAS extraire: titres de postes, noms d'organisations, adresses, références
+     * Si l'email mentionne une personne spécifique à contacter → utiliser ce nom
+     * Si aucun nom de personne n'est identifiable → utiliser le nom de l'organisation/expéditeur
 
 8. TEMPLATES PDF SUGGÉRÉS (règles strictes):
    - Règle de base: pour un paiement ou prélèvement normal ("payer facture", "montant à régler", "paiement avant le", "prélèvement automatique"), suggestedTemplates doit être VIDE ou absent. Aucun document n'est nécessaire pour payer.
@@ -270,7 +275,7 @@ Réponds UNIQUEMENT avec un JSON valide (pas de texte avant ou après):
   "originalSender": "string (expéditeur original si email transféré, sinon omis)",
   "contactEmail": "string (email de contact extrait, sinon omis)",
   "contactPhone": "string (téléphone extrait au format 0X XX XX XX XX ou +33, sinon omis)",
-  "contactName": "string (nom de l'expéditeur/organisation, sinon omis)",
+  "contactName": "string (nom de la PERSONNE à contacter: 'M. Dupont', 'Jean Martin', etc. - PAS de titres/postes/références)",
   "suggestedTemplates": ["template_id1", "template_id2"] (IDs des templates pertinents, max 3, ou omis),
   "metadata": {
     "emailType": "string (ex: facture, convocation, rdv, impôts, newsletter, promo)",
