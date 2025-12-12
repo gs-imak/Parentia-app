@@ -129,6 +129,20 @@ function deriveStandardAbsenceReason(taskTitle: string, taskDescription: string,
   return `rendez-vous médical programmé le ${longDate}`;
 }
 
+function deriveStandardContestationReason(vars: Record<string, string>): string | null {
+  const invoiceRef = vars.invoiceRef;
+  const invoiceDate = vars.invoiceDate;
+  const invoiceAmount = vars.invoiceAmount;
+  const providerName = vars.providerName;
+  // If we have at least one strong factual anchor, we can generate a neutral reason.
+  if (!invoiceRef && !invoiceDate && !invoiceAmount && !providerName) return null;
+  // Neutral, administrative phrasing: asks for verification, does not invent specific allegations.
+  return [
+    `Je sollicite une vérification du détail de la facturation et du montant indiqué.`,
+    `Je vous remercie de bien vouloir me transmettre un justificatif détaillé (prestations/consommations) et, le cas échéant, procéder à la régularisation correspondante.`,
+  ].join('\n');
+}
+
 function extractInvoiceRefFromText(text: string): string | null {
   const s = text || '';
 
@@ -569,6 +583,14 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
       if (!variables.customerRef) variables.customerRef = invoiceRef;
       if (!variables.mutuelleRef) variables.mutuelleRef = invoiceRef;
     }
+  }
+
+  // For invoice contestation PDFs, avoid copying raw task text into the "motifs".
+  // If the user didn't provide a specific reason, generate a neutral administrative phrase based on extracted facts.
+  const currentContestation = (variables.contestationReason || '').trim();
+  if (!currentContestation || currentContestation.length < 12) {
+    const standard = deriveStandardContestationReason(variables);
+    if (standard) variables.contestationReason = standard;
   }
   
   return variables;

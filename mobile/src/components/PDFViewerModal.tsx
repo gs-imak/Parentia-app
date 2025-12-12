@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Modal,
   View,
@@ -23,6 +23,16 @@ export default function PDFViewerModal({
   title = 'Document PDF',
   onClose,
 }: PDFViewerModalProps) {
+  const [cacheBuster, setCacheBuster] = useState<number>(Date.now());
+
+  // On web (especially iOS Safari), <object> can render a blank page due to caching/layout timing.
+  // Forcing a cache-busted URL only when the modal opens improves reliability without changing navigation.
+  useEffect(() => {
+    if (Platform.OS === 'web' && visible && pdfUrl) {
+      setCacheBuster(Date.now());
+    }
+  }, [visible, pdfUrl]);
+
   const isIOSWeb = () => {
     if (Platform.OS !== 'web') return false;
     try {
@@ -32,6 +42,13 @@ export default function PDFViewerModal({
       return false;
     }
   };
+
+  const webObjectUrl = useMemo(() => {
+    if (!pdfUrl) return null;
+    const sep = pdfUrl.includes('?') ? '&' : '?';
+    // query before hash, keep FitH fragment at the end
+    return `${pdfUrl}${sep}_cb=${cacheBuster}#view=FitH`;
+  }, [pdfUrl, cacheBuster]);
 
   const handleDownload = async () => {
     if (!pdfUrl) return;
@@ -103,7 +120,8 @@ export default function PDFViewerModal({
         {Platform.OS === 'web' ? (
           <View style={styles.webViewerContainer}>
             <object
-              data={`${pdfUrl}#view=FitH`}
+              key={webObjectUrl || pdfUrl}
+              data={webObjectUrl || `${pdfUrl}#view=FitH`}
               type="application/pdf"
               style={{
                 width: '100%',

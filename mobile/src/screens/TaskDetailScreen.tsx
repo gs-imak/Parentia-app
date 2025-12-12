@@ -114,6 +114,12 @@ const PAYMENT_OPTIONAL_TEMPLATE_IDS = new Set([
   'documents_reclamation',
 ]);
 
+function isProbablyPdfUrl(url: string): boolean {
+  const u = (url || '').toLowerCase();
+  const pathOnly = u.split('?')[0];
+  return pathOnly.endsWith('.pdf') || pathOnly.includes('.pdf/');
+}
+
 function detectPaymentContext(task: Task) {
   const haystack = `${task.title} ${task.description || ''}`.toLowerCase();
   const isPayment = PAYMENT_KEYWORDS.some((kw) => haystack.includes(kw));
@@ -816,7 +822,7 @@ export default function TaskDetailScreen({
                   style={styles.actionButton}
                   onPress={() => {
                     // Prefer PDF viewer when link ends with .pdf or content is a PDF URL
-                    if (task.imageUrl && task.imageUrl.toLowerCase().includes('.pdf')) {
+                    if (task.imageUrl && isProbablyPdfUrl(task.imageUrl)) {
                       setPdfViewerUrl(task.imageUrl);
                       setShowPdfViewer(true);
                     } else {

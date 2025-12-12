@@ -19,6 +19,13 @@ import { createTask, getAllTasks, deleteTask, updateTask, createTaskFromImage, t
 import { formatDateFrench, formatTaskDeadlineFrench } from '../utils/dateFormat';
 import PDFViewerModal from '../components/PDFViewerModal';
 
+function isProbablyPdfUrl(url: string): boolean {
+  const u = (url || '').toLowerCase();
+  // Strip query to avoid missing ".pdf" when it exists in the path
+  const pathOnly = u.split('?')[0];
+  return pathOnly.endsWith('.pdf') || pathOnly.includes('.pdf/');
+}
+
 // Conditionally import DateTimePicker only for mobile
 let DateTimePicker: any = null;
 if (Platform.OS !== 'web') {
@@ -1078,7 +1085,7 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksS
                           style={styles.attachmentButton}
                           onPress={() => {
                             // If PDF, use PDF viewer modal, otherwise use image viewer modal (keeps back navigation intact)
-                            if (task.imageUrl!.toLowerCase().includes('.pdf')) {
+                            if (isProbablyPdfUrl(task.imageUrl!)) {
                               setPdfViewerUrl(task.imageUrl!);
                               setShowPdfViewer(true);
                             } else {
