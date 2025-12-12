@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   Modal,
   View,
@@ -23,22 +23,6 @@ export default function PDFViewerModal({
   title = 'Document PDF',
   onClose,
 }: PDFViewerModalProps) {
-  const [showHint, setShowHint] = useState(false);
-  const [hintDismissed, setHintDismissed] = useState(false);
-
-  // Reset hint state when modal opens with a new PDF
-  useEffect(() => {
-    if (visible && pdfUrl) {
-      setHintDismissed(false);
-      setShowHint(false);
-      // Only show hint after 3 seconds if PDF might not have loaded
-      const timer = setTimeout(() => {
-        if (!hintDismissed) setShowHint(true);
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [visible, pdfUrl]);
-
   const isIOSWeb = () => {
     if (Platform.OS !== 'web') return false;
     try {
@@ -134,27 +118,6 @@ export default function PDFViewerModal({
               </p>
             </object>
 
-            {/* iOS Safari fallback: show hint after 3s delay, dismissible */}
-            {isIOSWeb() && showHint && !hintDismissed && (
-              <View style={styles.iosHintBar}>
-                <Text style={styles.iosHintText}>
-                  PDF non visible ?
-                </Text>
-                <TouchableOpacity
-                  style={styles.iosHintButton}
-                  onPress={() => window.open(pdfUrl, '_blank', 'noopener,noreferrer')}
-                >
-                  <Feather name="external-link" size={16} color="#3A82F7" />
-                  <Text style={styles.iosHintButtonText}>Ouvrir</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.iosHintDismiss}
-                  onPress={() => setHintDismissed(true)}
-                >
-                  <Feather name="x" size={18} color="#6E7A84" />
-                </TouchableOpacity>
-              </View>
-            )}
           </View>
         ) : (
           <View style={styles.nativeContainer}>
@@ -239,40 +202,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
-  },
-  iosHintBar: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    bottom: 16,
-    backgroundColor: 'rgba(44,62,80,0.95)',
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  iosHintText: {
-    fontSize: 13,
-    color: '#FFFFFF',
-  },
-  iosHintButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    backgroundColor: '#3A82F7',
-  },
-  iosHintButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  iosHintDismiss: {
-    padding: 4,
-    marginLeft: 'auto',
   },
 });
