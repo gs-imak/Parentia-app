@@ -125,33 +125,55 @@ function extractEuroAmount(text: string): string | null {
 
 function extractProviderName(text: string): string | null {
   const s = text || '';
-  // First line is often the company name
-  const firstLine = s.split('\n')[0]?.trim();
-  if (firstLine && firstLine.length > 2 && firstLine.length < 50 && !/^(facture|invoice|date)/i.test(firstLine)) {
-    return firstLine;
-  }
-  // Fallback: look for domain-like name
-  const domainMatch = s.match(/([A-Za-zÀ-ÿ0-9&.'-]+\.(?:fr|com|net))/i);
+  
+  // Pattern 1: Domain-like name (company.fr, company.com)
+  const domainMatch = s.match(/([A-Za-zÀ-ÿ0-9&.'-]+\.(?:fr|com|net|org|eu))/i);
   if (domainMatch?.[1]) return domainMatch[1].trim();
+  
+  // Pattern 2: After "De:" or "From:" or at start of email-style header
+  const fromMatch = s.match(/(?:de|from|expéditeur)\s*:\s*([A-Za-zÀ-ÿ0-9\s&.'-]{3,40})/i);
+  if (fromMatch?.[1]) return fromMatch[1].trim();
+  
+  // Pattern 3: Company indicators (SAS, SARL, SA, SCI, etc.)
+  const companyMatch = s.match(/([A-Za-zÀ-ÿ0-9\s&.'-]{2,30})\s*(?:SAS|SARL|SA|SCI|EURL|AUTO-ENTREPRENEUR)/i);
+  if (companyMatch?.[1]) return companyMatch[1].trim();
+  
+  // Pattern 4: First non-empty, non-generic line (fallback)
+  const lines = s.split('\n').map(l => l.trim()).filter(l => l.length > 2 && l.length < 50);
+  for (const line of lines.slice(0, 5)) {
+    if (!/^(facture|invoice|date|page|n°|total|objet|madame|monsieur|\d)/i.test(line)) {
+      return line;
+    }
+  }
+  
   return null;
 }
 
 function extractServiceName(text: string): string | null {
   const s = text || '';
-  // Look for "Box individuel/collectif : XXX" pattern
-  const boxMatch = s.match(/(Box\s+(?:individuel|collectif)\s*:\s*[A-Z0-9]+)/i);
-  if (boxMatch?.[1]) return boxMatch[1].trim();
-  // Look for service line after "Désignation" header
-  const afterDesig = s.match(/Désignation[^\n]*\n([A-Za-zÀ-ÿ0-9\s:.\-]+?)(?:\s+du\s+|\s+\d)/i);
-  if (afterDesig?.[1]) return afterDesig[1].trim();
-  // Generic service patterns
+  
+  // Pattern 1: After "Désignation" or "Description" header
+  const afterHeader = s.match(/(?:désignation|description|libellé|produit|service)[^\n]*\n([A-Za-zÀ-ÿ0-9\s:.\-]+?)(?:\s+du\s+|\s+\d|\s+€|\n)/i);
+  if (afterHeader?.[1] && afterHeader[1].trim().length > 3) return afterHeader[1].trim();
+  
+  // Pattern 2: Common service patterns
   const patterns: RegExp[] = [
-    /(?:abonnement|location|service)\s*[:\-]?\s*([A-Za-zÀ-ÿ0-9\s:.\-]{3,40})/i,
+    /(Box\s+(?:individuel|collectif)\s*:\s*[A-Z0-9]+)/i,  // Storage boxes
+    /(Abonnement\s+[A-Za-zÀ-ÿ0-9\s]+)/i,                  // Subscriptions
+    /(Forfait\s+[A-Za-zÀ-ÿ0-9\s]+)/i,                     // Plans
+    /(Location\s+[A-Za-zÀ-ÿ0-9\s]+)/i,                    // Rentals
+    /(Électricité|Gaz|Internet|Mobile|Téléphone)[^\n€]*/i, // Utilities
+    /(Assurance\s+[A-Za-zÀ-ÿ0-9\s]+)/i,                   // Insurance
   ];
+  
   for (const re of patterns) {
     const m = s.match(re);
-    if (m?.[1]) return m[1].trim();
+    if (m?.[1]) {
+      const service = m[1].trim();
+      if (service.length > 3 && service.length < 60) return service;
+    }
   }
+  
   return null;
 }
 
