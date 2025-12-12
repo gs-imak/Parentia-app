@@ -123,7 +123,16 @@ Règles importantes :
 9. EXTRACTION CONTACT :
    - Si une adresse email est visible dans le document, l'extraire
    - Si un numéro de téléphone est visible, l'extraire (format: 0X XX XX XX XX ou +33...)
-   - Extraire le nom de l'expéditeur ou de l'organisation
+   - IMPORTANT pour contactName - Extraire LE NOM DE LA PERSONNE:
+     * PRIORITÉ 1: Chercher le nom de la personne qui signe ou envoie le message
+     * PRIORITÉ 2: Chercher les noms avec civilités: "M.", "Mme", "Mr", "Mrs" + NOM
+     * Exemples VALIDES: "M. Alagna", "Mme Dupont", "Jean Martin", "Poppy"
+     * ⚠️ NE JAMAIS EXTRAIRE comme contactName:
+       - Titres/postes: "Président", "Directeur", "Secrétaire", "Responsable"
+       - Organisations: "CS 34", "Conseil syndical", "Copropriété", "Syndic"
+       - Adresses ou références
+     * Si tu vois "Président du CS 34" ET une signature "M. Alagna" → contactName = "M. Alagna"
+     * TOUJOURS extraire le NOM PROPRE de la personne, JAMAIS son titre
 
 10. TEMPLATES PDF SUGGÉRÉS :
    - IMPORTANT: Sois TRÈS conservateur avec les suggestions. NE suggère un template que s'il est VRAIMENT pertinent.
@@ -155,7 +164,7 @@ Réponds UNIQUEMENT avec un JSON valide (pas de texte avant ou après) :
   "confidence": number (0-1, confiance dans l'analyse),
   "contactEmail": "string (email extrait si visible, sinon omis)",
   "contactPhone": "string (téléphone extrait si visible, sinon omis)",
-  "contactName": "string (nom de l'organisation/expéditeur, sinon omis)",
+  "contactName": "string (NOM PROPRE uniquement: 'M. Alagna', 'Jean Martin' - JAMAIS de titres comme 'Président du...')",
   "suggestedTemplates": ["template_id1", "template_id2"] (IDs des templates pertinents, max 3, ou omis)
 }`;
 }
