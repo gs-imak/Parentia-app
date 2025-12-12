@@ -120,6 +120,22 @@ function isProbablyPdfUrl(url: string): boolean {
   return pathOnly.endsWith('.pdf') || pathOnly.includes('.pdf/');
 }
 
+function normalizePhoneForWhatsApp(input: string): string | null {
+  const raw = (input || '').trim();
+  if (!raw) return null;
+  // Keep digits only
+  let digits = raw.replace(/[^\d]/g, '');
+  if (!digits) return null;
+  // Handle international prefix 00
+  if (digits.startsWith('00')) digits = digits.slice(2);
+  // French local numbers: 0X XX XX XX XX -> 33 + XXXXXXXXX
+  if (digits.startsWith('0') && digits.length === 10) {
+    digits = `33${digits.slice(1)}`;
+  }
+  // WhatsApp wa.me expects country code + number, no leading +
+  return digits;
+}
+
 function detectPaymentContext(task: Task) {
   const haystack = `${task.title} ${task.description || ''}`.toLowerCase();
   const isPayment = PAYMENT_KEYWORDS.some((kw) => haystack.includes(kw));
@@ -364,7 +380,7 @@ export default function TaskDetailScreen({
           ? `sms:${recipient}&body=${body}`
           : `sms:${recipient}?body=${body}`;
       } else {
-        const cleanPhone = recipient.replace(/[^0-9+]/g, '');
+        const cleanPhone = normalizePhoneForWhatsApp(recipient) || recipient.replace(/[^\d]/g, '');
         const body = encodeURIComponent(draft.body);
         url = `https://wa.me/${cleanPhone}?text=${body}`;
       }
@@ -412,7 +428,7 @@ export default function TaskDetailScreen({
         ? `sms:${recipient}&body=${body}`
         : `sms:${recipient}?body=${body}`;
     } else if (messageChannel === 'whatsapp') {
-      const cleanPhone = recipient.replace(/[^0-9+]/g, '');
+      const cleanPhone = normalizePhoneForWhatsApp(recipient) || recipient.replace(/[^\d]/g, '');
       const body = encodeURIComponent(messageDraft.body);
       url = `https://wa.me/${cleanPhone}?text=${body}`;
     }
@@ -612,7 +628,14 @@ export default function TaskDetailScreen({
           { text: 'Annuler', style: 'cancel' },
           { text: 'Appeler', onPress: () => Linking.openURL(`tel:${value}`) },
           { text: 'SMS', onPress: () => Linking.openURL(`sms:${value}`) },
-          { text: 'WhatsApp', onPress: () => Linking.openURL(`whatsapp://send?phone=${value}`) },
+          {
+            text: 'WhatsApp',
+            onPress: () => {
+              const phone = normalizePhoneForWhatsApp(value);
+              if (!phone) return;
+              Linking.openURL(`whatsapp://send?phone=${phone}`);
+            },
+          },
         ]
       );
     } else {
@@ -1488,11 +1511,7 @@ export default function TaskDetailScreen({
                 style={styles.actionSheetButton}
                 onPress={() => {
                   // Clean phone and convert to international format for WhatsApp
-                  let cleanPhone = selectedPhone?.replace(/[\s.\-()]/g, '') || '';
-                  // French numbers: replace leading 0 with 33
-                  if (cleanPhone.startsWith('0')) {
-                    cleanPhone = '33' + cleanPhone.substring(1);
-                  }
+                  const cleanPhone = normalizePhoneForWhatsApp(selectedPhone || '') || '';
                   if (Platform.OS === 'web') {
                     window.location.href = `https://wa.me/${cleanPhone}`;
                   } else {

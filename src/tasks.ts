@@ -67,6 +67,14 @@ function detectPaymentContext(title: string, description?: string) {
   return { isPayment, isDispute };
 }
 
+function extractFirstPhoneNumber(text: string): string | null {
+  const s = text || '';
+  // French phone numbers with optional separators, with 0X... or +33 / 0033
+  const phoneRegex = /(?:(?:\+|00)33|0)\s?[1-9](?:[\s.-]?[0-9]{2}){4}/;
+  const m = s.match(phoneRegex);
+  return m?.[0]?.trim() || null;
+}
+
 function sanitizeSuggestedTemplatesForTask(
   suggestedTemplates: string[] | undefined,
   category: TaskCategory,
@@ -137,9 +145,17 @@ export async function createTask(taskData: Omit<Task, 'id' | 'createdAt' | 'stat
     taskData.title,
     taskData.description
   );
+
+  // Contact fallback: if AI didn't set a phone number but one is visible in the task text, persist it.
+  const phoneFromText =
+    taskData.contactPhone ||
+    extractFirstPhoneNumber(`${taskData.title || ''}\n${taskData.description || ''}`) ||
+    undefined;
+
   const newTask: Task = {
     ...taskData,
     suggestedTemplates: sanitizedTemplates,
+    contactPhone: phoneFromText,
     id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
     status: 'todo',
     createdAt: new Date().toISOString(),
@@ -166,6 +182,13 @@ export async function updateTask(id: string, updates: Partial<Omit<Task, 'id' | 
   if (index === -1) return null;
   
   const merged = { ...tasks[index], ...updates };
+
+  // If contactPhone is still missing, try to pull it from title/description.
+  if (!merged.contactPhone) {
+    const autoPhone = extractFirstPhoneNumber(`${merged.title || ''}\n${merged.description || ''}`);
+    if (autoPhone) merged.contactPhone = autoPhone;
+  }
+
   merged.suggestedTemplates = sanitizeSuggestedTemplatesForTask(
     merged.suggestedTemplates,
     merged.category,
