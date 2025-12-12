@@ -11,6 +11,7 @@ import {
   Alert,
   Modal,
   Linking,
+  Image,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -83,6 +84,10 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksS
   // PDF viewer modal
   const [showPdfViewer, setShowPdfViewer] = useState(false);
   const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null);
+
+  // Image viewer modal (for non-PDF attachments) - keeps navigation intact on web
+  const [showImageViewer, setShowImageViewer] = useState(false);
+  const [imageViewerUrl, setImageViewerUrl] = useState<string | null>(null);
 
   const loadTasks = async () => {
     setLoading(true);
@@ -1072,14 +1077,13 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksS
                         <TouchableOpacity
                           style={styles.attachmentButton}
                           onPress={() => {
-                            // If PDF, use PDF viewer modal, otherwise open directly
+                            // If PDF, use PDF viewer modal, otherwise use image viewer modal (keeps back navigation intact)
                             if (task.imageUrl!.toLowerCase().includes('.pdf')) {
                               setPdfViewerUrl(task.imageUrl!);
                               setShowPdfViewer(true);
-                            } else if (Platform.OS === 'web') {
-                              window.open(task.imageUrl!, '_blank');
                             } else {
-                              Linking.openURL(task.imageUrl!);
+                              setImageViewerUrl(task.imageUrl!);
+                              setShowImageViewer(true);
                             }
                           }}
                         >
@@ -1136,6 +1140,63 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksS
           <Feather name="check-circle" size={20} color="#FFFFFF" />
           <Text style={styles.floatingToastText}>{successMessage}</Text>
         </View>
+      )}
+
+      {/* Image Viewer Modal */}
+      {imageViewerUrl && (
+        <Modal
+          visible={showImageViewer}
+          animationType="fade"
+          onRequestClose={() => setShowImageViewer(false)}
+        >
+          <View style={{ flex: 1, backgroundColor: '#F5F7FA' }}>
+            <View style={styles.viewerHeader}>
+              <TouchableOpacity onPress={() => setShowImageViewer(false)} style={styles.viewerHeaderButton}>
+                <Feather name="x" size={24} color="#2C3E50" />
+              </TouchableOpacity>
+              <Text style={styles.viewerHeaderTitle}>Pièce jointe</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  if (!imageViewerUrl) return;
+                  if (Platform.OS === 'web') {
+                    // Download without navigating away (keeps browser history/back working)
+                    try {
+                      const urlParts = imageViewerUrl.split('?')[0].split('/');
+                      const rawName = urlParts[urlParts.length - 1] || 'piece-jointe';
+                      const filename = decodeURIComponent(rawName);
+                      const link = document.createElement('a');
+                      link.href = imageViewerUrl;
+                      link.download = filename;
+                      link.rel = 'noopener noreferrer';
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    } catch {
+                      window.open(imageViewerUrl, '_blank', 'noopener,noreferrer');
+                    }
+                  } else {
+                    Linking.openURL(imageViewerUrl);
+                  }
+                }}
+                style={styles.viewerHeaderButton}
+              >
+                <Feather name="download" size={20} color="#3A82F7" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView
+              style={{ flex: 1, backgroundColor: '#000000' }}
+              contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}
+              maximumZoomScale={3}
+              minimumZoomScale={1}
+            >
+              <Image
+                source={{ uri: imageViewerUrl }}
+                style={{ width: '100%', height: '100%' }}
+                resizeMode="contain"
+              />
+            </ScrollView>
+          </View>
+        </Modal>
       )}
       
       {/* PDF Viewer Modal */}
@@ -1219,6 +1280,28 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#F0F2F5',
+  },
+  viewerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F2F5',
+    backgroundColor: '#FFFFFF',
+  },
+  viewerHeaderButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewerHeaderTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2C3E50',
   },
   cardTitle: {
     fontSize: 20,
