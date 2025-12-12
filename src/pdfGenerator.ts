@@ -94,13 +94,18 @@ function extractInvoiceRefFromText(text: string): string | null {
   // Common explicit patterns
   const patterns: RegExp[] = [
     /facture\s*(?:n(?:°|o)?|num(?:[ée]ro)?|#)?\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{3,})/i,
+    // Some PDFs/extraction replace "n°" with garbage like "m*" or other short tokens.
+    // Accept up to ~6 non-separator chars between "facture" and ":"/"-".
+    /facture\s*[^\S\r\n]*[^\w\r\n]{0,3}[\w*°º]{0,6}\s*[:\-]\s*([A-Z0-9][A-Z0-9\-_/]{2,})/i,
     /invoice\s*(?:no\.?|number|#)?\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{3,})/i,
     /\b(?:ref|réf(?:érence)?)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{3,})/i,
   ];
 
   for (const re of patterns) {
     const m = s.match(re);
-    if (m?.[1]) return m[1];
+    const candidate = m?.[1]?.trim();
+    // Require at least one digit to avoid grabbing random words.
+    if (candidate && /\d/.test(candidate)) return candidate;
   }
 
   // Fallback: a long-ish numeric token often used as invoice number
