@@ -23,10 +23,27 @@ export default function PDFViewerModal({
   title = 'Document PDF',
   onClose,
 }: PDFViewerModalProps) {
+  const isIOSWeb = () => {
+    if (Platform.OS !== 'web') return false;
+    try {
+      const ua = navigator.userAgent || '';
+      return /iPad|iPhone|iPod/i.test(ua);
+    } catch {
+      return false;
+    }
+  };
+
   const handleDownload = async () => {
     if (!pdfUrl) return;
 
     if (Platform.OS === 'web') {
+      // iOS Safari often ignores `download` and may navigate the current tab to a blob/PDF viewer,
+      // which breaks SPA back navigation. Open in a new tab instead.
+      if (isIOSWeb()) {
+        window.open(pdfUrl, '_blank', 'noopener,noreferrer');
+        return;
+      }
+
       // On web, fetch PDF and download as blob
       try {
         const response = await fetch(pdfUrl);
@@ -43,6 +60,9 @@ export default function PDFViewerModal({
         const link = document.createElement('a');
         link.href = blobUrl;
         link.download = filename;
+        // Safety net: if the browser ignores `download`, open in a new tab (keeps current SPA tab intact)
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
