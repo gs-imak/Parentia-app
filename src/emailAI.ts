@@ -187,18 +187,12 @@ Règles importantes:
 7. EXTRACTION CONTACT:
    - Extraire l'email de l'expéditeur original (pas l'email de transfert)
    - Si un numéro de téléphone est visible dans l'email ou le PDF, l'extraire
-   - IMPORTANT pour contactName - Extraire LE NOM DE LA PERSONNE:
-     * PRIORITÉ 1: Chercher dans la signature de l'email (nom après "Cordialement", "Bien à vous", etc.)
-     * PRIORITÉ 2: Chercher le nom de l'expéditeur (après "De:" ou dans l'en-tête)
-     * PRIORITÉ 3: Chercher les noms avec civilités: "M.", "Mme", "Mr", "Mrs" + NOM DE FAMILLE
-     * Exemples VALIDES: "M. Alagna", "Mme Dupont", "Jean Martin", "Poppy"
-     * ⚠️ NE JAMAIS EXTRAIRE comme contactName:
-       - Titres/postes: "Président", "Directeur", "Secrétaire", "Responsable"
-       - Organisations: "CS 34", "Conseil syndical", "Copropriété"
-       - Adresses: noms de rues, codes postaux
-       - Références: numéros de dossier, codes
-     * Si "Président du CS 34" est visible mais l'expéditeur est "M. Alagna" → contactName = "M. Alagna"
-     * TOUJOURS extraire le NOM PROPRE de la personne, jamais son titre ou fonction
+   - CRITIQUE pour contactName - C'est L'EXPÉDITEUR, PAS le destinataire:
+     * contactName = celui qui ENVOIE l'email, celui qui SIGNE le message
+     * NE JAMAIS extraire le nom du DESTINATAIRE (celui qui reçoit l'email)
+     * Chercher: signature en bas de l'email, nom après "De:", nom de l'expéditeur original
+     * Exemple: Si "M. Alagna" envoie un email à "M. Cochennec" → contactName = "M. Alagna"
+     * Si l'email est transféré, prendre le nom de l'EXPÉDITEUR ORIGINAL
 
 8. TEMPLATES PDF SUGGÉRÉS (règles strictes):
    - Règle de base: pour un paiement ou prélèvement normal ("payer facture", "montant à régler", "paiement avant le", "prélèvement automatique"), suggestedTemplates doit être VIDE ou absent. Aucun document n'est nécessaire pour payer.

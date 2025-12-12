@@ -123,16 +123,13 @@ Règles importantes :
 9. EXTRACTION CONTACT :
    - Si une adresse email est visible dans le document, l'extraire
    - Si un numéro de téléphone est visible, l'extraire (format: 0X XX XX XX XX ou +33...)
-   - IMPORTANT pour contactName - Extraire LE NOM DE LA PERSONNE:
-     * PRIORITÉ 1: Chercher le nom de la personne qui signe ou envoie le message
-     * PRIORITÉ 2: Chercher les noms avec civilités: "M.", "Mme", "Mr", "Mrs" + NOM
-     * Exemples VALIDES: "M. Alagna", "Mme Dupont", "Jean Martin", "Poppy"
-     * ⚠️ NE JAMAIS EXTRAIRE comme contactName:
-       - Titres/postes: "Président", "Directeur", "Secrétaire", "Responsable"
-       - Organisations: "CS 34", "Conseil syndical", "Copropriété", "Syndic"
-       - Adresses ou références
-     * Si tu vois "Président du CS 34" ET une signature "M. Alagna" → contactName = "M. Alagna"
-     * TOUJOURS extraire le NOM PROPRE de la personne, JAMAIS son titre
+   - CRITIQUE pour contactName - C'est L'EXPÉDITEUR du message, PAS le destinataire:
+     * Pour un message/email/lettre: contactName = celui qui ENVOIE le message, celui qui SIGNE
+     * Pour une capture WhatsApp/SMS: contactName = le nom en haut de la conversation (l'interlocuteur)
+     * NE JAMAIS extraire le nom du DESTINATAIRE (celui qui reçoit le message)
+     * Exemple: Si "M. Alagna" envoie un message à "M. Cochennec" → contactName = "M. Alagna"
+     * Exemple: Si la lettre est signée par "M. Alagna" et adressée à "M. Cochennec" → contactName = "M. Alagna"
+     * Chercher: signature en bas, nom après "De:", nom de l'interlocuteur dans une conversation
 
 10. TEMPLATES PDF SUGGÉRÉS :
    - IMPORTANT: Sois TRÈS conservateur avec les suggestions. NE suggère un template que s'il est VRAIMENT pertinent.
