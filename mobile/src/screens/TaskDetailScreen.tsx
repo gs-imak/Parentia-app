@@ -303,13 +303,7 @@ export default function TaskDetailScreen({
   };
 
   const handleGeneratePdf = async (templateId: string) => {
-    // For invoice contestation, offer an override input because scanned PDFs have no text layer -> auto extraction may fail.
-    if (templateId === 'facture_contestation') {
-      setPendingTemplateId(templateId);
-      setInvoiceRefOverride('');
-      setShowInvoiceRefModal(true);
-      return;
-    }
+    // Automatic extraction handles all templates now - no manual override needed
     await doGeneratePdf(templateId);
   };
 
