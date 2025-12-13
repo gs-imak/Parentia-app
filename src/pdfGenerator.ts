@@ -149,35 +149,68 @@ function defaultContestationReason(): string {
 function extractInvoiceRefFromText(text: string): string | null {
   const s = text || '';
 
-  // Common explicit patterns
+  // ONLY match explicit invoice/facture patterns - avoid generic "ref" that could match SIRET, customer ref, etc.
   const patterns: RegExp[] = [
+    // "Facture n° : CE25/3924" or "Facture numero 123"
     /facture\s*(?:n(?:°|o)?|num(?:[ée]ro)?|#)?\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{3,})/i,
-    // Some PDFs/extraction replace "n°" with garbage like "m*" or other short tokens.
-    // Accept up to ~6 non-separator chars between "facture" and ":"/"-".
+    // "Facture m* : CE25/3924" (OCR noise tolerance)
     /facture\s*[^\S\r\n]*[^\w\r\n]{0,3}[\w*°º]{0,6}\s*[:\-]\s*([A-Z0-9][A-Z0-9\-_/]{2,})/i,
+    // "Invoice no. ABC123" or "Invoice number: 456"
     /invoice\s*(?:no\.?|number|#)?\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{3,})/i,
-    /\b(?:ref|réf(?:érence)?)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{3,})/i,
+    // "Réf. facture : XYZ" (only if "facture" is present nearby)
+    /réf(?:érence)?\s*[:\.]?\s*(?:de\s+)?facture\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{3,})/i,
   ];
 
   for (const re of patterns) {
     const m = s.match(re);
     const candidate = m?.[1]?.trim();
     // Require at least one digit to avoid grabbing random words.
-    if (candidate && /\d/.test(candidate)) return candidate;
+    // Also reject pure numeric strings longer than 12 digits (likely SIRET/SIREN, not invoice refs)
+    if (candidate && /\d/.test(candidate)) {
+      const isAllDigits = /^\d+$/.test(candidate);
+      if (isAllDigits && candidate.length > 12) {
+        console.log('[INVOICE DEBUG] Rejected candidate (too long, likely SIRET):', candidate);
+        continue; // Skip SIRET/SIREN-like numbers
+      }
+      return candidate;
+    }
   }
 
-  // Fallback: a long-ish numeric token often used as invoice number
-  const numeric = s.match(/\b(\d{6,})\b/);
-  if (numeric?.[1]) return numeric[1];
-
+  // NO fallback to generic long numbers - too risky (catches SIRET, account numbers, etc.)
   return null;
 }
 
 function extractEuroAmount(text: string): string | null {
   const s = text || '';
-  const m = s.match(/(\d{1,6}(?:[.,]\d{2})?)\s*€?/);
-  if (!m?.[1]) return null;
-  return m[1].replace(',', '.');
+  
+  // Find all potential amounts with € symbol
+  // Priority order: TOTAL TTC > À RÉGLER/À PAYER > MONTANT > generic amount with €
+  const patterns: RegExp[] = [
+    // Highest priority: "TOTAL TTC : 98,00 €" or "Montant TTC"
+    /(?:total|montant)\s+ttc\s*[:\-]?\s*(\d{1,6}(?:[.,]\d{2})?)\s*€/i,
+    // "À régler : 98 €" or "À payer"
+    /à\s+(?:régler|payer)\s*[:\-]?\s*(\d{1,6}(?:[.,]\d{2})?)\s*€/i,
+    // "Montant : 98,00 €" or "Prix :"
+    /(?:montant|prix)\s*[:\-]?\s*(\d{1,6}(?:[.,]\d{2})?)\s*€/i,
+    // Generic "Total :" (may be HT, so lower priority)
+    /total\s*[:\-]?\s*(\d{1,6}(?:[.,]\d{2})?)\s*€/i,
+    // Last resort: any amount with € that's not preceded by / (to avoid dates)
+    /(?<![\/\d])(\d{1,6}(?:[.,]\d{2})?)\s*€/,
+  ];
+
+  for (const re of patterns) {
+    const m = s.match(re);
+    if (m?.[1]) {
+      const amount = m[1].replace(',', '.');
+      const num = parseFloat(amount);
+      // Sanity check: reasonable invoice amount (not a year, not too small)
+      if (num >= 0.01 && num < 1000000) {
+        return amount;
+      }
+    }
+  }
+  
+  return null;
 }
 
 
