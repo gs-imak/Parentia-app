@@ -49,16 +49,13 @@ export default function PDFViewerModal({
 
   const webViewerUrl = useMemo(() => {
     if (!pdfUrl) return null;
-    // Default zoom: show full page ("page-fit") rather than fitting width (often feels too zoomed-in).
-    return `${pdfUrl}#zoom=page-fit`;
+    // Default zoom: explicit 100% (avoid Safari/reader "fit width" style zoom-in).
+    return `${pdfUrl}#zoom=100`;
   }, [pdfUrl]);
-
-  const iosWebScale = 0.85; // Safari ignores PDF zoom fragments; deterministic visual scale-down.
-  const iosWebScaledSize = `${(100 / iosWebScale).toFixed(2)}%`;
 
   const iosEmbeddedHtml = useMemo(() => {
     if (!pdfUrl) return null;
-    const src = `${pdfUrl}#zoom=page-fit`;
+    const src = `${pdfUrl}#zoom=100`;
     // iOS WKWebView often ignores PDF fragments when loading PDFs directly.
     // Embedding the PDF in HTML tends to respect "page fit" better and avoids the overly-zoomed default.
     return `<!doctype html>
@@ -153,12 +150,9 @@ export default function PDFViewerModal({
               src={webViewerUrl || pdfUrl}
               title={title}
               style={{
-                // On iOS Safari, PDF zoom fragments are often ignored; scale the iframe contents down.
-                width: isIOSWeb() ? iosWebScaledSize : '100%',
-                height: isIOSWeb() ? iosWebScaledSize : '100%',
+                width: '100%',
+                height: '100%',
                 border: 'none',
-                transform: isIOSWeb() ? `scale(${iosWebScale})` : undefined,
-                transformOrigin: isIOSWeb() ? 'top left' : undefined,
               }}
             />
 
@@ -170,7 +164,7 @@ export default function PDFViewerModal({
                 source={
                   Platform.OS === 'ios' && iosEmbeddedHtml
                     ? { html: iosEmbeddedHtml, baseUrl: '' }
-                    : { uri: `${pdfUrl}#zoom=page-fit` }
+                    : { uri: `${pdfUrl}#zoom=100` }
                 }
                 style={{ flex: 1 }}
                 originWhitelist={['*']}
