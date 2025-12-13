@@ -6,7 +6,7 @@
 import PDFDocument from 'pdfkit';
 import { getTemplateById, type PDFTemplate } from './pdfTemplates.js';
 import { uploadAttachment } from './supabase.js';
-import { getProfile } from './profile.js';
+import { getProfile, type Child } from './profile.js';
 import { getTaskById } from './tasks.js';
 import { extractPdfText } from './pdfParser.js';
 
@@ -86,6 +86,26 @@ function normalizeReasonText(text: string): string {
   // Collapse trailing ellipsis/dots into a single period (the template already adds punctuation around it).
   s = s.replace(/[.…]+$/g, '');
   return s.trim();
+}
+
+function tokenizeLowerWords(s: string): string[] {
+  const matches = (s || '').toLowerCase().match(/[a-zà-öø-ÿ]+/gi);
+  return matches ? matches.map((w) => w.toLowerCase()) : [];
+}
+
+function selectChildFromTaskText(children: Child[], taskText: string): Child | null {
+  if (!children || children.length === 0) return null;
+  if (children.length === 1) return children[0];
+
+  const tokens = new Set(tokenizeLowerWords(taskText));
+  const matched = children.filter((c) => {
+    const name = (c.firstName || '').trim().toLowerCase();
+    return Boolean(name) && tokens.has(name);
+  });
+
+  // Deterministic: only select if exactly one child name is explicitly present.
+  if (matched.length === 1) return matched[0];
+  return null;
 }
 
 function defaultContestationReason(): string {
@@ -355,7 +375,31 @@ export async function generatePDF(input: GeneratePDFInput): Promise<GeneratePDFO
   // Merge variables: profile defaults < task variables < user overrides
   const profileVars = await getProfileVariables();
   const taskVars = input.taskId ? await getTaskVariables(input.taskId) : {};
-  const mergedVars = { ...profileVars, ...taskVars, ...input.variables };
+  const mergedVars: Record<string, string> = { ...profileVars, ...taskVars, ...input.variables };
+
+  // Milestone 5: For absence justificatifs, ensure we use the correct child.
+  // Rules (deterministic; NO guessing):
+  // - If profile has exactly 1 child → use it
+  // - Else if exactly 1 child's firstName appears as a word in task title/description → use it
+  // - Else → leave placeholders unfilled (better blank than wrong child)
+  if (input.taskId && (template.id === 'ecole_absence' || template.id === 'creche_absence')) {
+    const [profile, task] = await Promise.all([getProfile(), getTaskById(input.taskId)]);
+    if (task && profile.children.length > 0) {
+      const taskText = `${task.title || ''}\n${task.description || ''}`;
+      const selected = selectChildFromTaskText(profile.children, taskText);
+
+      if (selected) {
+        mergedVars.childName = selected.firstName;
+        mergedVars.childBirthDate = formatDateFrench(selected.birthDate);
+        mergedVars.patientName = selected.firstName;
+      } else if (profile.children.length > 1) {
+        // Remove profile default (first child) to avoid incorrect output.
+        delete (mergedVars as any).childName;
+        delete (mergedVars as any).childBirthDate;
+        delete (mergedVars as any).patientName;
+      }
+    }
+  }
   
   // Fill template
   const content = fillTemplate(template.template, mergedVars);
