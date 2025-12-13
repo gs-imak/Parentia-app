@@ -47,32 +47,9 @@ export default function PDFViewerModal({
     }
   };
 
-  const webViewerUrl = useMemo(() => {
-    if (!pdfUrl) return null;
-    // FitV = fit page height to viewport (allows horizontal scroll if needed, but shows full page vertically).
-    return `${pdfUrl}#view=FitV`;
-  }, [pdfUrl]);
+  // Note: iOS Safari ignores all URL fragments (#zoom, #view, etc.) for PDFs in iframes.
+  // The cleanest approach is to let Safari use its default zoom, which is actually reasonable.
 
-  const iosEmbeddedHtml = useMemo(() => {
-    if (!pdfUrl) return null;
-    const src = `${pdfUrl}#view=FitV`;
-    // iOS WKWebView often ignores PDF fragments when loading PDFs directly.
-    // Embedding the PDF in HTML tends to respect "page fit" better and avoids the overly-zoomed default.
-    return `<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0" />
-    <style>
-      html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #F5F7FA; }
-      embed { display: block; width: 100%; height: 100%; border: 0; }
-    </style>
-  </head>
-  <body>
-    <embed src="${src}" type="application/pdf" />
-  </body>
-</html>`;
-  }, [pdfUrl]);
 
   const handleDownload = async () => {
     if (!pdfUrl) return;
@@ -145,9 +122,7 @@ export default function PDFViewerModal({
           <View style={styles.webViewerContainer}>
             {/* @ts-ignore - iframe is web-only */}
             <iframe
-              // Use key to force a refresh when switching docs.
-              key={webViewerUrl || pdfUrl}
-              src={webViewerUrl || pdfUrl}
+              src={pdfUrl}
               title={title}
               style={{
                 width: '100%',
@@ -155,23 +130,15 @@ export default function PDFViewerModal({
                 border: 'none',
               }}
             />
-
           </View>
         ) : (
           <View style={styles.nativeViewerContainer}>
             {WebView ? (
               <WebView
-                source={
-                  Platform.OS === 'ios' && iosEmbeddedHtml
-                    ? { html: iosEmbeddedHtml, baseUrl: '' }
-                    : { uri: `${pdfUrl}#view=FitV` }
-                }
+                source={{ uri: pdfUrl }}
                 style={{ flex: 1 }}
                 originWhitelist={['*']}
                 startInLoadingState
-                allowsBackForwardNavigationGestures
-                // Best-effort: let the platform scale the content to fit the view.
-                // (PDF rendering behavior differs between iOS/Android; this keeps a sane default.)
                 scalesPageToFit
               />
             ) : (
