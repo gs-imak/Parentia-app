@@ -112,18 +112,30 @@ function extractExplicitChildNameFromAbsenceTaskText(taskText: string): string |
   const s = (taskText || '').trim();
   if (!s) return null;
 
-  // Prefer explicit "Absence école <Name>" / "Absence crèche <Name>" patterns.
-  // Deterministic: we only take a single, clearly delimited first-name token.
+  // Extract child name from patterns like:
+  // - "Absence école Héloïse"
+  // - "Absence crèche Charles"
+  // - "Justificatif d'absence de Marie"
+  // - "Absence Héloïse 15 décembre"
+  // Case-insensitive, unicode-aware
   const patterns: RegExp[] = [
-    /\babsence\b[\s\S]{0,80}\b(?:école|ecole|cr[eè]che)\b[\s:—-]*([A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ]+)\b/u,
-    /\bjustificatif\b[\s\S]{0,80}\babsence\b[\s\S]{0,80}\bde\b[\s:—-]*([A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ]+)\b/u,
-    /\babsence\b[\s\S]{0,80}\bde\b[\s:—-]*([A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ]+)\b/u,
+    // "Absence école/crèche <Name>"
+    /absence\s+(?:école|ecole|crèche|creche)\s+([A-Za-zÀ-ÿ]+)/iu,
+    // "Justificatif d'absence de <Name>"
+    /justificatif\s+d['']?absence\s+de\s+([A-Za-zÀ-ÿ]+)/iu,
+    // "Absence de <Name>"
+    /absence\s+de\s+([A-Za-zÀ-ÿ]+)/iu,
+    // "Absence <Name>" (fallback - name right after "absence" if it's capitalized)
+    /absence\s+([A-ZÀ-Ý][a-zà-ÿ]+)/u,
   ];
 
   for (const re of patterns) {
     const m = s.match(re);
     const candidate = m?.[1]?.trim();
-    if (candidate) return candidate;
+    if (candidate && candidate.length >= 2) {
+      // Normalize: capitalize first letter
+      return candidate.charAt(0).toUpperCase() + candidate.slice(1).toLowerCase();
+    }
   }
 
   return null;
