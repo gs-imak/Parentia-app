@@ -35,17 +35,19 @@ export const PDF_TEMPLATES: PDFTemplate[] = [
     label: 'Justificatif d\'absence scolaire',
     category: 'ecole',
     type: 'lettre',
-    variables: ['parentName', 'childName', 'childClass', 'absenceDate', 'absenceReason', 'schoolName', 'city', 'date'],
+    variables: ['parentName', 'childName', 'childClass', 'absenceDate', 'absenceVerb', 'absenceMotiveSentence', 'schoolName', 'city', 'date'],
     taskCategories: ['enfants-école', 'santé'],
     template: `{{city}}, le {{date}}
 
-Objet : Justificatif d'absence de {{childName}}
+Objet : Justificatif d'absence de {{childName}} du {{absenceDate}}
 
 Madame, Monsieur,
 
 Je soussigné(e) {{parentName}}, parent de {{childName}}, élève en classe de {{childClass}}, vous prie de bien vouloir excuser son absence du {{absenceDate}}.
 
-Cette absence est due à : {{absenceReason}}.
+{{childName}} {{absenceVerb}} le {{absenceDate}}.
+
+{{absenceMotiveSentence}}
 
 Je vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distinguées.
 
@@ -56,17 +58,19 @@ Je vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distin
     label: 'Justificatif d\'absence crèche',
     category: 'creche',
     type: 'lettre',
-    variables: ['parentName', 'childName', 'absenceDate', 'absenceReason', 'crecheName', 'city', 'date'],
+    variables: ['parentName', 'childName', 'absenceDate', 'absenceVerb', 'absenceMotiveSentence', 'crecheName', 'city', 'date'],
     taskCategories: ['enfants-école', 'administratif'],
     template: `{{city}}, le {{date}}
 
-Objet : Justificatif d'absence de {{childName}}
+Objet : Justificatif d'absence de {{childName}} du {{absenceDate}}
 
 Madame, Monsieur,
 
-Je soussigné(e) {{parentName}}, parent de {{childName}}, vous prie de bien vouloir excuser son absence du {{absenceDate}} au sein de la crèche {{crecheName}}.
+Je soussigné(e) {{parentName}}, parent de {{childName}}, vous prie de bien vouloir excuser son absence au sein de la crèche {{crecheName}} le {{absenceDate}}.
 
-Cette absence est due à : {{absenceReason}}.
+{{childName}} {{absenceVerb}} le {{absenceDate}}.
+
+{{absenceMotiveSentence}}
 
 Je vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distinguées.
 
@@ -625,7 +629,7 @@ Objet : Contestation de la facture n°{{invoiceRef}} – Demande de vérificatio
 
 Madame, Monsieur,
 
-Par la présente, je conteste formellement la facture n°{{invoiceRef}} émise le {{invoiceDate}}, d'un montant de {{invoiceAmount}} €, dont vous trouverez copie en pièce jointe.
+Par la présente, je conteste formellement la facture n°{{invoiceRef}} émise le {{invoiceDate}}, d'un montant de {{invoiceAmount}} €.
 
 Les motifs de ma contestation sont les suivants :
 {{contestationReason}}

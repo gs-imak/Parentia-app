@@ -88,6 +88,13 @@ function normalizeReasonText(text: string): string {
   return s.trim();
 }
 
+function stripDiacriticsLower(s: string): string {
+  return (s || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
 function tokenizeLowerWords(s: string): string[] {
   const matches = (s || '').toLowerCase().match(/[a-zà-öø-ÿ]+/gi);
   return matches ? matches.map((w) => w.toLowerCase()) : [];
@@ -142,8 +149,160 @@ function extractExplicitChildNameFromAbsenceTaskText(taskText: string): string |
 }
 
 function defaultContestationReason(): string {
-  // Deterministic, non-accusatory, administratively credible.
-  return `Je conteste le montant indiqué et vous demande une vérification détaillée de cette facture.`;
+  // FINAL spec: default motive MUST be used verbatim when no explicit contestation keyword is detected.
+  return `Je conteste cette facture dans l’attente de vérifications complémentaires concernant le détail des prestations facturées et leur conformité au contrat souscrit.`;
+}
+
+function buildContestationReasonFromTaskText(taskText: string): string {
+  const s = stripDiacriticsLower(taskText);
+  const base =
+    `Je conteste cette facture dans l’attente de vérifications complémentaires concernant le détail des prestations facturées et leur conformité au contrat souscrit.`;
+
+  const has = (needle: string) => s.includes(needle);
+
+  // Deterministic: pick the first matching explicit keyword bucket (no stacking).
+  if ((has('double') || has('doublon')) && (has('factur') || has('facture'))) {
+    return `Je conteste cette facture pour un possible cas de double facturation, dans l’attente de vérifications complémentaires concernant le détail des prestations facturées et leur conformité au contrat souscrit.`;
+  }
+  if (has('trop eleve') || has('trop elev') || has('montant incorrect') || (has('montant') && has('incorrect'))) {
+    return `Je conteste cette facture car le montant indiqué semble trop élevé, dans l’attente de vérifications complémentaires concernant le détail des prestations facturées et leur conformité au contrat souscrit.`;
+  }
+  if (has('erreur') || has('errone') || has('incorrect')) {
+    return `Je conteste cette facture car elle semble comporter une erreur, dans l’attente de vérifications complémentaires concernant le détail des prestations facturées et leur conformité au contrat souscrit.`;
+  }
+  if (has('fraude')) {
+    return `Je conteste cette facture dans le cadre de vérifications complémentaires, notamment en raison d’un doute de conformité, concernant le détail des prestations facturées et leur conformité au contrat souscrit.`;
+  }
+
+  return base;
+}
+
+function startOfLocalDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+}
+
+function tryParseFrenchExplicitDate(text: string): Date | null {
+  const s = text || '';
+  if (!s) return null;
+
+  const numeric = [...s.matchAll(/\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})\b/g)];
+  const monthName = [...s.matchAll(/\b(\d{1,2})\s+(janvier|fevrier|février|mars|avril|mai|juin|juillet|aout|août|septembre|octobre|novembre|decembre|décembre)\s+(\d{4})\b/gi)];
+
+  const candidates: Date[] = [];
+  for (const m of numeric) {
+    const day = parseInt(m[1], 10);
+    const month = parseInt(m[2], 10);
+    const year = parseInt(m[3], 10);
+    if (year < 1900 || year > 2100) continue;
+    if (month < 1 || month > 12) continue;
+    if (day < 1 || day > 31) continue;
+    const d = new Date(year, month - 1, day, 0, 0, 0, 0);
+    if (!isNaN(d.getTime())) candidates.push(d);
+  }
+  const monthMap: Record<string, number> = {
+    janvier: 1,
+    fevrier: 2,
+    février: 2,
+    mars: 3,
+    avril: 4,
+    mai: 5,
+    juin: 6,
+    juillet: 7,
+    aout: 8,
+    août: 8,
+    septembre: 9,
+    octobre: 10,
+    novembre: 11,
+    decembre: 12,
+    décembre: 12,
+  };
+  for (const m of monthName) {
+    const day = parseInt(m[1], 10);
+    const monthWord = (m[2] || '').toLowerCase();
+    const year = parseInt(m[3], 10);
+    const month = monthMap[monthWord];
+    if (!month) continue;
+    if (year < 1900 || year > 2100) continue;
+    if (day < 1 || day > 31) continue;
+    const d = new Date(year, month - 1, day, 0, 0, 0, 0);
+    if (!isNaN(d.getTime())) candidates.push(d);
+  }
+
+  // Deterministic: only accept if exactly one explicit date is present.
+  if (candidates.length !== 1) return null;
+  return candidates[0];
+}
+
+function buildAbsenceMotiveSentence(args: {
+  taskText: string;
+  absenceDate: string;
+  isFutureOrToday: boolean;
+  variant: 'school' | 'creche';
+}): string {
+  const s = stripDiacriticsLower(args.taskText);
+  const has = (needle: string) => s.includes(needle);
+  const date = args.absenceDate;
+  const isFuture = args.isFutureOrToday;
+
+  const isMedical =
+    has('rendez-vous medical') ||
+    has('rdv medical') ||
+    has('consultation') ||
+    has('medecin') ||
+    has('pediatre');
+
+  const isFever =
+    has('febr') ||
+    has('fiev') ||
+    has('temperature') ||
+    has('etat febrile');
+
+  // Deterministic: first matching motive bucket only.
+  if (args.variant === 'creche' && isFever) {
+    return isFuture
+      ? `Cette absence est due à un état fébrile nécessitant que l’enfant reste à domicile le ${date}.`
+      : `Cette absence était due à un état fébrile ayant nécessité que l’enfant reste à domicile le ${date}.`;
+  }
+
+  if (isMedical) {
+    if (args.variant === 'school') {
+      return isFuture
+        ? `Son absence le ${date} sera due à un rendez-vous médical.`
+        : `Son absence le ${date} était due à un rendez-vous médical.`;
+    }
+    return isFuture
+      ? `Cette absence est due à un rendez-vous médical programmé le ${date}.`
+      : `Cette absence était due à un rendez-vous médical programmé le ${date}.`;
+  }
+
+  // Default behavior when motive is not explicitly detected: leave a blank line to be filled (no invention).
+  if (args.variant === 'school') {
+    return isFuture
+      ? `Son absence le ${date} sera due à __________.`
+      : `Son absence le ${date} était due à __________.`;
+  }
+  return isFuture
+    ? `Cette absence est due à __________ le ${date}.`
+    : `Cette absence était due à __________ le ${date}.`;
+}
+
+function buildAttestationDeclarationContent(taskText: string): { content: string; hasFact: boolean } {
+  const s = stripDiacriticsLower(taskText);
+  const has = (needle: string) => s.includes(needle);
+
+  // Deterministic "clear fact" (safe): domicile/adresse => we can point to the address fields (from profile) without inventing.
+  if (has('domicile') || has('adresse')) {
+    return {
+      hasFact: true,
+      content: `Je déclare sur l'honneur résider à l'adresse mentionnée ci-dessus.`,
+    };
+  }
+
+  // No explicit, safely-usable fact detected -> generic.
+  return {
+    hasFact: false,
+    content: `Je déclare sur l'honneur que les informations ci-dessus sont exactes.`,
+  };
 }
 
 function extractInvoiceRefFromText(text: string): string | null {
@@ -199,7 +358,6 @@ function extractInvoiceRefFromText(text: string): string | null {
     const isAllDigits = /^[\d\s]+$/.test(candidate);
     const digitsOnly = candidate.replace(/\D/g, '');
     if (isAllDigits && digitsOnly.length > 12) {
-      console.log('[INVOICE DEBUG] Rejected candidate (too long, likely SIRET):', candidate);
       continue;
     }
     
@@ -261,31 +419,23 @@ function extractEuroAmount(text: string): string | null {
  */
 function extractInvoiceRefFromScrambledText(text: string): string | null {
   const s = text || '';
-  
-  console.log('[SCRAMBLED] Searching in text of length:', s.length);
-  console.log('[SCRAMBLED] Contains 01B:', s.includes('01B'));
-  console.log('[SCRAMBLED] Contains 25H9:', s.includes('25H9'));
-  
+
   // Pattern for first part: 2 digits + 1 letter + 6-8 alphanumeric chars (e.g., "01B606O107" - note O not 0)
   const firstPartPattern = /\b(\d{2}[A-Z][A-Z0-9]{6,8})\b/gi;
   const firstParts = [...s.matchAll(firstPartPattern)].map(m => m[1]);
-  console.log('[SCRAMBLED] First parts found:', firstParts);
-  
+
   // Pattern for second part: 2 digits + 1 letter + 1 digit + separator + 1 digit + 1 letter + 2 digits (e.g., "25H9- 1J10")
   const secondPartPattern = /\b(\d{2}[A-Z]\d[\-\s]+\d[A-Z]\d{2})\b/gi;
   const secondParts = [...s.matchAll(secondPartPattern)].map(m => m[1]);
-  console.log('[SCRAMBLED] Second parts found:', secondParts);
-  
+
   // If we found at least one of each, combine them (some PDFs repeat invoice info on multiple pages)
   if (firstParts.length >= 1 && secondParts.length >= 1) {
     const combined = `${firstParts[0]} ${secondParts[0]}`;
-    console.log('[INVOICE] Combined scrambled parts:', combined);
     return combined;
   }
   
   // If we only found the first part (which is still a valid reference), use it
   if (firstParts.length >= 1 && secondParts.length === 0) {
-    console.log('[INVOICE] Using first part only:', firstParts[0]);
     return firstParts[0];
   }
   
@@ -302,7 +452,6 @@ function extractInvoiceRefFromScrambledText(text: string): string | null {
   });
   
   if (validStandalones.length === 1) {
-    console.log('[INVOICE] Found standalone ref:', validStandalones[0]);
     return validStandalones[0];
   }
   
@@ -498,105 +647,55 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
     variables.resiliationDate = deadlineFormatted;
   }
 
-  // Use task description as the direct motive/type content for whitelisted templates
-  if (task.description && task.description.trim()) {
-    const cleaned = normalizeReasonText(task.description);
-    if (!variables.absenceReason) variables.absenceReason = cleaned;
-    if (!variables.prestationType) variables.prestationType = cleaned;
-    if (!variables.contestationReason) variables.contestationReason = cleaned;
-    if (!variables.declarationContent) variables.declarationContent = cleaned;
-  }
+  // ============================================
+  // FINAL spec: never reuse raw task description in generated documents.
+  // We only extract explicit facts via deterministic keyword/date parsing.
+  // ============================================
 
-  // Deterministic defaults (no inference), to keep generated documents administratively credible.
-  // Mutuelle: template already explicitly references a consultation; leave prestationType empty if unknown.
-  if (!variables.prestationType) variables.prestationType = '';
-  if (!variables.declarationContent) {
-    variables.declarationContent = `Je déclare sur l'honneur que les informations ci-dessus sont exactes.`;
-  }
+  const taskText = `${task.title || ''}\n${task.description || ''}`.trim();
 
-  // Contestation de facture: if a PDF is present, it is authoritative for invoice number / amount / date.
-  const invoiceContextText = `${task.title || ''}\n${task.description || ''}`;
-  
-  // Extract from title/description, but be careful: task titles often contain "Payer facture Sosh - 30€"
-  // which should NOT be treated as an invoice number
-  const fromTitle = extractInvoiceRefFromText(task.title || '');
-  const fromDescription = extractInvoiceRefFromText(task.description || '');
-  
-  // Validate title extraction: reject if it looks like "VendorName - Amount" pattern
-  let validatedTitleRef = fromTitle;
-  if (fromTitle) {
-    // Reject patterns like "Sosh - 30", "Orange - 25", "EDF - 100" (vendor name + amount)
-    const looksLikeVendorAmount = /^[A-Za-zÀ-ÿ]+\s*-\s*\d+$/i.test(fromTitle);
-    if (looksLikeVendorAmount) {
-      console.log('[INVOICE DEBUG] Rejected title ref (looks like vendor-amount):', fromTitle);
-      validatedTitleRef = null;
+  // ABSENCES (école/crèche): compute absence date and tense-based wording.
+  {
+    const explicit = tryParseFrenchExplicitDate(taskText);
+    const deadline = task.deadline ? new Date(task.deadline) : null;
+    const absenceDateObj = explicit || (deadline && !isNaN(deadline.getTime()) ? deadline : null);
+
+    if (absenceDateObj) {
+      variables.absenceDate = formatDateFrench(absenceDateObj.toISOString());
+      const today = startOfLocalDay(new Date());
+      const absenceDay = startOfLocalDay(absenceDateObj);
+      const isFutureOrToday = absenceDay.getTime() >= today.getTime();
+      variables.absenceVerb = isFutureOrToday ? 'sera absent(e)' : 'a été absent(e)';
+      // Default to school wording; creche wording will still be usable (template-specific).
+      // If the task text clearly mentions crèche/creche, use the crèche variant, else school.
+      const variant: 'school' | 'creche' =
+        stripDiacriticsLower(taskText).includes('creche') ? 'creche' : 'school';
+      variables.absenceMotiveSentence = buildAbsenceMotiveSentence({
+        taskText,
+        absenceDate: variables.absenceDate,
+        isFutureOrToday,
+        variant,
+      });
     }
   }
-  
-  const fromTextAmount = extractEuroAmount(invoiceContextText);
 
-  const attachmentFilename = task.imageUrl ? extractFilenameFromUrl(task.imageUrl) : null;
-  // Do NOT extract invoice ref from filename - filenames often contain internal IDs, not invoice numbers
-  const fromFilename = null;
+  // CONTESTATION DE FACTURE: motive must never be "payer la facture" nor raw description.
+  variables.contestationReason = buildContestationReasonFromTaskText(taskText);
 
-  let fromPdfRef: string | null = null;
-  let fromPdfAmount: string | null = null;
-  let fromPdfDate: string | null = null;
-
+  // CONTESTATION DE FACTURE: invoice number/amount/date ONLY from the attached PDF when present.
   if (task.imageUrl) {
     const extractedText = await fetchAndExtractPdfText(task.imageUrl);
     if (extractedText) {
-      console.log('[PDF EXTRACTION DEBUG] Extracted text length:', extractedText.length);
-      console.log('[PDF EXTRACTION DEBUG] First 500 chars:', extractedText.substring(0, 500));
-      
-      // Try standard extraction first
-      fromPdfRef = extractInvoiceRefFromText(extractedText);
-      
-      // If standard extraction failed, try to find invoice number parts separately
-      // (for scrambled PDFs where parts appear on different lines)
-      if (!fromPdfRef) {
-        fromPdfRef = extractInvoiceRefFromScrambledText(extractedText);
-      }
-      fromPdfAmount = extractEuroAmount(extractedText);
-      fromPdfDate = extractInvoiceDateFromText(extractedText);
-      console.log('[PDF EXTRACTION DEBUG] fromPdfRef:', fromPdfRef);
-      console.log('[PDF EXTRACTION DEBUG] fromPdfAmount:', fromPdfAmount);
-      console.log('[PDF EXTRACTION DEBUG] fromPdfDate:', fromPdfDate);
-    } else {
-      console.log('[PDF EXTRACTION DEBUG] No text extracted from PDF');
+      const fromPdfRef = extractInvoiceRefFromText(extractedText) || extractInvoiceRefFromScrambledText(extractedText);
+      const fromPdfAmount = extractEuroAmount(extractedText);
+      const fromPdfDate = extractInvoiceDateFromText(extractedText);
+      if (fromPdfRef && !variables.invoiceRef) variables.invoiceRef = fromPdfRef;
+      if (fromPdfAmount && !variables.invoiceAmount) variables.invoiceAmount = fromPdfAmount;
+      if (fromPdfDate && !variables.invoiceDate) variables.invoiceDate = fromPdfDate;
     }
   }
 
-  // Priority: PDF (if present) → then other sources
-  // BUT: sanity check for corrupted PDF extraction
-  let invoiceRef = fromPdfRef || validatedTitleRef || fromDescription || fromFilename;
-  let invoiceAmount = fromPdfAmount || fromTextAmount;
-  
-  // Sanity check: if PDF amount and text amount both exist but differ significantly,
-  // the PDF extraction may be corrupted - prefer the task text (from AI)
-  if (fromPdfAmount && fromTextAmount) {
-    const pdfNum = parseFloat(fromPdfAmount);
-    const textNum = parseFloat(fromTextAmount);
-    const diff = Math.abs(pdfNum - textNum);
-    const percentDiff = diff / Math.max(pdfNum, textNum);
-    
-    // If amounts differ by >20%, PDF extraction is likely corrupted
-    if (percentDiff > 0.20) {
-      console.log('[INVOICE DEBUG] PDF amount differs significantly from task text - using task text');
-      console.log('[INVOICE DEBUG] PDF:', pdfNum, 'vs Text:', textNum, '(diff:', (percentDiff * 100).toFixed(1), '%)');
-      invoiceAmount = fromTextAmount;
-    }
-  }
-  
-  console.log('[INVOICE DEBUG] Final invoiceRef:', invoiceRef, '(PDF:', fromPdfRef, 'Title:', validatedTitleRef, 'Desc:', fromDescription, 'File:', fromFilename, ')');
-  console.log('[INVOICE DEBUG] Final invoiceAmount:', invoiceAmount, '(PDF:', fromPdfAmount, 'Text:', fromTextAmount, ')');
-  
-  if (invoiceRef && !variables.invoiceRef) variables.invoiceRef = invoiceRef;
-  if (invoiceAmount && !variables.invoiceAmount) variables.invoiceAmount = invoiceAmount;
-  if (fromPdfDate && !variables.invoiceDate) variables.invoiceDate = fromPdfDate;
-
-  const currentContestation = (variables.contestationReason || '').trim();
-  if (!currentContestation) variables.contestationReason = defaultContestationReason();
+  // ATTESTATION SUR L'HONNEUR: handled separately in FINAL pass (requires provided generic template text).
   
   return variables;
 }
@@ -616,6 +715,18 @@ export async function generatePDF(input: GeneratePDFInput): Promise<GeneratePDFO
   const taskVars = input.taskId ? await getTaskVariables(input.taskId) : {};
   const mergedVars: Record<string, string> = { ...profileVars, ...taskVars, ...input.variables };
 
+  // FINAL spec: Attestation sur l'honneur
+  // - If clear fact exists in title/description -> use deterministic reformulation
+  // - Else -> generic declaration
+  // - Always add a note that it can be refined by editing the task
+  if (input.taskId && template.id === 'attestation_honneur') {
+    const task = await getTaskById(input.taskId);
+    const taskText = task ? `${task.title || ''}\n${task.description || ''}` : '';
+    const { content, hasFact } = buildAttestationDeclarationContent(taskText);
+    const refinementNote = `\n\nNote : ce document peut être précisé en modifiant la tâche.`;
+    mergedVars.declarationContent = hasFact ? `${content}${refinementNote}` : `${content}${refinementNote}`;
+  }
+
   // Milestone 5: For absence justificatifs, ensure we use the correct child.
   // Rules (deterministic; NO guessing):
   // 1. Extract child name directly from task text (patterns like "Absence école Héloïse")
@@ -625,6 +736,29 @@ export async function generatePDF(input: GeneratePDFInput): Promise<GeneratePDFO
     const task = await getTaskById(input.taskId);
     if (task) {
       const taskText = `${task.title || ''}\n${task.description || ''}`;
+
+      // FINAL spec: use the actual absence date everywhere (subject + body) and apply tense rule.
+      // Deterministic: prefer a single explicit date in text (with year). Otherwise use task deadline.
+      const explicitAbsenceDate = tryParseFrenchExplicitDate(taskText);
+      const deadlineDate = task.deadline ? new Date(task.deadline) : null;
+      const absenceDateObj =
+        explicitAbsenceDate ||
+        (deadlineDate && !isNaN(deadlineDate.getTime()) ? deadlineDate : null);
+      if (absenceDateObj) {
+        const absenceDateStr = formatDateFrench(absenceDateObj.toISOString());
+        mergedVars.absenceDate = absenceDateStr;
+        const today = startOfLocalDay(new Date());
+        const absenceDay = startOfLocalDay(absenceDateObj);
+        const isFutureOrToday = absenceDay.getTime() >= today.getTime();
+        mergedVars.absenceVerb = isFutureOrToday ? 'sera absent(e)' : 'a été absent(e)';
+        mergedVars.absenceMotiveSentence = buildAbsenceMotiveSentence({
+          taskText,
+          absenceDate: absenceDateStr,
+          isFutureOrToday,
+          variant: template.id === 'creche_absence' ? 'creche' : 'school',
+        });
+      }
+
       const explicitName = extractExplicitChildNameFromAbsenceTaskText(taskText);
 
       // Highest priority: if the task explicitly names the child, use that name directly.
@@ -677,7 +811,6 @@ export async function generatePDF(input: GeneratePDFInput): Promise<GeneratePDFO
   let pdfUrl: string | null = null;
   try {
     pdfUrl = await uploadAttachment(pdfBuffer, filename, 'application/pdf');
-    console.log(`[PDF] Uploaded to Supabase: ${pdfUrl}`);
   } catch (error) {
     console.error('[PDF] Failed to upload to Supabase:', error);
     // Continue without URL - we still have the buffer

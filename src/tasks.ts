@@ -33,24 +33,25 @@ export interface Task {
 }
 
 // ============================================
-// Milestone 5 – FROZEN suggestion logic
+// Milestone 5 – FINAL deterministic suggestion logic (closing pass)
 // ============================================
 function normalizeText(s: string): string {
   return (s || '').toLowerCase();
 }
 
 /**
- * Milestone 5 – Flat decision table (FROZEN)
- * 
- * Rules (apply exactly as written; NO stacking; NO prioritization; NO chaining):
- * - absence + école                    → ecole_absence
- * - absence + crèche                   → creche_absence
- * 3. rendez-vous médical OR consultation → sante_demande_remboursement
- * - facture OR montant € OR fournisseur → facture_contestation
- * - contains "attestation sur l'honneur" → attestation_honneur
- * 
- * If no rule matches exactly → suggest NOTHING.
- * If multiple keywords exist but don't clearly match one rule → suggest NOTHING.
+ * Milestone 5 – Flat decision table (FINAL)
+ *
+ * General rules:
+ * - Deterministic only; no heuristics, no fallbacks, no chaining.
+ * - If no rule matches exactly -> suggest NOTHING.
+ * - If multiple rules match -> suggest NOTHING.
+ *
+ * Rules:
+ * - absence + école/ecole  -> ecole_absence
+ * - absence + crèche/creche -> creche_absence
+ * - contains "facture" -> facture_contestation
+ * - contains "attestation sur l'honneur" / "attestation sur l’honneur" -> attestation_honneur
  */
 function inferSuggestedTemplatesDeterministic(
   task: Pick<Task, 'title' | 'description' | 'category' | 'source'>
@@ -59,10 +60,9 @@ function inferSuggestedTemplatesDeterministic(
 
   // Evaluate each rule independently; if not exactly ONE match → suggest nothing.
   const matches: Array<{ id: string; ok: boolean }> = [
-    { id: 'ecole_absence', ok: haystack.includes('absence') && haystack.includes('école') },
-    { id: 'creche_absence', ok: haystack.includes('absence') && haystack.includes('crèche') },
-    { id: 'sante_demande_remboursement', ok: haystack.includes('rendez-vous médical') || haystack.includes('consultation') },
-    { id: 'facture_contestation', ok: haystack.includes('facture') || haystack.includes('montant €') || haystack.includes('fournisseur') },
+    { id: 'ecole_absence', ok: haystack.includes('absence') && (haystack.includes('école') || haystack.includes('ecole')) },
+    { id: 'creche_absence', ok: haystack.includes('absence') && (haystack.includes('crèche') || haystack.includes('creche')) },
+    { id: 'facture_contestation', ok: haystack.includes('facture') },
     {
       id: 'attestation_honneur',
       ok:
