@@ -477,6 +477,16 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
     if (extractedText) {
       console.log('[PDF EXTRACTION DEBUG] Extracted text length:', extractedText.length);
       console.log('[PDF EXTRACTION DEBUG] First 500 chars:', extractedText.substring(0, 500));
+      
+      // Debug: Search for invoice number patterns in full text
+      const has01B = extractedText.includes('01B');
+      const has25H9 = extractedText.includes('25H9');
+      const hasCE25 = extractedText.includes('CE25');
+      console.log('[PDF EXTRACTION DEBUG] Contains "01B":', has01B, '| "25H9":', has25H9, '| "CE25":', hasCE25);
+      if (!has01B && !has25H9 && !hasCE25) {
+        console.log('[PDF EXTRACTION DEBUG] FULL TEXT:', extractedText);
+      }
+      
       fromPdfRef = extractInvoiceRefFromText(extractedText);
       fromPdfAmount = extractEuroAmount(extractedText);
       fromPdfDate = extractInvoiceDateFromText(extractedText);
