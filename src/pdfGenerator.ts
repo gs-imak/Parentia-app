@@ -496,8 +496,17 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
       const has25H9 = extractedText.includes('25H9');
       const hasCE25 = extractedText.includes('CE25');
       console.log('[PDF EXTRACTION DEBUG] Contains "01B":', has01B, '| "25H9":', has25H9, '| "CE25":', hasCE25);
-      if (!has01B && !has25H9 && !hasCE25) {
-        console.log('[PDF EXTRACTION DEBUG] FULL TEXT:', extractedText);
+      
+      // Show context around the matches to understand the actual format
+      if (has01B) {
+        const idx = extractedText.indexOf('01B');
+        const context = extractedText.substring(Math.max(0, idx - 20), Math.min(extractedText.length, idx + 50));
+        console.log('[PDF DEBUG] Context around "01B":', JSON.stringify(context));
+      }
+      if (has25H9) {
+        const idx = extractedText.indexOf('25H9');
+        const context = extractedText.substring(Math.max(0, idx - 20), Math.min(extractedText.length, idx + 50));
+        console.log('[PDF DEBUG] Context around "25H9":', JSON.stringify(context));
       }
       
       fromPdfRef = extractInvoiceRefFromText(extractedText);
