@@ -7,7 +7,6 @@ import {
   StyleSheet,
   Platform,
   Linking,
-  ScrollView,
   ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
@@ -42,10 +41,44 @@ function isIOSSafari(): boolean {
   }
 }
 
+// Load PDF.js from CDN (more reliable than npm package with Expo bundler)
+const PDFJS_VERSION = '3.11.174';
+const PDFJS_CDN = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}`;
+
+let pdfjsLibPromise: Promise<any> | null = null;
+
+function loadPDFJS(): Promise<any> {
+  if (pdfjsLibPromise) return pdfjsLibPromise;
+  
+  pdfjsLibPromise = new Promise((resolve, reject) => {
+    // Check if already loaded
+    if ((window as any).pdfjsLib) {
+      resolve((window as any).pdfjsLib);
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = `${PDFJS_CDN}/pdf.min.js`;
+    script.onload = () => {
+      const lib = (window as any).pdfjsLib;
+      if (lib) {
+        // Disable worker to avoid CORS issues with worker script
+        lib.GlobalWorkerOptions.workerSrc = '';
+        resolve(lib);
+      } else {
+        reject(new Error('PDF.js failed to load'));
+      }
+    };
+    script.onerror = () => reject(new Error('Failed to load PDF.js script'));
+    document.head.appendChild(script);
+  });
+
+  return pdfjsLibPromise;
+}
+
 function PDFJSViewer({ pdfUrl, containerWidth, title }: { pdfUrl: string; containerWidth: number; title: string }) {
   const [pages, setPages] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [useFallback, setUseFallback] = useState(false);
 
   useEffect(() => {
@@ -56,19 +89,17 @@ function PDFJSViewer({ pdfUrl, containerWidth, title }: { pdfUrl: string; contai
     const renderPDF = async () => {
       try {
         setLoading(true);
-        setError(null);
         setUseFallback(false);
 
-        // Fetch PDF as ArrayBuffer to avoid CORS issues
+        // Load PDF.js from CDN
+        const pdfjsLib = await loadPDFJS();
+
+        // Fetch PDF as ArrayBuffer
         const response = await fetch(pdfUrl, { mode: 'cors', credentials: 'omit' });
         if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
         const pdfData = await response.arrayBuffer();
 
-        if (pdfData.byteLength === 0) throw new Error('Empty PDF response');
-
-        const pdfjsLib = await import('pdfjs-dist');
-        
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+        if (pdfData.byteLength === 0) throw new Error('Empty PDF');
 
         const loadingTask = pdfjsLib.getDocument({ data: pdfData });
         const pdf = await loadingTask.promise;
@@ -76,14 +107,16 @@ function PDFJSViewer({ pdfUrl, containerWidth, title }: { pdfUrl: string; contai
         if (cancelled) return;
 
         const pageDataUrls: string[] = [];
-        const scale = 2;
+        // Scale for crisp rendering on retina displays
+        const pixelRatio = window.devicePixelRatio || 1;
+        const renderScale = Math.min(pixelRatio, 2);
 
         for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
           const page = await pdf.getPage(pageNum);
           const viewport = page.getViewport({ scale: 1 });
           
-          const desiredWidth = containerWidth * scale;
-          const scaleFactor = desiredWidth / viewport.width;
+          // Scale to fit container width
+          const scaleFactor = (containerWidth / viewport.width) * renderScale;
           const scaledViewport = page.getViewport({ scale: scaleFactor });
 
           const canvas = document.createElement('canvas');
@@ -108,9 +141,8 @@ function PDFJSViewer({ pdfUrl, containerWidth, title }: { pdfUrl: string; contai
           setLoading(false);
         }
       } catch (err) {
-        console.error('PDF.js render error:', err);
+        console.error('PDF.js error:', err);
         if (!cancelled) {
-          // Fall back to iframe instead of showing error
           setUseFallback(true);
           setLoading(false);
         }
@@ -134,7 +166,7 @@ function PDFJSViewer({ pdfUrl, containerWidth, title }: { pdfUrl: string; contai
   }
 
   // Fallback to iframe if PDF.js failed
-  if (useFallback || error) {
+  if (useFallback) {
     return (
       <View style={{ flex: 1 }}>
         {/* @ts-ignore */}
@@ -152,10 +184,15 @@ function PDFJSViewer({ pdfUrl, containerWidth, title }: { pdfUrl: string; contai
   }
 
   return (
-    <ScrollView
-      style={pdfStyles.scrollView}
-      contentContainerStyle={pdfStyles.scrollContent}
-      showsVerticalScrollIndicator={true}
+    <div
+      style={{
+        flex: 1,
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        WebkitOverflowScrolling: 'touch',
+        backgroundColor: '#E5E5E5',
+        padding: 8,
+      }}
     >
       {pages.map((dataUrl, index) => (
         <img
@@ -167,10 +204,12 @@ function PDFJSViewer({ pdfUrl, containerWidth, title }: { pdfUrl: string; contai
             height: 'auto',
             display: 'block',
             marginBottom: index < pages.length - 1 ? 8 : 0,
+            backgroundColor: '#FFFFFF',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
           }}
         />
       ))}
-    </ScrollView>
+    </div>
   );
 }
 
