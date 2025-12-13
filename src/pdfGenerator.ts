@@ -226,6 +226,34 @@ function extractFilenameFromUrl(url: string): string | null {
   }
 }
 
+/**
+ * Extract invoice-like reference from filename
+ * e.g., "facture_9078906805_2025-10-28.pdf" → "9078906805"
+ */
+function extractInvoiceRefFromFilename(filename: string): string | null {
+  if (!filename) return null;
+  
+  // Pattern: "facture_XXXXXXXXXX_date.pdf" - extract the part between facture and date/extension
+  const patterns = [
+    // "facture_9078906805_2025" → "9078906805"
+    /facture[_\s-]([A-Z0-9][A-Z0-9\-_/]{5,}?)(?:[_\s-]\d{4}|\.pdf|$)/i,
+    // "invoice_ABC123_" → "ABC123"
+    /invoice[_\s-]([A-Z0-9][A-Z0-9\-_/]{5,}?)(?:[_\s-]\d{4}|\.pdf|$)/i,
+  ];
+  
+  for (const re of patterns) {
+    const m = filename.match(re);
+    if (m?.[1]) {
+      const candidate = m[1].replace(/_/g, '').trim();
+      if (candidate.length >= 6) {
+        return candidate;
+      }
+    }
+  }
+  
+  return null;
+}
+
 function extractInvoiceDateFromText(text: string): string | null {
   const s = text || '';
   
@@ -398,7 +426,7 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
   const fromTextAmount = extractEuroAmount(invoiceContextText);
 
   const attachmentFilename = task.imageUrl ? extractFilenameFromUrl(task.imageUrl) : null;
-  const fromFilename = attachmentFilename ? extractInvoiceRefFromText(attachmentFilename) : null;
+  const fromFilename = attachmentFilename ? extractInvoiceRefFromFilename(attachmentFilename) : null;
 
   let fromPdfRef: string | null = null;
   let fromPdfAmount: string | null = null;
@@ -421,8 +449,25 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
   }
 
   // Priority: PDF (if present) → then other sources
-  const invoiceRef = fromPdfRef || fromTitle || fromDescription || fromFilename;
-  const invoiceAmount = fromPdfAmount || fromTextAmount;
+  // BUT: sanity check for corrupted PDF extraction
+  let invoiceRef = fromPdfRef || fromTitle || fromDescription || fromFilename;
+  let invoiceAmount = fromPdfAmount || fromTextAmount;
+  
+  // Sanity check: if PDF amount and text amount both exist but differ significantly,
+  // the PDF extraction may be corrupted - prefer the task text (from AI)
+  if (fromPdfAmount && fromTextAmount) {
+    const pdfNum = parseFloat(fromPdfAmount);
+    const textNum = parseFloat(fromTextAmount);
+    const diff = Math.abs(pdfNum - textNum);
+    const percentDiff = diff / Math.max(pdfNum, textNum);
+    
+    // If amounts differ by >20%, PDF extraction is likely corrupted
+    if (percentDiff > 0.20) {
+      console.log('[INVOICE DEBUG] PDF amount differs significantly from task text - using task text');
+      console.log('[INVOICE DEBUG] PDF:', pdfNum, 'vs Text:', textNum, '(diff:', (percentDiff * 100).toFixed(1), '%)');
+      invoiceAmount = fromTextAmount;
+    }
+  }
   
   console.log('[INVOICE DEBUG] Final invoiceRef:', invoiceRef, '(PDF:', fromPdfRef, 'Title:', fromTitle, 'Desc:', fromDescription, 'File:', fromFilename, ')');
   console.log('[INVOICE DEBUG] Final invoiceAmount:', invoiceAmount, '(PDF:', fromPdfAmount, 'Text:', fromTextAmount, ')');
