@@ -49,7 +49,8 @@ export default function PDFViewerModal({
 
   const webViewerUrl = useMemo(() => {
     if (!pdfUrl) return null;
-    return `${pdfUrl}#view=FitH`;
+    // Default zoom: show full page ("page-fit") rather than fitting width (often feels too zoomed-in).
+    return `${pdfUrl}#zoom=page-fit`;
   }, [pdfUrl]);
 
   const handleDownload = async () => {
@@ -139,11 +140,14 @@ export default function PDFViewerModal({
           <View style={styles.nativeViewerContainer}>
             {WebView ? (
               <WebView
-                source={{ uri: pdfUrl }}
+                source={{ uri: `${pdfUrl}#zoom=page-fit` }}
                 style={{ flex: 1 }}
                 originWhitelist={['*']}
                 startInLoadingState
                 allowsBackForwardNavigationGestures
+                // Best-effort: let the platform scale the content to fit the view.
+                // (PDF rendering behavior differs between iOS/Android; this keeps a sane default.)
+                scalesPageToFit
               />
             ) : (
               <View style={styles.nativeContainer}>
