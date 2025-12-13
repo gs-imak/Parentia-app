@@ -186,7 +186,9 @@ function tryParseFrenchExplicitDate(text: string): Date | null {
   if (!s) return null;
 
   const numeric = [...s.matchAll(/\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})\b/g)];
-  const monthName = [...s.matchAll(/\b(\d{1,2})\s+(janvier|fevrier|février|mars|avril|mai|juin|juillet|aout|août|septembre|octobre|novembre|decembre|décembre)\s+(\d{4})\b/gi)];
+  const monthNameWithYear = [...s.matchAll(/\b(\d{1,2})\s+(janvier|fevrier|février|mars|avril|mai|juin|juillet|aout|août|septembre|octobre|novembre|decembre|décembre)\s+(\d{4})\b/gi)];
+  // NEW: Match "le 15 décembre" or "15 décembre" (no year) - will infer year
+  const monthNameNoYear = [...s.matchAll(/\b(?:le\s+)?(\d{1,2})\s+(janvier|fevrier|février|mars|avril|mai|juin|juillet|aout|août|septembre|octobre|novembre|decembre|décembre)\b/gi)];
 
   const candidates: Date[] = [];
   for (const m of numeric) {
@@ -216,7 +218,7 @@ function tryParseFrenchExplicitDate(text: string): Date | null {
     decembre: 12,
     décembre: 12,
   };
-  for (const m of monthName) {
+  for (const m of monthNameWithYear) {
     const day = parseInt(m[1], 10);
     const monthWord = (m[2] || '').toLowerCase();
     const year = parseInt(m[3], 10);
@@ -226,6 +228,27 @@ function tryParseFrenchExplicitDate(text: string): Date | null {
     if (day < 1 || day > 31) continue;
     const d = new Date(year, month - 1, day, 0, 0, 0, 0);
     if (!isNaN(d.getTime())) candidates.push(d);
+  }
+  // NEW: Handle "le 15 décembre" (no year) - infer year intelligently
+  for (const m of monthNameNoYear) {
+    const day = parseInt(m[1], 10);
+    const monthWord = (m[2] || '').toLowerCase();
+    const month = monthMap[monthWord];
+    if (!month) continue;
+    if (day < 1 || day > 31) continue;
+    
+    // Infer year: try current year first, but if the date is more than 6 months in the past, assume next year
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    let candidateDate = new Date(currentYear, month - 1, day, 0, 0, 0, 0);
+    
+    // If the date is more than 180 days (6 months) in the past, assume it's for next year
+    const daysDiff = (candidateDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+    if (daysDiff < -180) {
+      candidateDate = new Date(currentYear + 1, month - 1, day, 0, 0, 0, 0);
+    }
+    
+    if (!isNaN(candidateDate.getTime())) candidates.push(candidateDate);
   }
 
   // Deterministic: only accept if exactly one explicit date is present.
