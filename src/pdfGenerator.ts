@@ -161,6 +161,10 @@ function extractInvoiceRefFromText(text: string): string | null {
     /invoice\s*(?:no\.?|number|#)?\s*[:\-]?\s*([A-Z0-9][A-Z0-9\s\-_/]{3,})/i,
     // "Réf. facture : XYZ" (only if "facture" is present nearby)
     /réf(?:érence)?\s*[:\.]?\s*(?:de\s+)?facture\s*[:\-]?\s*([A-Z0-9][A-Z0-9\s\-_/]{3,})/i,
+    // Last resort: Standalone patterns that look like invoice numbers (alphanumeric with specific format)
+    // "01B6060107 25H9-1J10" or "CE25/3924" appearing anywhere (not preceded by "client" or "compte")
+    /(?<!client\s*:\s*)(?<!compte\s*:\s*)(?<!siret\s*:\s*)(?<!rcs\s*:\s*)\b([A-Z0-9]{2}[A-Z0-9]{6,}\s+[A-Z0-9]{4,}[A-Z0-9\-]{2,})\b/i,
+    /(?<!client\s*:\s*)(?<!compte\s*:\s*)(?<!siret\s*:\s*)(?<!rcs\s*:\s*)\b([A-Z]{2}\d{2}[\/\-]\d{4})\b/,
   ];
 
   for (const re of patterns) {
@@ -457,7 +461,8 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
   const fromTextAmount = extractEuroAmount(invoiceContextText);
 
   const attachmentFilename = task.imageUrl ? extractFilenameFromUrl(task.imageUrl) : null;
-  const fromFilename = attachmentFilename ? extractInvoiceRefFromFilename(attachmentFilename) : null;
+  // Do NOT extract invoice ref from filename - filenames often contain internal IDs, not invoice numbers
+  const fromFilename = null;
 
   let fromPdfRef: string | null = null;
   let fromPdfAmount: string | null = null;
