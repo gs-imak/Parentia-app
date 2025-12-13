@@ -53,6 +53,27 @@ export default function PDFViewerModal({
     return `${pdfUrl}#zoom=page-fit`;
   }, [pdfUrl]);
 
+  const iosEmbeddedHtml = useMemo(() => {
+    if (!pdfUrl) return null;
+    const src = `${pdfUrl}#zoom=page-fit`;
+    // iOS WKWebView often ignores PDF fragments when loading PDFs directly.
+    // Embedding the PDF in HTML tends to respect "page fit" better and avoids the overly-zoomed default.
+    return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0" />
+    <style>
+      html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #F5F7FA; }
+      embed { display: block; width: 100%; height: 100%; border: 0; }
+    </style>
+  </head>
+  <body>
+    <embed src="${src}" type="application/pdf" />
+  </body>
+</html>`;
+  }, [pdfUrl]);
+
   const handleDownload = async () => {
     if (!pdfUrl) return;
 
@@ -140,7 +161,11 @@ export default function PDFViewerModal({
           <View style={styles.nativeViewerContainer}>
             {WebView ? (
               <WebView
-                source={{ uri: `${pdfUrl}#zoom=page-fit` }}
+                source={
+                  Platform.OS === 'ios' && iosEmbeddedHtml
+                    ? { html: iosEmbeddedHtml, baseUrl: '' }
+                    : { uri: `${pdfUrl}#zoom=page-fit` }
+                }
                 style={{ flex: 1 }}
                 originWhitelist={['*']}
                 startInLoadingState
