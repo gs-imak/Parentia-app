@@ -163,8 +163,11 @@ function extractInvoiceRefFromText(text: string): string | null {
     /réf(?:érence)?\s*[:\.]?\s*(?:de\s+)?facture\s*[:\-]?\s*([A-Z0-9][A-Z0-9\s\-_/]{3,})/i,
     
     // === STANDALONE PATTERNS (for scrambled PDF text where label and number are separated) ===
-    // Sosh/Orange format: "01B6060107 25H9- 1J10" or "01B6060107 25H9-1J10"
-    /\b(\d{2}[A-Z]\d{5,}\s+\d*[A-Z0-9]+[\-\s]+\d*[A-Z]\d{2})\b/i,
+    // Sosh/Orange format: "01B6060107 25H9- 1J10" (with possible whitespace/newlines between)
+    // First part: 2 digits + letter + 5+ digits. Second part: 2 digits + letter + digit + separator + digit + letter + 2 digits
+    /\b(\d{2}[A-Z]\d{5,})[\s\S]{0,50}\b(\d{2}[A-Z]\d[\-\s]+\d[A-Z]\d{2})\b/i,
+    // Sosh/Orange format: just first part "01B6060107" if we can't find the second part
+    /\b(\d{2}[A-Z]\d{6,})\b/i,
     // Selfbox format: "CE25/3924" or "FA2024-001"
     /\b([A-Z]{2}\d{2}[\/\-]\d{3,})\b/,
     // Generic: 2+ letters + 4+ digits (like "INV12345", "FAC2024001")
@@ -173,8 +176,18 @@ function extractInvoiceRefFromText(text: string): string | null {
 
   for (const re of patterns) {
     const m = s.match(re);
-    let candidate = m?.[1]?.trim();
-    if (!candidate) continue;
+    if (!m) continue;
+    
+    // Handle patterns with multiple capture groups (combine them)
+    let candidate = '';
+    if (m[2]) {
+      // Pattern with 2 groups (e.g., Sosh format split across lines)
+      candidate = `${m[1]} ${m[2]}`.trim();
+    } else if (m[1]) {
+      candidate = m[1].trim();
+    } else {
+      continue;
+    }
     
     // Clean up: collapse multiple spaces, trim
     candidate = candidate.replace(/\s+/g, ' ').trim();
