@@ -256,14 +256,14 @@ function extractEuroAmount(text: string): string | null {
  * find the parts independently and combine them.
  * 
  * Patterns recognized:
- * - Sosh/Orange: "01B6060107" + "25H9- 1J10" (digits+letter+digits format)
+ * - Sosh/Orange: "01B606O107" + "25H9- 1J10" (alphanumeric format - note: may have letter O instead of 0)
  * - Generic: "XX12345678" style references
  */
 function extractInvoiceRefFromScrambledText(text: string): string | null {
   const s = text || '';
   
-  // Pattern for first part: 2 digits + 1 letter + 6-8 digits (e.g., "01B6060107")
-  const firstPartPattern = /\b(\d{2}[A-Z]\d{6,8})\b/gi;
+  // Pattern for first part: 2 digits + 1 letter + 6-8 alphanumeric chars (e.g., "01B606O107" - note O not 0)
+  const firstPartPattern = /\b(\d{2}[A-Z][A-Z0-9]{6,8})\b/gi;
   const firstParts = [...s.matchAll(firstPartPattern)].map(m => m[1]);
   
   // Pattern for second part: 2 digits + 1 letter + 1 digit + separator + 1 digit + 1 letter + 2 digits (e.g., "25H9- 1J10")
@@ -549,7 +549,6 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
       // If standard extraction failed, try to find invoice number parts separately
       // (for scrambled PDFs where parts appear on different lines)
       if (!fromPdfRef) {
-        console.log('[PDF DEBUG] FULL EXTRACTED TEXT:', extractedText);
         fromPdfRef = extractInvoiceRefFromScrambledText(extractedText);
       }
       fromPdfAmount = extractEuroAmount(extractedText);
