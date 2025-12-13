@@ -549,6 +549,7 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
       // If standard extraction failed, try to find invoice number parts separately
       // (for scrambled PDFs where parts appear on different lines)
       if (!fromPdfRef) {
+        console.log('[PDF DEBUG] FULL EXTRACTED TEXT:', extractedText);
         fromPdfRef = extractInvoiceRefFromScrambledText(extractedText);
       }
       fromPdfAmount = extractEuroAmount(extractedText);
