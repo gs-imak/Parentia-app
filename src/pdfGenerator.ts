@@ -262,13 +262,19 @@ function extractEuroAmount(text: string): string | null {
 function extractInvoiceRefFromScrambledText(text: string): string | null {
   const s = text || '';
   
+  console.log('[SCRAMBLED] Searching in text of length:', s.length);
+  console.log('[SCRAMBLED] Contains 01B:', s.includes('01B'));
+  console.log('[SCRAMBLED] Contains 25H9:', s.includes('25H9'));
+  
   // Pattern for first part: 2 digits + 1 letter + 6-8 alphanumeric chars (e.g., "01B606O107" - note O not 0)
   const firstPartPattern = /\b(\d{2}[A-Z][A-Z0-9]{6,8})\b/gi;
   const firstParts = [...s.matchAll(firstPartPattern)].map(m => m[1]);
+  console.log('[SCRAMBLED] First parts found:', firstParts);
   
   // Pattern for second part: 2 digits + 1 letter + 1 digit + separator + 1 digit + 1 letter + 2 digits (e.g., "25H9- 1J10")
   const secondPartPattern = /\b(\d{2}[A-Z]\d[\-\s]+\d[A-Z]\d{2})\b/gi;
   const secondParts = [...s.matchAll(secondPartPattern)].map(m => m[1]);
+  console.log('[SCRAMBLED] Second parts found:', secondParts);
   
   // If we found exactly one of each, combine them
   if (firstParts.length === 1 && secondParts.length === 1) {
