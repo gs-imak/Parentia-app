@@ -1,0 +1,65 @@
+# Cursor Rules for Parentia App Development
+
+## CRITICAL: No Debug Logging Loops
+
+1. **NEVER** add debug logging and ask user to test. Test locally FIRST.
+2. **NEVER** commit debug code without verifying the fix works locally.
+3. **ALWAYS** run the actual function with actual data locally before claiming it's fixed.
+4. If you need to see data, ask the user to provide it ONCE, then test locally.
+
+## Before Claiming Any Fix is Complete
+
+1. **BUILD** the TypeScript: `npm run build`
+2. **VERIFY** the compiled code in `dist/` contains your changes
+3. **TEST** the function locally with realistic test data
+4. Only THEN tell the user to restart their server
+
+## Code Change Workflow (MANDATORY)
+
+1. Understand the problem completely - ask clarifying questions if needed
+2. Write the fix
+3. Test the fix locally with `node -e "..."` using REAL data from logs
+4. Verify the test passes
+5. Build: `npm run build`
+6. Verify dist/ has the changes: `grep "function_name" dist/file.js`
+7. Commit and push
+8. Tell user to restart server
+
+## Pattern Matching / Regex Rules
+
+1. When writing regex for text extraction, ALWAYS consider:
+   - Letters that look like numbers (O vs 0, l vs 1)
+   - Mixed case
+   - Whitespace variations (spaces, newlines, tabs)
+   - Unicode characters
+2. Test regex with the EXACT text from user-provided logs, not simplified versions
+
+## PDF Extraction Specifics
+
+1. pdf-parse produces SCRAMBLED text from multi-column PDFs
+2. Never assume text will be in reading order
+3. Always search the ENTIRE extracted text, not just first N chars
+4. Invoice numbers may have letters mixed with digits (01B606O107 not 01B6060107)
+
+## Absolutely Forbidden
+
+- Adding console.log and asking user to test repeatedly
+- Guessing at solutions without understanding the root cause
+- Claiming something is fixed without local verification
+- Making multiple commits for the same issue without testing between them
+- Hardcoding specific values instead of patterns
+
+## When User Reports Something Isn't Working
+
+1. Ask for the FULL logs/error message
+2. Reproduce the issue locally using the provided data
+3. Fix it locally and verify the fix works
+4. Only then push the fix
+
+## Communication
+
+- Be direct about what went wrong
+- Don't make excuses
+- If you don't know something, say so and investigate properly
+- One fix attempt per issue, not multiple back-and-forth cycles
+
