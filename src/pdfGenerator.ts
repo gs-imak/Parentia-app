@@ -251,6 +251,58 @@ function extractEuroAmount(text: string): string | null {
 }
 
 
+/**
+ * For scrambled PDFs where invoice number parts appear on separate lines,
+ * find the parts independently and combine them.
+ * 
+ * Patterns recognized:
+ * - Sosh/Orange: "01B6060107" + "25H9- 1J10" (digits+letter+digits format)
+ * - Generic: "XX12345678" style references
+ */
+function extractInvoiceRefFromScrambledText(text: string): string | null {
+  const s = text || '';
+  
+  // Pattern for first part: 2 digits + 1 letter + 6-8 digits (e.g., "01B6060107")
+  const firstPartPattern = /\b(\d{2}[A-Z]\d{6,8})\b/gi;
+  const firstParts = [...s.matchAll(firstPartPattern)].map(m => m[1]);
+  
+  // Pattern for second part: 2 digits + 1 letter + 1 digit + separator + 1 digit + 1 letter + 2 digits (e.g., "25H9- 1J10")
+  const secondPartPattern = /\b(\d{2}[A-Z]\d[\-\s]+\d[A-Z]\d{2})\b/gi;
+  const secondParts = [...s.matchAll(secondPartPattern)].map(m => m[1]);
+  
+  // If we found exactly one of each, combine them
+  if (firstParts.length === 1 && secondParts.length === 1) {
+    const combined = `${firstParts[0]} ${secondParts[0]}`;
+    console.log('[INVOICE] Combined scrambled parts:', combined);
+    return combined;
+  }
+  
+  // If we only found the first part (which is still a valid reference), use it
+  if (firstParts.length === 1 && secondParts.length === 0) {
+    console.log('[INVOICE] Using first part only:', firstParts[0]);
+    return firstParts[0];
+  }
+  
+  // Pattern for standalone alphanumeric invoice refs: 2+ letters + 2+ digits + optional suffix
+  // e.g., "CE25/3924", "FA2024-001", "INV12345"
+  const standalonePattern = /\b([A-Z]{2,4}\d{2,}[\/\-]?\d{2,})\b/gi;
+  const standalones = [...s.matchAll(standalonePattern)].map(m => m[1]);
+  
+  // Filter out things that look like dates (e.g., "FI44990397" is fine, but avoid matching account numbers)
+  const validStandalones = standalones.filter(ref => {
+    // Reject if it's all digits after the letters (likely an account number)
+    const digitsOnly = ref.replace(/[^0-9]/g, '');
+    return digitsOnly.length <= 10; // Invoice numbers are typically shorter
+  });
+  
+  if (validStandalones.length === 1) {
+    console.log('[INVOICE] Found standalone ref:', validStandalones[0]);
+    return validStandalones[0];
+  }
+  
+  return null;
+}
+
 function extractFilenameFromUrl(url: string): string | null {
   try {
     const withoutQuery = url.split('?')[0];
@@ -491,25 +543,14 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
       console.log('[PDF EXTRACTION DEBUG] Extracted text length:', extractedText.length);
       console.log('[PDF EXTRACTION DEBUG] First 500 chars:', extractedText.substring(0, 500));
       
-      // Debug: Search for invoice number patterns in full text
-      const has01B = extractedText.includes('01B');
-      const has25H9 = extractedText.includes('25H9');
-      const hasCE25 = extractedText.includes('CE25');
-      console.log('[PDF EXTRACTION DEBUG] Contains "01B":', has01B, '| "25H9":', has25H9, '| "CE25":', hasCE25);
-      
-      // Show context around the matches to understand the actual format
-      if (has01B) {
-        const idx = extractedText.indexOf('01B');
-        const context = extractedText.substring(Math.max(0, idx - 20), Math.min(extractedText.length, idx + 50));
-        console.log('[PDF DEBUG] Context around "01B":', JSON.stringify(context));
-      }
-      if (has25H9) {
-        const idx = extractedText.indexOf('25H9');
-        const context = extractedText.substring(Math.max(0, idx - 20), Math.min(extractedText.length, idx + 50));
-        console.log('[PDF DEBUG] Context around "25H9":', JSON.stringify(context));
-      }
-      
+      // Try standard extraction first
       fromPdfRef = extractInvoiceRefFromText(extractedText);
+      
+      // If standard extraction failed, try to find invoice number parts separately
+      // (for scrambled PDFs where parts appear on different lines)
+      if (!fromPdfRef) {
+        fromPdfRef = extractInvoiceRefFromScrambledText(extractedText);
+      }
       fromPdfAmount = extractEuroAmount(extractedText);
       fromPdfDate = extractInvoiceDateFromText(extractedText);
       console.log('[PDF EXTRACTION DEBUG] fromPdfRef:', fromPdfRef);
