@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
   Modal,
   View,
@@ -9,6 +9,17 @@ import {
   Linking,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+
+// Conditionally import WebView only for native (Expo doesn't provide a built-in PDF viewer).
+let WebView: any = null;
+if (Platform.OS !== 'web') {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    WebView = require('react-native-webview').WebView;
+  } catch {
+    WebView = null;
+  }
+}
 
 interface PDFViewerModalProps {
   visible: boolean;
@@ -23,15 +34,8 @@ export default function PDFViewerModal({
   title = 'Document PDF',
   onClose,
 }: PDFViewerModalProps) {
-  const [cacheBuster, setCacheBuster] = useState<number>(Date.now());
-
-  // On web (especially iOS Safari), <object> can render a blank page due to caching/layout timing.
-  // Forcing a cache-busted URL only when the modal opens improves reliability without changing navigation.
-  useEffect(() => {
-    if (Platform.OS === 'web' && visible && pdfUrl) {
-      setCacheBuster(Date.now());
-    }
-  }, [visible, pdfUrl]);
+  // Milestone 5 (FINAL): PDF preview must be readable without mandatory download.
+  // On web, prefer <iframe> which is generally more reliable and scrollable than <object>.
 
   const isIOSWeb = () => {
     if (Platform.OS !== 'web') return false;
@@ -43,12 +47,10 @@ export default function PDFViewerModal({
     }
   };
 
-  const webObjectUrl = useMemo(() => {
+  const webViewerUrl = useMemo(() => {
     if (!pdfUrl) return null;
-    const sep = pdfUrl.includes('?') ? '&' : '?';
-    // query before hash, keep FitH fragment at the end
-    return `${pdfUrl}${sep}_cb=${cacheBuster}#view=FitH`;
-  }, [pdfUrl, cacheBuster]);
+    return `${pdfUrl}#view=FitH`;
+  }, [pdfUrl]);
 
   const handleDownload = async () => {
     if (!pdfUrl) return;
@@ -119,36 +121,44 @@ export default function PDFViewerModal({
         {/* PDF Viewer */}
         {Platform.OS === 'web' ? (
           <View style={styles.webViewerContainer}>
-            <object
-              key={webObjectUrl || pdfUrl}
-              data={webObjectUrl || `${pdfUrl}#view=FitH`}
-              type="application/pdf"
+            {/* @ts-ignore - iframe is web-only */}
+            <iframe
+              // Use key to force a refresh when switching docs.
+              key={webViewerUrl || pdfUrl}
+              src={webViewerUrl || pdfUrl}
+              title={title}
               style={{
                 width: '100%',
                 height: '100%',
+                border: 'none',
               }}
-            >
-              <p>
-                Impossible d'afficher le PDF.{' '}
-                <a href={pdfUrl} target="_blank" rel="noopener noreferrer">
-                  Télécharger le PDF
-                </a>
-              </p>
-            </object>
+            />
 
           </View>
         ) : (
-          <View style={styles.nativeContainer}>
-            <Text style={styles.nativeText}>
-              Appuyez sur le bouton télécharger pour ouvrir le PDF
-            </Text>
-            <TouchableOpacity
-              style={styles.openButton}
-              onPress={handleDownload}
-            >
-              <Feather name="external-link" size={20} color="#FFFFFF" />
-              <Text style={styles.openButtonText}>Ouvrir le PDF</Text>
-            </TouchableOpacity>
+          <View style={styles.nativeViewerContainer}>
+            {WebView ? (
+              <WebView
+                source={{ uri: pdfUrl }}
+                style={{ flex: 1 }}
+                originWhitelist={['*']}
+                startInLoadingState
+                allowsBackForwardNavigationGestures
+              />
+            ) : (
+              <View style={styles.nativeContainer}>
+                <Text style={styles.nativeText}>
+                  Impossible d'afficher le PDF. Appuyez sur télécharger pour l'ouvrir.
+                </Text>
+                <TouchableOpacity
+                  style={styles.openButton}
+                  onPress={handleDownload}
+                >
+                  <Feather name="external-link" size={20} color="#FFFFFF" />
+                  <Text style={styles.openButtonText}>Ouvrir le PDF</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         )}
       </View>
@@ -163,8 +173,11 @@ const styles = StyleSheet.create({
   },
   webViewerContainer: {
     flex: 1,
-    // Critical for web/Safari: allow the <object> to size properly inside a flex column.
-    // Without this, Safari can end up with a 0-height object -> blank viewer.
+    // Critical: allow the embedded viewer to size properly inside a flex column.
+    minHeight: 0 as any,
+  },
+  nativeViewerContainer: {
+    flex: 1,
     minHeight: 0 as any,
   },
   header: {
