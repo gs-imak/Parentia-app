@@ -57,11 +57,16 @@ function PDFJSViewer({ pdfUrl, containerWidth }: { pdfUrl: string; containerWidt
         setLoading(true);
         setError(null);
 
+        // Fetch PDF as ArrayBuffer to avoid CORS issues
+        const response = await fetch(pdfUrl);
+        if (!response.ok) throw new Error('Failed to fetch PDF');
+        const pdfData = await response.arrayBuffer();
+
         const pdfjsLib = await import('pdfjs-dist');
         
         pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
-        const loadingTask = pdfjsLib.getDocument(pdfUrl);
+        const loadingTask = pdfjsLib.getDocument({ data: pdfData });
         const pdf = await loadingTask.promise;
 
         if (cancelled) return;
@@ -99,6 +104,7 @@ function PDFJSViewer({ pdfUrl, containerWidth }: { pdfUrl: string; containerWidt
           setLoading(false);
         }
       } catch (err) {
+        console.error('PDF.js render error:', err);
         if (!cancelled) {
           setError('Impossible de charger le PDF');
           setLoading(false);
