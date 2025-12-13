@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Modal,
   View,
@@ -7,14 +7,14 @@ import {
   StyleSheet,
   Platform,
   Linking,
+  ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
-// Conditionally import WebView only for native (Expo doesn't provide a built-in PDF viewer).
 let WebView: any = null;
 if (Platform.OS !== 'web') {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     WebView = require('react-native-webview').WebView;
   } catch {
     WebView = null;
@@ -28,41 +28,185 @@ interface PDFViewerModalProps {
   onClose: () => void;
 }
 
+function isIOSSafari(): boolean {
+  if (Platform.OS !== 'web') return false;
+  try {
+    const ua = navigator.userAgent || '';
+    const isIOS = /iPad|iPhone|iPod/i.test(ua);
+    const isWebKit = /AppleWebKit/i.test(ua);
+    const isChrome = /CriOS/i.test(ua);
+    const isFirefox = /FxiOS/i.test(ua);
+    return isIOS && isWebKit && !isChrome && !isFirefox;
+  } catch {
+    return false;
+  }
+}
+
+function PDFJSViewer({ pdfUrl, containerWidth }: { pdfUrl: string; containerWidth: number }) {
+  const [pages, setPages] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!pdfUrl || containerWidth <= 0) return;
+
+    let cancelled = false;
+
+    const renderPDF = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const pdfjsLib = await import('pdfjs-dist');
+        
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+
+        const loadingTask = pdfjsLib.getDocument(pdfUrl);
+        const pdf = await loadingTask.promise;
+
+        if (cancelled) return;
+
+        const pageDataUrls: string[] = [];
+        const scale = 2; // High-res rendering
+
+        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+          const page = await pdf.getPage(pageNum);
+          const viewport = page.getViewport({ scale: 1 });
+          
+          const desiredWidth = containerWidth * scale;
+          const scaleFactor = desiredWidth / viewport.width;
+          const scaledViewport = page.getViewport({ scale: scaleFactor });
+
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
+          if (!context) continue;
+
+          canvas.width = scaledViewport.width;
+          canvas.height = scaledViewport.height;
+
+          await page.render({
+            canvasContext: context,
+            viewport: scaledViewport,
+          }).promise;
+
+          if (cancelled) return;
+
+          pageDataUrls.push(canvas.toDataURL('image/png'));
+        }
+
+        if (!cancelled) {
+          setPages(pageDataUrls);
+          setLoading(false);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError('Impossible de charger le PDF');
+          setLoading(false);
+        }
+      }
+    };
+
+    renderPDF();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pdfUrl, containerWidth]);
+
+  if (loading) {
+    return (
+      <View style={pdfStyles.loadingContainer}>
+        <ActivityIndicator size="large" color="#3A82F7" />
+        <Text style={pdfStyles.loadingText}>Chargement du document...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={pdfStyles.errorContainer}>
+        <Feather name="alert-circle" size={48} color="#E74C3C" />
+        <Text style={pdfStyles.errorText}>{error}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView
+      style={pdfStyles.scrollView}
+      contentContainerStyle={pdfStyles.scrollContent}
+      showsVerticalScrollIndicator={true}
+    >
+      {pages.map((dataUrl, index) => (
+        <img
+          key={index}
+          src={dataUrl}
+          alt={`Page ${index + 1}`}
+          style={{
+            width: '100%',
+            height: 'auto',
+            display: 'block',
+            marginBottom: index < pages.length - 1 ? 8 : 0,
+          }}
+        />
+      ))}
+    </ScrollView>
+  );
+}
+
+const pdfStyles = StyleSheet.create({
+  scrollView: {
+    flex: 1,
+    backgroundColor: '#E5E5E5',
+  },
+  scrollContent: {
+    padding: 8,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F5F7FA',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 14,
+    color: '#6E7A84',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F5F7FA',
+    padding: 32,
+  },
+  errorText: {
+    marginTop: 16,
+    fontSize: 14,
+    color: '#E74C3C',
+    textAlign: 'center',
+  },
+});
+
 export default function PDFViewerModal({
   visible,
   pdfUrl,
   title = 'Document PDF',
   onClose,
 }: PDFViewerModalProps) {
-  // Milestone 5 (FINAL): PDF preview must be readable without mandatory download.
-  // On web, prefer <iframe> which is generally more reliable and scrollable than <object>.
-
-  const isIOSWeb = () => {
-    if (Platform.OS !== 'web') return false;
-    try {
-      const ua = navigator.userAgent || '';
-      return /iPad|iPhone|iPod/i.test(ua);
-    } catch {
-      return false;
-    }
-  };
-
-  // Note: iOS Safari ignores all URL fragments (#zoom, #view, etc.) for PDFs in iframes.
-  // The cleanest approach is to let Safari use its default zoom, which is actually reasonable.
-
+  const containerRef = useRef<View>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const usesPDFJS = isIOSSafari();
 
   const handleDownload = async () => {
     if (!pdfUrl) return;
 
     if (Platform.OS === 'web') {
-      // iOS Safari often ignores `download` and may navigate the current tab to a blob/PDF viewer,
-      // which breaks SPA back navigation. Open in a new tab instead.
-      if (isIOSWeb()) {
+      if (usesPDFJS) {
         window.open(pdfUrl, '_blank', 'noopener,noreferrer');
         return;
       }
 
-      // On web, fetch PDF and download as blob
       try {
         const response = await fetch(pdfUrl);
         if (!response.ok) throw new Error('Failed to fetch PDF');
@@ -70,28 +214,23 @@ export default function PDFViewerModal({
         const blob = await response.blob();
         const blobUrl = URL.createObjectURL(blob);
         
-        // Extract filename from URL or use default
         const urlParts = pdfUrl.split('/');
         const filename = urlParts[urlParts.length - 1] || 'document.pdf';
         
-        // Create download link
         const link = document.createElement('a');
         link.href = blobUrl;
         link.download = filename;
-        // Safety net: if the browser ignores `download`, open in a new tab (keeps current SPA tab intact)
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         
-        // Clean up
         setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
       } catch (error) {
         console.error('Failed to download PDF:', error);
       }
     } else {
-      // On native, open URL directly
       Linking.openURL(pdfUrl);
     }
   };
@@ -106,7 +245,6 @@ export default function PDFViewerModal({
       transparent={false}
     >
       <View style={styles.container}>
-        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <Feather name="x" size={24} color="#2C3E50" />
@@ -117,20 +255,31 @@ export default function PDFViewerModal({
           </TouchableOpacity>
         </View>
 
-        {/* PDF Viewer */}
         {Platform.OS === 'web' ? (
-          <View style={styles.webViewerContainer}>
-            {/* @ts-ignore - iframe is web-only */}
-            <iframe
-              src={pdfUrl}
-              title={title}
-              style={{
-                width: '100%',
-                height: '100%',
-                border: 'none',
-              }}
-            />
-          </View>
+          usesPDFJS ? (
+            <View
+              ref={containerRef}
+              style={styles.pdfJSContainer}
+              onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
+            >
+              {containerWidth > 0 && (
+                <PDFJSViewer pdfUrl={pdfUrl} containerWidth={containerWidth} />
+              )}
+            </View>
+          ) : (
+            <View style={styles.webViewerContainer}>
+              {/* @ts-ignore */}
+              <iframe
+                src={pdfUrl}
+                title={title}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  border: 'none',
+                }}
+              />
+            </View>
+          )
         ) : (
           <View style={styles.nativeViewerContainer}>
             {WebView ? (
@@ -169,7 +318,10 @@ const styles = StyleSheet.create({
   },
   webViewerContainer: {
     flex: 1,
-    // Critical: allow the embedded viewer to size properly inside a flex column.
+    minHeight: 0 as any,
+  },
+  pdfJSContainer: {
+    flex: 1,
     minHeight: 0 as any,
   },
   nativeViewerContainer: {

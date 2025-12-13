@@ -20,6 +20,7 @@
     "expo-status-bar": "~3.0.8",
     "normalize-css-color": "^1.0.2",
     "parentia-ai-pipeline": "file:..",
+    "pdfjs-dist": "^4.0.379",
     "react": "19.1.0",
     "react-dom": "^19.1.0",
     "react-native": "0.81.5",
