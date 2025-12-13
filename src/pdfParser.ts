@@ -41,6 +41,7 @@ export async function extractPdfText(buffer: Buffer): Promise<string | null> {
   }
   
   try {
+    // Extract with page breaks to preserve some structure
     const result = await pdfParse(buffer);
     const text = result.text?.trim();
     
@@ -50,13 +51,24 @@ export async function extractPdfText(buffer: Buffer): Promise<string | null> {
       return null;
     }
     
+    // Clean up common extraction artifacts
+    let cleaned = text;
+    
+    // Remove excessive whitespace/newlines but keep structure
+    cleaned = cleaned.replace(/\n{3,}/g, '\n\n'); // Max 2 consecutive newlines
+    cleaned = cleaned.replace(/[ \t]{2,}/g, ' '); // Multiple spaces → single space
+    
+    // Fix common OCR/extraction errors in French invoices
+    cleaned = cleaned.replace(/n\s*[°º]\s*/gi, 'n° '); // "n °" or "n°" → "n° "
+    cleaned = cleaned.replace(/N\s*[°º]\s*/g, 'N° '); // Same for uppercase
+    
     // Truncate to avoid token limits
-    if (text.length > MAX_TEXT_LENGTH) {
-      console.log(`PDF text truncated from ${text.length} to ${MAX_TEXT_LENGTH} chars`);
-      return text.slice(0, MAX_TEXT_LENGTH);
+    if (cleaned.length > MAX_TEXT_LENGTH) {
+      console.log(`PDF text truncated from ${cleaned.length} to ${MAX_TEXT_LENGTH} chars`);
+      return cleaned.slice(0, MAX_TEXT_LENGTH);
     }
     
-    return text;
+    return cleaned;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('PDF parsing failed:', message);

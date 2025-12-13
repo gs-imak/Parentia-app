@@ -151,29 +151,45 @@ function extractInvoiceRefFromText(text: string): string | null {
 
   // ONLY match explicit invoice/facture patterns - avoid generic "ref" that could match SIRET, customer ref, etc.
   const patterns: RegExp[] = [
-    // "Facture n° : CE25/3924" or "Facture numero 123"
-    /facture\s*(?:n(?:°|o)?|num(?:[ée]ro)?|#)?\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{3,})/i,
+    // "Facture n° : CE25/3924" or "Facture numero 123" or "n° de facture : 01B6060107 25H9-1J10"
+    /(?:facture|invoice)\s*(?:n(?:°|o)?|num(?:[ée]ro)?|#)?\s*[:\-]?\s*([A-Z0-9][A-Z0-9\s\-_/]{3,})/i,
+    // "n° de facture : 01B6060107"
+    /n[°º]\s*(?:de\s*)?facture\s*[:\-]?\s*([A-Z0-9][A-Z0-9\s\-_/]{3,})/i,
     // "Facture m* : CE25/3924" (OCR noise tolerance)
-    /facture\s*[^\S\r\n]*[^\w\r\n]{0,3}[\w*°º]{0,6}\s*[:\-]\s*([A-Z0-9][A-Z0-9\-_/]{2,})/i,
+    /facture\s*[^\S\r\n]*[^\w\r\n]{0,3}[\w*°º]{0,6}\s*[:\-]\s*([A-Z0-9][A-Z0-9\s\-_/]{2,})/i,
     // "Invoice no. ABC123" or "Invoice number: 456"
-    /invoice\s*(?:no\.?|number|#)?\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{3,})/i,
+    /invoice\s*(?:no\.?|number|#)?\s*[:\-]?\s*([A-Z0-9][A-Z0-9\s\-_/]{3,})/i,
     // "Réf. facture : XYZ" (only if "facture" is present nearby)
-    /réf(?:érence)?\s*[:\.]?\s*(?:de\s+)?facture\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{3,})/i,
+    /réf(?:érence)?\s*[:\.]?\s*(?:de\s+)?facture\s*[:\-]?\s*([A-Z0-9][A-Z0-9\s\-_/]{3,})/i,
   ];
 
   for (const re of patterns) {
     const m = s.match(re);
-    const candidate = m?.[1]?.trim();
-    // Require at least one digit to avoid grabbing random words.
-    // Also reject pure numeric strings longer than 12 digits (likely SIRET/SIREN, not invoice refs)
-    if (candidate && /\d/.test(candidate)) {
-      const isAllDigits = /^\d+$/.test(candidate);
-      if (isAllDigits && candidate.length > 12) {
-        console.log('[INVOICE DEBUG] Rejected candidate (too long, likely SIRET):', candidate);
-        continue; // Skip SIRET/SIREN-like numbers
-      }
-      return candidate;
+    let candidate = m?.[1]?.trim();
+    if (!candidate) continue;
+    
+    // Clean up: collapse multiple spaces, trim
+    candidate = candidate.replace(/\s+/g, ' ').trim();
+    
+    // Require at least one digit to avoid grabbing random words
+    if (!/\d/.test(candidate)) continue;
+    
+    // Reject pure numeric strings longer than 12 digits (likely SIRET/SIREN, not invoice refs)
+    const isAllDigits = /^[\d\s]+$/.test(candidate);
+    const digitsOnly = candidate.replace(/\D/g, '');
+    if (isAllDigits && digitsOnly.length > 12) {
+      console.log('[INVOICE DEBUG] Rejected candidate (too long, likely SIRET):', candidate);
+      continue;
     }
+    
+    // Truncate at first occurrence of date-like pattern (YYYY-MM-DD or similar)
+    // e.g., "01B6060107 25H9-1J10 2025-10-28" → "01B6060107 25H9-1J10"
+    const beforeDate = candidate.split(/\s+\d{4}[-\/]\d{2}[-\/]\d{2}/)[0];
+    if (beforeDate && beforeDate !== candidate) {
+      candidate = beforeDate.trim();
+    }
+    
+    return candidate;
   }
 
   // NO fallback to generic long numbers - too risky (catches SIRET, account numbers, etc.)
