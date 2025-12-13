@@ -374,19 +374,28 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
   if (task.imageUrl) {
     const extractedText = await fetchAndExtractPdfText(task.imageUrl);
     if (extractedText) {
+      console.log('[PDF EXTRACTION DEBUG] Extracted text length:', extractedText.length);
+      console.log('[PDF EXTRACTION DEBUG] First 500 chars:', extractedText.substring(0, 500));
       fromPdfRef = extractInvoiceRefFromText(extractedText);
       fromPdfAmount = extractEuroAmount(extractedText);
       fromPdfDate = extractInvoiceDateFromText(extractedText);
+      console.log('[PDF EXTRACTION DEBUG] fromPdfRef:', fromPdfRef);
+      console.log('[PDF EXTRACTION DEBUG] fromPdfAmount:', fromPdfAmount);
+      console.log('[PDF EXTRACTION DEBUG] fromPdfDate:', fromPdfDate);
+    } else {
+      console.log('[PDF EXTRACTION DEBUG] No text extracted from PDF');
     }
   }
 
   // Priority: PDF (if present) → then other sources
   const invoiceRef = fromPdfRef || fromTitle || fromDescription || fromFilename;
-  if (invoiceRef && !variables.invoiceRef) variables.invoiceRef = invoiceRef;
-
   const invoiceAmount = fromPdfAmount || fromTextAmount;
+  
+  console.log('[INVOICE DEBUG] Final invoiceRef:', invoiceRef, '(PDF:', fromPdfRef, 'Title:', fromTitle, 'Desc:', fromDescription, 'File:', fromFilename, ')');
+  console.log('[INVOICE DEBUG] Final invoiceAmount:', invoiceAmount, '(PDF:', fromPdfAmount, 'Text:', fromTextAmount, ')');
+  
+  if (invoiceRef && !variables.invoiceRef) variables.invoiceRef = invoiceRef;
   if (invoiceAmount && !variables.invoiceAmount) variables.invoiceAmount = invoiceAmount;
-
   if (fromPdfDate && !variables.invoiceDate) variables.invoiceDate = fromPdfDate;
 
   const currentContestation = (variables.contestationReason || '').trim();
