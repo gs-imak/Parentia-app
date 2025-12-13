@@ -400,37 +400,46 @@ export async function generatePDF(input: GeneratePDFInput): Promise<GeneratePDFO
 
   // Milestone 5: For absence justificatifs, ensure we use the correct child.
   // Rules (deterministic; NO guessing):
-  // - If profile has exactly 1 child → use it
-  // - Else if exactly 1 child's firstName appears as a word in task title/description → use it
-  // - Else → leave placeholders unfilled (better blank than wrong child)
+  // 1. Extract child name directly from task text (patterns like "Absence école Héloïse")
+  // 2. If no explicit name in text but profile has children, use profile-based selection
+  // 3. Otherwise leave blank (better blank than wrong child)
   if (input.taskId && (template.id === 'ecole_absence' || template.id === 'creche_absence')) {
-    const [profile, task] = await Promise.all([getProfile(), getTaskById(input.taskId)]);
-    if (task && profile.children.length > 0) {
+    const task = await getTaskById(input.taskId);
+    if (task) {
       const taskText = `${task.title || ''}\n${task.description || ''}`;
       const explicitName = extractExplicitChildNameFromAbsenceTaskText(taskText);
-      const selected = selectChildFromTaskText(profile.children, taskText);
 
-      // Highest priority: if the task explicitly names the child, use that name even if it's not in the profile.
+      // Highest priority: if the task explicitly names the child, use that name directly.
+      // No profile lookup required - we trust the task text.
       if (explicitName) {
         mergedVars.childName = explicitName;
         mergedVars.patientName = explicitName;
 
-        // If that name exists in profile, also populate birthDate deterministically.
+        // Try to get birthDate from profile if child exists there
+        const profile = await getProfile();
         const byName = profile.children.find((c) => (c.firstName || '').trim().toLowerCase() === explicitName.toLowerCase());
         if (byName) {
           mergedVars.childBirthDate = formatDateFrench(byName.birthDate);
         } else {
           delete (mergedVars as any).childBirthDate;
         }
-      } else if (selected) {
-        mergedVars.childName = selected.firstName;
-        mergedVars.childBirthDate = formatDateFrench(selected.birthDate);
-        mergedVars.patientName = selected.firstName;
-      } else if (profile.children.length > 1) {
-        // Remove profile default (first child) to avoid incorrect output.
-        delete (mergedVars as any).childName;
-        delete (mergedVars as any).childBirthDate;
-        delete (mergedVars as any).patientName;
+      } else {
+        // No explicit name in task text - fall back to profile-based selection
+        const profile = await getProfile();
+        if (profile.children.length > 0) {
+          const selected = selectChildFromTaskText(profile.children, taskText);
+          if (selected) {
+            mergedVars.childName = selected.firstName;
+            mergedVars.childBirthDate = formatDateFrench(selected.birthDate);
+            mergedVars.patientName = selected.firstName;
+          } else if (profile.children.length > 1) {
+            // Multiple children but can't determine which one - leave blank
+            delete (mergedVars as any).childName;
+            delete (mergedVars as any).childBirthDate;
+            delete (mergedVars as any).patientName;
+          }
+          // If exactly 1 child, profile defaults already set correctly
+        }
       }
     }
   }
