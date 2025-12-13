@@ -42,10 +42,11 @@ function isIOSSafari(): boolean {
   }
 }
 
-function PDFJSViewer({ pdfUrl, containerWidth }: { pdfUrl: string; containerWidth: number }) {
+function PDFJSViewer({ pdfUrl, containerWidth, title }: { pdfUrl: string; containerWidth: number; title: string }) {
   const [pages, setPages] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [useFallback, setUseFallback] = useState(false);
 
   useEffect(() => {
     if (!pdfUrl || containerWidth <= 0) return;
@@ -56,11 +57,14 @@ function PDFJSViewer({ pdfUrl, containerWidth }: { pdfUrl: string; containerWidt
       try {
         setLoading(true);
         setError(null);
+        setUseFallback(false);
 
         // Fetch PDF as ArrayBuffer to avoid CORS issues
-        const response = await fetch(pdfUrl);
-        if (!response.ok) throw new Error('Failed to fetch PDF');
+        const response = await fetch(pdfUrl, { mode: 'cors', credentials: 'omit' });
+        if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
         const pdfData = await response.arrayBuffer();
+
+        if (pdfData.byteLength === 0) throw new Error('Empty PDF response');
 
         const pdfjsLib = await import('pdfjs-dist');
         
@@ -72,7 +76,7 @@ function PDFJSViewer({ pdfUrl, containerWidth }: { pdfUrl: string; containerWidt
         if (cancelled) return;
 
         const pageDataUrls: string[] = [];
-        const scale = 2; // High-res rendering
+        const scale = 2;
 
         for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
           const page = await pdf.getPage(pageNum);
@@ -106,7 +110,8 @@ function PDFJSViewer({ pdfUrl, containerWidth }: { pdfUrl: string; containerWidt
       } catch (err) {
         console.error('PDF.js render error:', err);
         if (!cancelled) {
-          setError('Impossible de charger le PDF');
+          // Fall back to iframe instead of showing error
+          setUseFallback(true);
           setLoading(false);
         }
       }
@@ -128,11 +133,20 @@ function PDFJSViewer({ pdfUrl, containerWidth }: { pdfUrl: string; containerWidt
     );
   }
 
-  if (error) {
+  // Fallback to iframe if PDF.js failed
+  if (useFallback || error) {
     return (
-      <View style={pdfStyles.errorContainer}>
-        <Feather name="alert-circle" size={48} color="#E74C3C" />
-        <Text style={pdfStyles.errorText}>{error}</Text>
+      <View style={{ flex: 1 }}>
+        {/* @ts-ignore */}
+        <iframe
+          src={pdfUrl}
+          title={title}
+          style={{
+            width: '100%',
+            height: '100%',
+            border: 'none',
+          }}
+        />
       </View>
     );
   }
@@ -269,7 +283,7 @@ export default function PDFViewerModal({
               onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
             >
               {containerWidth > 0 && (
-                <PDFJSViewer pdfUrl={pdfUrl} containerWidth={containerWidth} />
+                <PDFJSViewer pdfUrl={pdfUrl} containerWidth={containerWidth} title={title} />
               )}
             </View>
           ) : (
