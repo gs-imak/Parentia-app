@@ -276,15 +276,15 @@ function extractInvoiceRefFromScrambledText(text: string): string | null {
   const secondParts = [...s.matchAll(secondPartPattern)].map(m => m[1]);
   console.log('[SCRAMBLED] Second parts found:', secondParts);
   
-  // If we found exactly one of each, combine them
-  if (firstParts.length === 1 && secondParts.length === 1) {
+  // If we found at least one of each, combine them (some PDFs repeat invoice info on multiple pages)
+  if (firstParts.length >= 1 && secondParts.length >= 1) {
     const combined = `${firstParts[0]} ${secondParts[0]}`;
     console.log('[INVOICE] Combined scrambled parts:', combined);
     return combined;
   }
   
   // If we only found the first part (which is still a valid reference), use it
-  if (firstParts.length === 1 && secondParts.length === 0) {
+  if (firstParts.length >= 1 && secondParts.length === 0) {
     console.log('[INVOICE] Using first part only:', firstParts[0]);
     return firstParts[0];
   }
