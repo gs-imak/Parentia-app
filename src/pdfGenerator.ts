@@ -437,8 +437,23 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
 
   // Contestation de facture: if a PDF is present, it is authoritative for invoice number / amount / date.
   const invoiceContextText = `${task.title || ''}\n${task.description || ''}`;
+  
+  // Extract from title/description, but be careful: task titles often contain "Payer facture Sosh - 30€"
+  // which should NOT be treated as an invoice number
   const fromTitle = extractInvoiceRefFromText(task.title || '');
   const fromDescription = extractInvoiceRefFromText(task.description || '');
+  
+  // Validate title extraction: reject if it looks like "VendorName - Amount" pattern
+  let validatedTitleRef = fromTitle;
+  if (fromTitle) {
+    // Reject patterns like "Sosh - 30", "Orange - 25", "EDF - 100" (vendor name + amount)
+    const looksLikeVendorAmount = /^[A-Za-zÀ-ÿ]+\s*-\s*\d+$/i.test(fromTitle);
+    if (looksLikeVendorAmount) {
+      console.log('[INVOICE DEBUG] Rejected title ref (looks like vendor-amount):', fromTitle);
+      validatedTitleRef = null;
+    }
+  }
+  
   const fromTextAmount = extractEuroAmount(invoiceContextText);
 
   const attachmentFilename = task.imageUrl ? extractFilenameFromUrl(task.imageUrl) : null;
@@ -466,7 +481,7 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
 
   // Priority: PDF (if present) → then other sources
   // BUT: sanity check for corrupted PDF extraction
-  let invoiceRef = fromPdfRef || fromTitle || fromDescription || fromFilename;
+  let invoiceRef = fromPdfRef || validatedTitleRef || fromDescription || fromFilename;
   let invoiceAmount = fromPdfAmount || fromTextAmount;
   
   // Sanity check: if PDF amount and text amount both exist but differ significantly,
@@ -485,7 +500,7 @@ export async function getTaskVariables(taskId: string): Promise<Record<string, s
     }
   }
   
-  console.log('[INVOICE DEBUG] Final invoiceRef:', invoiceRef, '(PDF:', fromPdfRef, 'Title:', fromTitle, 'Desc:', fromDescription, 'File:', fromFilename, ')');
+  console.log('[INVOICE DEBUG] Final invoiceRef:', invoiceRef, '(PDF:', fromPdfRef, 'Title:', validatedTitleRef, 'Desc:', fromDescription, 'File:', fromFilename, ')');
   console.log('[INVOICE DEBUG] Final invoiceAmount:', invoiceAmount, '(PDF:', fromPdfAmount, 'Text:', fromTextAmount, ')');
   
   if (invoiceRef && !variables.invoiceRef) variables.invoiceRef = invoiceRef;
