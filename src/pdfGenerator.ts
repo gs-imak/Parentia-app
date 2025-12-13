@@ -108,6 +108,27 @@ function selectChildFromTaskText(children: Child[], taskText: string): Child | n
   return null;
 }
 
+function extractExplicitChildNameFromAbsenceTaskText(taskText: string): string | null {
+  const s = (taskText || '').trim();
+  if (!s) return null;
+
+  // Prefer explicit "Absence école <Name>" / "Absence crèche <Name>" patterns.
+  // Deterministic: we only take a single, clearly delimited first-name token.
+  const patterns: RegExp[] = [
+    /\babsence\b[\s\S]{0,80}\b(?:école|ecole|cr[eè]che)\b[\s:—-]*([A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ]+)\b/u,
+    /\bjustificatif\b[\s\S]{0,80}\babsence\b[\s\S]{0,80}\bde\b[\s:—-]*([A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ]+)\b/u,
+    /\babsence\b[\s\S]{0,80}\bde\b[\s:—-]*([A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ]+)\b/u,
+  ];
+
+  for (const re of patterns) {
+    const m = s.match(re);
+    const candidate = m?.[1]?.trim();
+    if (candidate) return candidate;
+  }
+
+  return null;
+}
+
 function defaultContestationReason(): string {
   // Deterministic, non-accusatory, administratively credible.
   return `Je conteste le montant indiqué et vous demande une vérification détaillée de cette facture.`;
@@ -386,9 +407,22 @@ export async function generatePDF(input: GeneratePDFInput): Promise<GeneratePDFO
     const [profile, task] = await Promise.all([getProfile(), getTaskById(input.taskId)]);
     if (task && profile.children.length > 0) {
       const taskText = `${task.title || ''}\n${task.description || ''}`;
+      const explicitName = extractExplicitChildNameFromAbsenceTaskText(taskText);
       const selected = selectChildFromTaskText(profile.children, taskText);
 
-      if (selected) {
+      // Highest priority: if the task explicitly names the child, use that name even if it's not in the profile.
+      if (explicitName) {
+        mergedVars.childName = explicitName;
+        mergedVars.patientName = explicitName;
+
+        // If that name exists in profile, also populate birthDate deterministically.
+        const byName = profile.children.find((c) => (c.firstName || '').trim().toLowerCase() === explicitName.toLowerCase());
+        if (byName) {
+          mergedVars.childBirthDate = formatDateFrench(byName.birthDate);
+        } else {
+          delete (mergedVars as any).childBirthDate;
+        }
+      } else if (selected) {
         mergedVars.childName = selected.firstName;
         mergedVars.childBirthDate = formatDateFrench(selected.birthDate);
         mergedVars.patientName = selected.firstName;
