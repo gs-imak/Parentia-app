@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import { AppEvents, EVENTS } from '../utils/events';
 
 // For web, use relative URLs (same domain as Railway)
 // For mobile (Expo Go), use the configured backend URL
@@ -423,11 +424,26 @@ export async function generatePDF(options: {
   taskId?: string;
   variables?: Record<string, string>;
 }): Promise<GeneratedPDF> {
-  return fetchApi<GeneratedPDF>('/pdf/generate', {
+  const result = await fetchApi<GeneratedPDF>('/pdf/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(options),
   });
+
+  // Emit deterministic event for PDF generation success
+  try {
+    AppEvents.dispatchEvent(new CustomEvent(EVENTS.PDF_GENERATED, {
+      detail: {
+        taskId: options.taskId,
+        documentType: options.templateId,
+        generatedAt: new Date().toISOString(),
+      },
+    }));
+  } catch {
+    // Do not throw if event dispatch fails
+  }
+
+  return result;
 }
 
 /**

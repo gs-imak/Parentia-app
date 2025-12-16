@@ -18,6 +18,9 @@ import * as ImagePicker from 'expo-image-picker';
 import { createTask, getAllTasks, deleteTask, updateTask, createTaskFromImage, type TaskCategory, type Task } from '../api/client';
 import { formatDateFrench, formatTaskDeadlineFrench } from '../utils/dateFormat';
 import PDFViewerModal from '../components/PDFViewerModal';
+import { AppEvents, EVENTS } from '../utils/events';
+import { isUrgentTask } from '../notifications/RuleEngine';
+import { triggerUrgentTask } from '../notifications/NotificationScheduler';
 
 function isProbablyPdfUrl(url: string): boolean {
   const u = (url || '').toLowerCase();
@@ -44,9 +47,11 @@ const CATEGORIES: { value: TaskCategory; label: string }[] = [
 interface TasksScreenProps {
   onOpenTaskDetail?: (task: Task) => void;
   refreshTrigger?: number;
+  initialFilter?: string;
+  filterTaskIds?: string[];
 }
 
-export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksScreenProps) {
+export default function TasksScreen({ onOpenTaskDetail, refreshTrigger, initialFilter, filterTaskIds }: TasksScreenProps) {
   const scrollViewRef = useRef<ScrollView>(null);
   const [loading, setLoading] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -63,8 +68,14 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksS
   const [submitting, setSubmitting] = useState(false);
   
   // Filter state
-  type FilterType = 'all' | 'today' | TaskCategory;
+  type FilterType = 'all' | 'today' | 'tomorrow' | 'overdue' | 'weekend' | TaskCategory;
   const [filter, setFilter] = useState<FilterType>('all');
+
+  useEffect(() => {
+    if (initialFilter) {
+      setFilter(initialFilter as FilterType);
+    }
+  }, [initialFilter]);
   
   // Edit state
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
@@ -102,6 +113,7 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksS
     try {
       const result = await getAllTasks();
       setTasks(result.tasks);
+      AppEvents.dispatchEvent(new Event(EVENTS.TASKS_UPDATED));
     } catch (error) {
       setTasksError('Impossible de charger les tâches.');
     } finally {
@@ -152,6 +164,7 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksS
 
       // Reload tasks
       await loadTasks();
+      AppEvents.dispatchEvent(new Event(EVENTS.TASKS_UPDATED));
     } catch (error) {
       setFormError('Impossible de créer la tâche. Veuillez réessayer.');
       // Scroll to top to show error
@@ -178,6 +191,7 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksS
           try {
             await deleteTask(taskId);
             await loadTasks();
+            AppEvents.dispatchEvent(new Event(EVENTS.TASKS_UPDATED));
           } catch (error) {
             setFormError('Impossible de supprimer la tâche.');
           }
@@ -193,6 +207,7 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksS
       await loadTasks();
       setSuccessMessage('Tâche supprimée avec succès.');
       setTimeout(() => setSuccessMessage(null), 3000);
+      AppEvents.dispatchEvent(new Event(EVENTS.TASKS_UPDATED));
     } catch (error) {
       setFormError('Impossible de supprimer la tâche.');
     } finally {
@@ -311,7 +326,9 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksS
       
       setSuccessMessage(`Tâche créée : ${response.task.title}`);
       setTimeout(() => setSuccessMessage(null), 4000);
-      
+      if (isUrgentTask(response.task, new Date())) {
+        await triggerUrgentTask(response.task);
+      }
       await loadTasks();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erreur inconnue';
@@ -364,6 +381,9 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksS
       
       setSuccessMessage(`Tâche créée : ${response.task.title}`);
       setTimeout(() => setSuccessMessage(null), 4000);
+      if (isUrgentTask(response.task, new Date())) {
+        await triggerUrgentTask(response.task);
+      }
       
       // Reload tasks
       await loadTasks();
@@ -398,6 +418,7 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksS
       
       handleCancelEdit();
       await loadTasks();
+      AppEvents.dispatchEvent(new Event(EVENTS.TASKS_UPDATED));
     } catch (error) {
       setFormError('Impossible de mettre à jour la tâche.');
       scrollViewRef.current?.scrollTo({ y: 0, animated: true });
@@ -420,6 +441,35 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger }: TasksS
         const deadline = new Date(task.deadline);
         return deadline >= today && deadline < tomorrow;
       });
+    }
+
+    if (filter === 'tomorrow') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const afterTomorrow = new Date(tomorrow);
+      afterTomorrow.setDate(afterTomorrow.getDate() + 1);
+      return tasks.filter(task => {
+        const deadline = new Date(task.deadline);
+        return deadline >= tomorrow && deadline < afterTomorrow;
+      });
+    }
+
+    if (filter === 'overdue') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return tasks.filter(task => {
+        const deadline = new Date(task.deadline);
+        return deadline < today && task.status !== 'done';
+      });
+    }
+
+    if (filter === 'weekend') {
+      if (filterTaskIds && filterTaskIds.length > 0) {
+        return tasks.filter(t => filterTaskIds.includes(t.id));
+      }
+      return tasks;
     }
     
     // Filter by category

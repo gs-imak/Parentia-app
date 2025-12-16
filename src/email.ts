@@ -60,7 +60,9 @@ export function validateIncomingEmail(
 export async function processIncomingEmail(
   email: IncomingEmail
 ): Promise<ProcessResult> {
-  console.log(`Processing email from ${email.from}: ${email.subject}`);
+  // Sanitize email for logging (hide local part)
+  const sanitizedFrom = email.from?.replace(/^[^@]+@/, '***@') || 'unknown';
+  console.log(`Processing email from ${sanitizedFrom}`);
   
   // Step 1: Validate email
   const validation = validateIncomingEmail(email);
@@ -94,7 +96,7 @@ export async function processIncomingEmail(
   console.log(`Email has ${email.attachments.length} attachment(s)`);
   if (email.attachments.length > 0) {
     email.attachments.forEach((att, i) => {
-      console.log(`  Attachment ${i + 1}: ${att.filename} (${att.contentType}, ${att.content.length} bytes)`);
+      console.log(`  Attachment ${i + 1}: ${att.contentType}, ${att.content.length} bytes`);
     });
     
     // Find first PDF attachment for text extraction
@@ -103,7 +105,7 @@ export async function processIncomingEmail(
     );
     
     if (pdfAttachment) {
-      console.log(`Processing PDF attachment: ${pdfAttachment.filename}`);
+      console.log(`Processing PDF attachment (${pdfAttachment.content.length} bytes)`);
       
       // Extract text
       pdfText = await extractPdfText(pdfAttachment.content);
@@ -141,7 +143,7 @@ export async function processIncomingEmail(
       );
       
       if (firstAttachment && isSupabaseConfigured()) {
-        console.log(`Uploading non-PDF attachment: ${firstAttachment.filename} (${firstAttachment.contentType})`);
+        console.log(`Uploading non-PDF attachment: ${firstAttachment.contentType}, ${firstAttachment.content.length} bytes`);
         try {
           attachmentUrl = await uploadAttachment(
             firstAttachment.content,
@@ -187,7 +189,7 @@ export async function processIncomingEmail(
     console.warn('AI analysis failed, using fallback');
     aiOutput = createFallbackOutput(aiInput);
   } else {
-    console.log(`AI analysis complete: ${aiOutput.title} (${aiOutput.category})`);
+    console.log(`AI analysis complete: category=${aiOutput.category}`);
   }
   
   // Step 6b: Check if AI flagged this as a newsletter/promo to skip

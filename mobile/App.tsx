@@ -1,5 +1,6 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import { Feather } from '@expo/vector-icons';
 import HomeScreen from './src/screens/HomeScreen';
 import TasksScreen from './src/screens/TasksScreen';
@@ -7,11 +8,22 @@ import InboxScreen from './src/screens/InboxScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import TaskDetailScreen from './src/screens/TaskDetailScreen';
 import { type Task } from './src/api/client';
+import NotificationsDebugScreen from './src/screens/NotificationsDebugScreen';
+import { getProfile, getAllTasks, getTaskById, fetchWeather, fetchQuote } from './src/api/client';
+import { rescheduleAllNotifications, handleNotificationResponse, triggerDocumentReady } from './src/notifications/NotificationScheduler';
+import { AppEvents, EVENTS } from './src/utils/events';
+import { getStoredCity } from './src/utils/storage';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('Home');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [tasksCache, setTasksCache] = useState<Task[]>([]);
+  const tasksRef = useRef<Task[]>([]);
+  const [pdfReadyIds, setPdfReadyIds] = useState<Set<string>>(new Set());
+  const [tasksFilter, setTasksFilter] = useState<string | null>(null);
+  const [filterTaskIds, setFilterTaskIds] = useState<string[] | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
 
   const handleOpenTaskDetail = useCallback((task: Task) => {
     setSelectedTask(task);
@@ -25,20 +37,134 @@ export default function App() {
     setSelectedTask(updatedTask);
     // Trigger refresh in background screens
     setRefreshTrigger(prev => prev + 1);
+    setTasksCache(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
+    tasksRef.current = tasksRef.current.map(t => t.id === updatedTask.id ? updatedTask : t);
   }, []);
 
   const handleTaskDeleted = useCallback((taskId: string) => {
     setSelectedTask(null);
     // Trigger refresh in background screens
     setRefreshTrigger(prev => prev + 1);
+    setTasksCache(prev => prev.filter(t => t.id !== taskId));
+    tasksRef.current = tasksRef.current.filter(t => t.id !== taskId);
   }, []);
+
+  const refreshAndSchedule = useCallback(async () => {
+    try {
+      const [profile, tasks, city, quoteResp] = await Promise.all([
+        getProfile(),
+        getAllTasks(),
+        getStoredCity(),
+        fetchQuote().catch(() => null),
+      ]);
+      setTasksCache(tasks.tasks);
+      tasksRef.current = tasks.tasks;
+      let weather = undefined;
+      if (city) {
+        try {
+          weather = await fetchWeather(city);
+        } catch {
+          weather = undefined;
+        }
+      }
+      const eveningQuote = quoteResp && quoteResp.type === 'evening' ? quoteResp.text : undefined;
+      await rescheduleAllNotifications({
+        tasks: tasks.tasks,
+        profile,
+        weather,
+        quoteEvening: eveningQuote,
+        pdfReadyTaskIds: pdfReadyIds,
+      });
+    } catch (error) {
+      // best effort
+    }
+  }, [pdfReadyIds]);
+
+  useEffect(() => {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      }),
+    });
+
+    const subResponse = Notifications.addNotificationResponseReceivedListener(async (response) => {
+      await handleNotificationResponse(response, tasksRef.current);
+      const meta = response.notification.request.content.data as any;
+      const deepLink = meta?.deepLink as { route?: string; params?: any } | undefined;
+      if (deepLink?.route === 'tasks') {
+        setTasksFilter(deepLink.params?.filter ?? null);
+        setFilterTaskIds(deepLink.params?.taskIds ?? null);
+        setActiveTab('Tasks');
+      }
+      if (deepLink?.route === 'taskDetail' && deepLink.params?.taskId) {
+        try {
+          const task = await getTaskById(deepLink.params.taskId);
+          setSelectedTask(task);
+        } catch {
+          setActiveTab('Tasks');
+        }
+      }
+    });
+
+    const onEvents = async () => {
+      await refreshAndSchedule();
+    };
+    // @ts-ignore
+    AppEvents.addEventListener(EVENTS.TASKS_UPDATED, onEvents);
+    // @ts-ignore
+    AppEvents.addEventListener(EVENTS.PROFILE_LOADED, onEvents);
+    // @ts-ignore
+    AppEvents.addEventListener(EVENTS.NOTIFICATION_TOGGLES_UPDATED, onEvents);
+    const pdfHandler = async (e: any) => {
+      const detail = e.detail || {};
+      if (detail.taskId) {
+        try {
+          const task = await getTaskById(detail.taskId);
+          setPdfReadyIds(prev => {
+            const next = new Set(prev);
+            next.add(detail.taskId);
+            return next;
+          });
+          await triggerDocumentReady(task);
+        } catch {
+          // ignore
+        }
+      }
+      await refreshAndSchedule();
+    };
+    // @ts-ignore
+    AppEvents.addEventListener(EVENTS.PDF_GENERATED, pdfHandler);
+
+    refreshAndSchedule();
+
+    return () => {
+      subResponse.remove();
+      // @ts-ignore
+      AppEvents.removeEventListener(EVENTS.TASKS_UPDATED, onEvents);
+      // @ts-ignore
+      AppEvents.removeEventListener(EVENTS.PROFILE_LOADED, onEvents);
+      // @ts-ignore
+      AppEvents.removeEventListener(EVENTS.NOTIFICATION_TOGGLES_UPDATED, onEvents);
+      // @ts-ignore
+      AppEvents.removeEventListener(EVENTS.PDF_GENERATED, pdfHandler);
+    };
+  }, [refreshAndSchedule]);
 
   const renderScreen = () => {
     switch (activeTab) {
       case 'Home':
         return <HomeScreen onOpenTaskDetail={handleOpenTaskDetail} refreshTrigger={refreshTrigger} />;
       case 'Tasks':
-        return <TasksScreen onOpenTaskDetail={handleOpenTaskDetail} refreshTrigger={refreshTrigger} />;
+        return (
+          <TasksScreen
+            onOpenTaskDetail={handleOpenTaskDetail}
+            refreshTrigger={refreshTrigger}
+            initialFilter={tasksFilter ?? undefined}
+            filterTaskIds={filterTaskIds ?? undefined}
+          />
+        );
       case 'Inbox':
         return <InboxScreen onOpenTaskDetail={handleOpenTaskDetail} refreshTrigger={refreshTrigger} />;
       case 'Profile':
@@ -51,10 +177,17 @@ export default function App() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>H&C Family</Text>
+        <Text
+          style={styles.headerTitle}
+          onLongPress={() => {
+            if (__DEV__) setShowDebug(true);
+          }}
+        >
+          H&C Family
+        </Text>
       </View>
       <View style={styles.content}>
-        {renderScreen()}
+        {showDebug ? <NotificationsDebugScreen onClose={() => setShowDebug(false)} /> : renderScreen()}
       </View>
       <View style={styles.tabBar}>
         <TouchableOpacity

@@ -209,7 +209,7 @@ app.post('/tasks/from-image', imageUpload.single('image'), async (req, res) => {
     }
     
     const { buffer, mimetype, originalname } = req.file;
-    console.log(`[Image] File received: ${originalname}, ${mimetype}, ${buffer.length} bytes`);
+    console.log(`[Image] File received: ${mimetype}, ${buffer.length} bytes`);
     
     // Convert buffer to base64
     const imageBase64 = buffer.toString('base64');
@@ -254,7 +254,7 @@ app.post('/tasks/from-image', imageUpload.single('image'), async (req, res) => {
     }
     
     // Create task
-    console.log(`[Image] Creating task: ${aiResult.title}`);
+    console.log(`[Image] Creating task: category=${aiResult.category}`);
     const task = await createTask({
       title: aiResult.title,
       category: aiResult.category,

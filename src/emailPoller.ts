@@ -146,13 +146,14 @@ async function fetchUnreadEmails(): Promise<void> {
                   const parsed = await simpleParser(buffer);
                   const email = convertToIncomingEmail(parsed, uid);
                   
-                  console.log(`Processing email: ${email.subject} from ${email.from}`);
+                  const sanitizedFrom = email.from?.replace(/^[^@]+@/, '***@') || 'unknown';
+                  console.log(`Processing email from ${sanitizedFrom}`);
                   
                   // Process through our pipeline
                   const result = await processIncomingEmail(email);
                   
                   if (result.success) {
-                    console.log(`✓ Email processed successfully: ${result.task?.title}`);
+                    console.log(`✓ Email processed successfully: task=${result.task?.id}`);
                     
                     // Mark as read ONLY after successful processing
                     imap.setFlags([uid], ['\\Seen'], (flagErr) => {

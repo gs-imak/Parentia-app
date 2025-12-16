@@ -498,19 +498,7 @@ export function normalizeAIOutput(raw: unknown): EmailAIOutput | null {
 export async function analyzeEmail(input: EmailAIInput): Promise<EmailAIOutput | null> {
   try {
     const prompt = buildEmailPrompt(input);
-    
-    // Debug: Log PDF text if present (first 500 chars)
-    if (input.pdfText) {
-      console.log(`[AI DEBUG] PDF text received (${input.pdfText.length} chars):`);
-      console.log(`[AI DEBUG] PDF preview: ${input.pdfText.slice(0, 500)}...`);
-    } else {
-      console.log(`[AI DEBUG] No PDF text provided to AI`);
-    }
-    
     const aiResponse = await callOpenAI(prompt);
-    
-    // Debug: Log raw AI response
-    console.log(`[AI DEBUG] Raw AI response: ${aiResponse}`);
 
     let parsed: unknown;
     try {
@@ -520,15 +508,7 @@ export async function analyzeEmail(input: EmailAIInput): Promise<EmailAIOutput |
       return null;
     }
 
-    const result = normalizeAIOutput(parsed);
-    
-    // Debug: Log extracted title specifically
-    if (result) {
-      console.log(`[AI DEBUG] Extracted title: "${result.title}"`);
-      console.log(`[AI DEBUG] Skip flag: ${result.skip}`);
-    }
-    
-    return result;
+    return normalizeAIOutput(parsed);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('Email AI analysis failed:', message);

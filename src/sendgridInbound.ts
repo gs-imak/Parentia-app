@@ -82,10 +82,8 @@ export async function processSendGridInbound(rawEmail: string | Buffer): Promise
     // Convert to our format
     const email = convertToIncomingEmail(parsed);
     
-    console.log(`[SendGrid Inbound] Email from: ${email.from}`);
-    console.log(`[SendGrid Inbound] Email to: ${email.to}`);
-    console.log(`[SendGrid Inbound] Subject: ${email.subject}`);
-    console.log(`[SendGrid Inbound] Attachments: ${email.attachments.length}`);
+    const sanitizedFrom = email.from?.replace(/^[^@]+@/, '***@') || 'unknown';
+    console.log(`[SendGrid Inbound] Email from: ${sanitizedFrom}, attachments: ${email.attachments.length}`);
     
     // Extract user ID from the "to" address (user+{id}@hcfamily.app)
     const userId = extractUserIdFromAddress(email.to);

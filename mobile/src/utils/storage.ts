@@ -8,6 +8,12 @@ const STORAGE_KEY_LOCATION_CACHE = 'parentia_location_cache';
 const STORAGE_KEY_QUOTE = 'parentia_daily_quote';
 const STORAGE_KEY_QUOTE_DATE = 'parentia_quote_date';
 const STORAGE_KEY_QUOTE_TYPE = 'parentia_quote_type';
+const STORAGE_KEY_NOTIF_PERMISSIONS = 'parentia_notif_permissions';
+const STORAGE_KEY_TOGGLE_MORNING = 'parentia_toggle_morning';
+const STORAGE_KEY_TOGGLE_J1 = 'parentia_toggle_j1';
+const STORAGE_KEY_TOGGLE_EVENING = 'parentia_toggle_evening';
+const STORAGE_KEY_TOGGLE_OVERDUE = 'parentia_toggle_overdue';
+const STORAGE_KEY_TOGGLE_SMART = 'parentia_toggle_smart';
 
 const LOCATION_CACHE_DURATION = 6 * 60 * 60 * 1000; // 6 hours (refresh more frequently)
 const LOCATION_PROXIMITY_THRESHOLD = 0.01; // ~1km radius (much tighter for accuracy)
@@ -151,4 +157,81 @@ export async function setStoredQuote(quote: Quote): Promise<void> {
   } catch {
     // ignore storage errors
   }
+}
+
+export interface StoredNotificationPermission {
+  status: 'granted' | 'denied' | 'undetermined';
+  updatedAt: string;
+}
+
+async function setBoolean(key: string, value: boolean): Promise<void> {
+  try {
+    await AsyncStorage.setItem(key, value ? 'true' : 'false');
+  } catch {
+    // ignore
+  }
+}
+
+async function getBoolean(key: string, defaultValue: boolean): Promise<boolean> {
+  try {
+    const raw = await AsyncStorage.getItem(key);
+    if (raw === 'true') return true;
+    if (raw === 'false') return false;
+    return defaultValue;
+  } catch {
+    return defaultValue;
+  }
+}
+
+export async function setNotificationPermissionStatus(status: StoredNotificationPermission['status']): Promise<void> {
+  try {
+    const payload: StoredNotificationPermission = { status, updatedAt: new Date().toISOString() };
+    await AsyncStorage.setItem(STORAGE_KEY_NOTIF_PERMISSIONS, JSON.stringify(payload));
+  } catch {
+    // ignore
+  }
+}
+
+export async function getNotificationPermissionStatus(): Promise<StoredNotificationPermission | null> {
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEY_NOTIF_PERMISSIONS);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function setMorningNotificationEnabled(value: boolean): Promise<void> {
+  return setBoolean(STORAGE_KEY_TOGGLE_MORNING, value);
+}
+export async function getMorningNotificationEnabled(): Promise<boolean> {
+  return getBoolean(STORAGE_KEY_TOGGLE_MORNING, true);
+}
+
+export async function setJ1NotificationEnabled(value: boolean): Promise<void> {
+  return setBoolean(STORAGE_KEY_TOGGLE_J1, value);
+}
+export async function getJ1NotificationEnabled(): Promise<boolean> {
+  return getBoolean(STORAGE_KEY_TOGGLE_J1, true);
+}
+
+export async function setEveningNotificationEnabled(value: boolean): Promise<void> {
+  return setBoolean(STORAGE_KEY_TOGGLE_EVENING, value);
+}
+export async function getEveningNotificationEnabled(): Promise<boolean> {
+  return getBoolean(STORAGE_KEY_TOGGLE_EVENING, true);
+}
+
+export async function setOverdueNotificationEnabled(value: boolean): Promise<void> {
+  return setBoolean(STORAGE_KEY_TOGGLE_OVERDUE, value);
+}
+export async function getOverdueNotificationEnabled(): Promise<boolean> {
+  return getBoolean(STORAGE_KEY_TOGGLE_OVERDUE, true);
+}
+
+export async function setSmartNotificationsEnabled(value: boolean): Promise<void> {
+  return setBoolean(STORAGE_KEY_TOGGLE_SMART, value);
+}
+export async function getSmartNotificationsEnabled(): Promise<boolean> {
+  return getBoolean(STORAGE_KEY_TOGGLE_SMART, true);
 }

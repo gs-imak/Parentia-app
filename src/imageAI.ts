@@ -387,7 +387,7 @@ export function normalizeImageAIOutput(raw: unknown): ImageAIOutput | null {
  */
 export async function analyzeImage(input: ImageAIInput): Promise<ImageAIOutput | null> {
   try {
-    console.log(`[Image AI] Analyzing image: ${input.filename} (${input.mimeType})`);
+    console.log(`[Image AI] Analyzing image: ${input.mimeType}`);
     
     const prompt = buildImagePrompt();
     const aiResponse = await callOpenAIVision(input.imageBase64, input.mimeType, prompt);
@@ -406,7 +406,7 @@ export async function analyzeImage(input: ImageAIInput): Promise<ImageAIOutput |
 
     if (result) {
       if (result.canProcess) {
-        console.log(`[Image AI] Analysis complete: "${result.title}" (${result.category}, confidence: ${result.confidence})`);
+        console.log(`[Image AI] Analysis complete: category=${result.category}, confidence=${result.confidence}`);
       } else {
         console.log(`[Image AI] Cannot process image: ${result.errorReason}`);
       }

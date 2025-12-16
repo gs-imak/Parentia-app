@@ -1,8 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { Alert, Platform, View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, ActivityIndicator, StyleSheet } from 'react-native';
+import { Alert, Platform, View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, ActivityIndicator, StyleSheet, Switch } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
-import { getStoredCity, setStoredCity, getStoredWeatherCity, setStoredWeatherCity, getStoredCoordinates, setStoredCoordinates, getCachedLocation, setCachedLocation } from '../utils/storage';
+import {
+  getStoredCity,
+  setStoredCity,
+  getStoredWeatherCity,
+  setStoredWeatherCity,
+  getStoredCoordinates,
+  setStoredCoordinates,
+  getCachedLocation,
+  setCachedLocation,
+  getMorningNotificationEnabled,
+  getJ1NotificationEnabled,
+  getEveningNotificationEnabled,
+  getOverdueNotificationEnabled,
+  getSmartNotificationsEnabled,
+  setMorningNotificationEnabled,
+  setJ1NotificationEnabled,
+  setEveningNotificationEnabled,
+  setOverdueNotificationEnabled,
+  setSmartNotificationsEnabled,
+  setNotificationPermissionStatus,
+  getNotificationPermissionStatus,
+} from '../utils/storage';
 import { reverseGeocode, geolocateByIP, getProfile, addChild, updateChild, deleteChild, updateSpouse, deleteSpouse, updateMarriageDate, deleteMarriageDate, updateProfileAddress, type Child, type Profile } from '../api/client';
 import { AppEvents, EVENTS } from '../utils/events';
 
@@ -83,12 +105,38 @@ export default function ProfileScreen() {
   const [savingAddress, setSavingAddress] = useState(false);
   const [addressJustSaved, setAddressJustSaved] = useState(false);
 
+  // Notification toggles
+  const [notifMorning, setNotifMorning] = useState(true);
+  const [notifJ1, setNotifJ1] = useState(true);
+  const [notifEvening, setNotifEvening] = useState(true);
+  const [notifOverdue, setNotifOverdue] = useState(true);
+  const [notifSmart, setNotifSmart] = useState(true);
+  const [notifPermission, setNotifPermission] = useState<'granted' | 'denied' | 'undetermined'>('undetermined');
+
   useEffect(() => {
     getStoredCity().then((storedCity) => {
       if (storedCity) setCity(storedCity);
     });
     loadProfile();
+    loadNotificationPrefs();
   }, []);
+
+  const loadNotificationPrefs = async () => {
+    const [m, j1, ev, od, smart, perm] = await Promise.all([
+      getMorningNotificationEnabled(),
+      getJ1NotificationEnabled(),
+      getEveningNotificationEnabled(),
+      getOverdueNotificationEnabled(),
+      getSmartNotificationsEnabled(),
+      getNotificationPermissionStatus(),
+    ]);
+    setNotifMorning(m);
+    setNotifJ1(j1);
+    setNotifEvening(ev);
+    setNotifOverdue(od);
+    setNotifSmart(smart);
+    setNotifPermission(perm?.status ?? 'undetermined');
+  };
 
   const loadProfile = async () => {
     setLoadingProfile(true);
@@ -110,7 +158,41 @@ export default function ProfileScreen() {
       console.error('Failed to load profile:', error);
     } finally {
       setLoadingProfile(false);
+      AppEvents.dispatchEvent(new Event(EVENTS.PROFILE_LOADED));
     }
+  };
+
+  const toggleNotif = async (key: 'morning' | 'j1' | 'evening' | 'overdue' | 'smart', value: boolean) => {
+    switch (key) {
+      case 'morning':
+        setNotifMorning(value);
+        await setMorningNotificationEnabled(value);
+        break;
+      case 'j1':
+        setNotifJ1(value);
+        await setJ1NotificationEnabled(value);
+        break;
+      case 'evening':
+        setNotifEvening(value);
+        await setEveningNotificationEnabled(value);
+        break;
+      case 'overdue':
+        setNotifOverdue(value);
+        await setOverdueNotificationEnabled(value);
+        break;
+      case 'smart':
+        setNotifSmart(value);
+        await setSmartNotificationsEnabled(value);
+        break;
+    }
+    AppEvents.dispatchEvent(new Event(EVENTS.NOTIFICATION_TOGGLES_UPDATED));
+  };
+
+  const requestNotificationPermission = async () => {
+    const { status } = await Notifications.requestPermissionsAsync();
+    setNotifPermission(status === 'granted' ? 'granted' : 'denied');
+    await setNotificationPermissionStatus(status === 'granted' ? 'granted' : 'denied');
+    AppEvents.dispatchEvent(new Event(EVENTS.NOTIFICATION_TOGGLES_UPDATED));
   };
 
   const handleUseLocation = async () => {
@@ -617,6 +699,42 @@ export default function ProfileScreen() {
     >
       <ScrollView style={styles.scrollView}>
         <View style={styles.container}>
+          {/* Notifications */}
+          <View style={styles.card}>
+            <View style={styles.header}>
+              <Feather name="bell" size={20} color="#2C3E50" />
+              <Text style={styles.title}>Notifications</Text>
+            </View>
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel}>Matin 07:30</Text>
+              <Switch value={notifMorning} onValueChange={(v) => toggleNotif('morning', v)} />
+            </View>
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel}>J-1 18:00</Text>
+              <Switch value={notifJ1} onValueChange={(v) => toggleNotif('j1', v)} />
+            </View>
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel}>Soir 19:00</Text>
+              <Switch value={notifEvening} onValueChange={(v) => toggleNotif('evening', v)} />
+            </View>
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel}>Retards 09:00</Text>
+              <Switch value={notifOverdue} onValueChange={(v) => toggleNotif('overdue', v)} />
+            </View>
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel}>Notifications intelligentes</Text>
+              <Switch value={notifSmart} onValueChange={(v) => toggleNotif('smart', v)} />
+            </View>
+            <TouchableOpacity style={[styles.button, { marginTop: 12 }]} onPress={requestNotificationPermission}>
+              <Text style={styles.buttonText}>
+                {notifPermission === 'granted' ? 'Notifications autorisées' : 'Autoriser les notifications'}
+              </Text>
+            </TouchableOpacity>
+            <Text style={styles.hint}>
+              Autorisation requise pour recevoir les alertes sur votre appareil.
+            </Text>
+          </View>
+
           <View style={styles.card}>
             <View style={styles.header}>
               <Feather name="map-pin" size={20} color="#2C3E50" />
@@ -1378,6 +1496,19 @@ const styles = StyleSheet.create({
     color: '#2C3E50',
     fontWeight: '600',
     marginLeft: 8,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F2F5',
+  },
+  toggleLabel: {
+    fontSize: 16,
+    color: '#2C3E50',
+    fontWeight: '500',
   },
   locationButton: {
     flexDirection: 'row',
