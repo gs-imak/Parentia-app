@@ -74,15 +74,21 @@ async function scheduleLocal(
   meta: NotificationMeta,
   identifier: string,
 ) {
+  const content: Notifications.NotificationContentInput = {
+    title,
+    body,
+    data: meta,
+    sound: true,
+  };
+  
+  // Only add categoryIdentifier if it's for overdue notifications (iOS crashes on undefined)
+  if (meta.type === 'overdue') {
+    content.categoryIdentifier = CATEGORY_OVERDUE;
+  }
+  
   await Notifications.scheduleNotificationAsync({
     identifier,
-    content: {
-      title,
-      body,
-      data: meta,
-      sound: true,
-      categoryIdentifier: meta.type === 'overdue' ? CATEGORY_OVERDUE : undefined,
-    },
+    content,
     trigger,
   });
 }
@@ -216,7 +222,7 @@ export async function triggerUrgentTask(task: Task) {
   await scheduleLocal(
     'Tâche urgente',
     `${task.title} · Deadline ${formatDateFr(new Date(task.deadline))}`,
-    { seconds: 1 },
+    { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 1, repeats: false },
     { type: 'urgent', deepLink: { route: 'taskDetail', params: { taskId: task.id } }, taskId: task.id },
     buildIdentifier('urgent', `${nowKey}-${task.id}`),
   );
@@ -229,7 +235,7 @@ export async function triggerDocumentReady(task: Task) {
   await scheduleLocal(
     'Document prêt',
     `${task.title}`,
-    { seconds: 1 },
+    { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 1, repeats: false },
     { type: 'document_ready', deepLink: { route: 'taskDetail', params: { taskId: task.id } }, taskId: task.id },
     buildIdentifier('doc', `${nowKey}-${task.id}`),
   );
@@ -255,6 +261,13 @@ export async function handleNotificationResponse(
     await deleteTask(meta.taskId);
   }
 }
+
+
+
+
+
+
+
 
 
 

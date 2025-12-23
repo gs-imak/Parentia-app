@@ -331,11 +331,11 @@ export default function PDFViewerModal({
               <iframe
                 src={pdfUrl}
                 title={title}
-                style={{
-                  width: '100%',
-                  height: '100%',
+            style={{
+              width: '100%',
+              height: '100%',
                   border: 'none',
-                }}
+            }}
               />
             </View>
           )
@@ -349,18 +349,18 @@ export default function PDFViewerModal({
                 startInLoadingState
                 scalesPageToFit
               />
-            ) : (
-              <View style={styles.nativeContainer}>
-                <Text style={styles.nativeText}>
+        ) : (
+          <View style={styles.nativeContainer}>
+            <Text style={styles.nativeText}>
                   Impossible d'afficher le PDF. Appuyez sur télécharger pour l'ouvrir.
-                </Text>
-                <TouchableOpacity
-                  style={styles.openButton}
-                  onPress={handleDownload}
-                >
-                  <Feather name="external-link" size={20} color="#FFFFFF" />
-                  <Text style={styles.openButtonText}>Ouvrir le PDF</Text>
-                </TouchableOpacity>
+            </Text>
+            <TouchableOpacity
+              style={styles.openButton}
+              onPress={handleDownload}
+            >
+              <Feather name="external-link" size={20} color="#FFFFFF" />
+              <Text style={styles.openButtonText}>Ouvrir le PDF</Text>
+            </TouchableOpacity>
               </View>
             )}
           </View>

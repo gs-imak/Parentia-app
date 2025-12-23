@@ -75,8 +75,13 @@ export async function fetchQuote(): Promise<Quote> {
   return fetchApi<Quote>('/quote');
 }
 
-export async function fetchWeather(city: string): Promise<WeatherSummary> {
-  return fetchApi<WeatherSummary>(`/weather?city=${encodeURIComponent(city)}`);
+export async function fetchWeather(city: string, coords?: { lat: number; lon: number }): Promise<WeatherSummary> {
+  const params = new URLSearchParams({ city });
+  if (coords) {
+    params.append('lat', coords.lat.toString());
+    params.append('lon', coords.lon.toString());
+  }
+  return fetchApi<WeatherSummary>(`/weather?${params.toString()}`);
 }
 
 export async function fetchTasks(): Promise<{ tasks: Task[] }> {
@@ -432,13 +437,14 @@ export async function generatePDF(options: {
 
   // Emit deterministic event for PDF generation success
   try {
-    AppEvents.dispatchEvent(new CustomEvent(EVENTS.PDF_GENERATED, {
+    AppEvents.dispatchEvent({
+      type: EVENTS.PDF_GENERATED,
       detail: {
         taskId: options.taskId,
         documentType: options.templateId,
         generatedAt: new Date().toISOString(),
       },
-    }));
+    });
   } catch {
     // Do not throw if event dispatch fails
   }

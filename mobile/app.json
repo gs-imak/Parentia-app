@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "H&C Family",
+    "name": "HC Family",
     "slug": "parentia-mobile",
     "scheme": "parentia",
     "version": "1.0.0",
@@ -14,6 +14,19 @@
           "icon": "./assets/icon.png",
           "color": "#3A82F7"
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "HC Family utilise votre position pour afficher la météo locale et adapter les recommandations."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "HC Family utilise l'appareil photo pour scanner des documents et créer des tâches.",
+          "photosPermission": "HC Family accède à vos photos pour importer des documents."
+        }
       ]
     ],
     "splash": {
@@ -23,7 +36,13 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.parentia.app"
+      "bundleIdentifier": "com.parentia.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocationWhenInUseUsageDescription": "HC Family utilise votre position pour afficher la météo locale et adapter les recommandations.",
+        "NSCameraUsageDescription": "HC Family utilise l'appareil photo pour scanner des documents et créer des tâches.",
+        "NSPhotoLibraryUsageDescription": "HC Family accède à vos photos pour importer des documents."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -36,10 +55,21 @@
     },
     "web": {
       "favicon": "./assets/favicon.png",
-      "pwa": { "enabled": false }
+      "pwa": {
+        "enabled": false
+      }
     },
     "extra": {
-      "backendUrl": "https://parentia-app-production.up.railway.app"
+      "backendUrl": "https://parentia-app-production.up.railway.app",
+      "eas": {
+        "projectId": "103dab9f-d184-404a-a7fe-4b51fef56c72"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/103dab9f-d184-404a-a7fe-4b51fef56c72"
     }
   }
 }

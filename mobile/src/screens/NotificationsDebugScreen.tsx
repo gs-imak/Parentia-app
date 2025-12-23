@@ -31,8 +31,9 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
     try {
       await action();
       setStatus('Action exécutée.');
-    } catch (e) {
-      setStatus('Erreur lors du déclenchement.');
+    } catch (e: any) {
+      console.error('[Debug] Notification error:', e);
+      setStatus(`Erreur: ${e?.message || String(e)}`);
     } finally {
       setLoading(false);
     }
@@ -50,8 +51,11 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
       <TouchableOpacity
         style={styles.button}
         onPress={() => runAction(async () => {
+          console.log('[Debug] Loading context...');
           const ctx = await loadContext();
+          console.log('[Debug] Context loaded, scheduling notifications...');
           await rescheduleAllNotifications({ ...ctx, pdfReadyTaskIds: new Set<string>() });
+          console.log('[Debug] Notifications scheduled');
         })}
       >
         <Feather name="refresh-ccw" size={18} color="#fff" />
@@ -61,9 +65,13 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
       <TouchableOpacity
         style={styles.button}
         onPress={() => runAction(async () => {
+          console.log('[Debug] Loading context...');
           const ctx = await loadContext();
+          console.log('[Debug] Context loaded, tasks:', ctx.tasks?.length ?? 0);
           const target = ctx.tasks[0];
-          if (target) await triggerUrgentTask(target);
+          if (!target) throw new Error('Aucune tâche disponible');
+          console.log('[Debug] Triggering urgent task:', target.title);
+          await triggerUrgentTask(target);
         })}
       >
         <Feather name="alert-triangle" size={18} color="#fff" />
@@ -73,9 +81,13 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
       <TouchableOpacity
         style={styles.button}
         onPress={() => runAction(async () => {
+          console.log('[Debug] Loading context...');
           const ctx = await loadContext();
+          console.log('[Debug] Context loaded, tasks:', ctx.tasks?.length ?? 0);
           const target = ctx.tasks.find(t => t.status !== 'done');
-          if (target) await triggerDocumentReady(target);
+          if (!target) throw new Error('Aucune tâche non terminée disponible');
+          console.log('[Debug] Triggering document ready:', target.title);
+          await triggerDocumentReady(target);
         })}
       >
         <Feather name="file" size={18} color="#fff" />
@@ -138,6 +150,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
+
+
+
+
+
+
+
 
 
 

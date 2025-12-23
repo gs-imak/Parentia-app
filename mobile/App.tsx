@@ -24,6 +24,24 @@ export default function App() {
   const [tasksFilter, setTasksFilter] = useState<string | null>(null);
   const [filterTaskIds, setFilterTaskIds] = useState<string[] | null>(null);
   const [showDebug, setShowDebug] = useState(false);
+  
+  // Secret tap gesture to access debug screen (3 quick taps)
+  const [debugTapCount, setDebugTapCount] = useState(0);
+  const debugTapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  const handleSecretTap = useCallback(() => {
+    setDebugTapCount(prev => {
+      const newCount = prev + 1;
+      if (newCount >= 3) {
+        setShowDebug(true);
+        return 0;
+      }
+      return newCount;
+    });
+    
+    if (debugTapTimeoutRef.current) clearTimeout(debugTapTimeoutRef.current);
+    debugTapTimeoutRef.current = setTimeout(() => setDebugTapCount(0), 1000);
+  }, []);
 
   const handleOpenTaskDetail = useCallback((task: Task) => {
     setSelectedTask(task);
@@ -79,6 +97,24 @@ export default function App() {
       // best effort
     }
   }, [pdfReadyIds]);
+
+  // Request notification permissions on app init (iOS requires explicit request)
+  useEffect(() => {
+    const requestNotificationPermission = async () => {
+      if (Platform.OS === 'web') return; // Skip on web
+      
+      try {
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        if (existingStatus !== 'granted') {
+          await Notifications.requestPermissionsAsync();
+        }
+      } catch (error) {
+        console.warn('[Notifications] Permission request failed:', error);
+      }
+    };
+    
+    requestNotificationPermission();
+  }, []);
 
   useEffect(() => {
     Notifications.setNotificationHandler({
@@ -179,11 +215,9 @@ export default function App() {
       <View style={styles.header}>
         <Text
           style={styles.headerTitle}
-          onLongPress={() => {
-            if (__DEV__) setShowDebug(true);
-          }}
+          onPress={handleSecretTap}
         >
-          H&C Family
+          HC Family
         </Text>
       </View>
       <View style={styles.content}>

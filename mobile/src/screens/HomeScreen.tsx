@@ -113,22 +113,15 @@ export default function HomeScreen({ onOpenTaskDetail, refreshTrigger }: HomeScr
     if (displayCity && displayCity.trim()) {
       try {
         console.log('[Home] Fetching weather for:', displayCity, coords);
-        // Pass coordinates to avoid geocoding issues with postal codes
-        const url = coords 
-          ? `/weather?city=${encodeURIComponent(displayCity)}&lat=${coords.lat}&lon=${coords.lon}`
-          : `/weather?city=${encodeURIComponent(displayCity)}`;
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('Weather API error');
-        const json = await response.json();
-        if (!json.success) throw new Error(json.error);
-        setWeather(json.data);
-        console.log('[Home] Weather response:', json.data);
+        const weatherData = await fetchWeather(displayCity, coords || undefined);
+        setWeather(weatherData);
+        console.log('[Home] Weather response:', weatherData);
       } catch (error) {
         console.error('[Home] Weather error:', error);
         setWeatherError('Impossible de charger la météo pour le moment.');
       }
     } else {
-      setWeatherError('Aucune ville configuree. Ajoutez votre ville dans l' + "'" + 'onglet Profil.');
+      setWeatherError('Aucune ville configurée. Ajoutez votre ville dans l\'onglet Profil.');
     }
 
     try {

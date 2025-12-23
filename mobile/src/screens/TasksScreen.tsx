@@ -113,7 +113,7 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger, initialF
     try {
       const result = await getAllTasks();
       setTasks(result.tasks);
-      AppEvents.dispatchEvent(new Event(EVENTS.TASKS_UPDATED));
+      AppEvents.dispatchEvent({ type: EVENTS.TASKS_UPDATED });
     } catch (error) {
       setTasksError('Impossible de charger les tâches.');
     } finally {
@@ -164,7 +164,7 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger, initialF
 
       // Reload tasks
       await loadTasks();
-      AppEvents.dispatchEvent(new Event(EVENTS.TASKS_UPDATED));
+      AppEvents.dispatchEvent({ type: EVENTS.TASKS_UPDATED });
     } catch (error) {
       setFormError('Impossible de créer la tâche. Veuillez réessayer.');
       // Scroll to top to show error
@@ -191,7 +191,7 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger, initialF
           try {
             await deleteTask(taskId);
             await loadTasks();
-            AppEvents.dispatchEvent(new Event(EVENTS.TASKS_UPDATED));
+            AppEvents.dispatchEvent({ type: EVENTS.TASKS_UPDATED });
           } catch (error) {
             setFormError('Impossible de supprimer la tâche.');
           }
@@ -207,7 +207,7 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger, initialF
       await loadTasks();
       setSuccessMessage('Tâche supprimée avec succès.');
       setTimeout(() => setSuccessMessage(null), 3000);
-      AppEvents.dispatchEvent(new Event(EVENTS.TASKS_UPDATED));
+      AppEvents.dispatchEvent({ type: EVENTS.TASKS_UPDATED });
     } catch (error) {
       setFormError('Impossible de supprimer la tâche.');
     } finally {
@@ -418,7 +418,7 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger, initialF
       
       handleCancelEdit();
       await loadTasks();
-      AppEvents.dispatchEvent(new Event(EVENTS.TASKS_UPDATED));
+      AppEvents.dispatchEvent({ type: EVENTS.TASKS_UPDATED });
     } catch (error) {
       setFormError('Impossible de mettre à jour la tâche.');
       scrollViewRef.current?.scrollTo({ y: 0, animated: true });
