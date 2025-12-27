@@ -311,22 +311,33 @@ export async function createTaskFromImage(
   // Create FormData with the image
   const formData = new FormData();
   
-  // Convert base64 to blob for FormData
-  const byteCharacters = atob(imageBase64);
-  const byteNumbers = new Array(byteCharacters.length);
-  for (let i = 0; i < byteCharacters.length; i++) {
-    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  // FIX: Platform-specific FormData handling
+  // On React Native, FormData requires a different format than web
+  if (Platform.OS === 'web') {
+    // Web: Convert base64 to blob
+    const byteCharacters = atob(imageBase64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: mimeType });
+    formData.append('image', blob, filename);
+  } else {
+    // React Native: Use object format with uri, type, and name
+    // Convert base64 to data URI
+    const dataUri = `data:${mimeType};base64,${imageBase64}`;
+    formData.append('image', {
+      uri: dataUri,
+      type: mimeType,
+      name: filename,
+    } as any);
   }
-  const byteArray = new Uint8Array(byteNumbers);
-  const blob = new Blob([byteArray], { type: mimeType });
-  
-  // Append as 'image' field (matching multer config on backend)
-  formData.append('image', blob, filename);
   
   const response = await fetch(`${BACKEND_URL}/tasks/from-image`, {
     method: 'POST',
     body: formData,
-    // Note: Don't set Content-Type header, let browser set it with boundary
+    // Note: Don't set Content-Type header, let browser/RN set it with boundary
   });
   
   if (!response.ok) {

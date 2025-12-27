@@ -167,10 +167,12 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
   }
 
   // Evening 19:00
-  if (eveningEnabled && ctx.quoteEvening) {
+  // FIX: Remove quote dependency - evening notification should always send when enabled
+  if (eveningEnabled) {
+    const eveningMessage = ctx.quoteEvening || 'Bonne soirée. Profitez de ce moment pour vous reposer.';
     await scheduleLocal(
       'Phrase du soir',
-      ctx.quoteEvening,
+      eveningMessage,
       makeTrigger(EVENING_TIME),
       { type: 'evening' },
       buildIdentifier('evening', todayKey),
