@@ -268,20 +268,46 @@ export async function handleNotificationResponse(
   response: Notifications.NotificationResponse,
   tasks: Task[],
 ) {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'NotificationScheduler.ts:267',message:'handleNotificationResponse called',data:{actionId:response.actionIdentifier},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
+  // #endregion
+  
   const meta = response.notification.request.content.data as NotificationMeta | undefined;
   if (!meta || meta.type !== 'overdue' || !meta.taskId) return;
 
   const actionId = response.actionIdentifier;
-  if (actionId === 'delay') {
-    const task = tasks.find(t => t.id === meta.taskId);
-    if (task) {
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      tomorrow.setHours(9, 0, 0, 0);
-      await updateTask(task.id, { deadline: tomorrow.toISOString() });
+  
+  try {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'NotificationScheduler.ts:275',message:'Before action execution',data:{actionId,taskId:meta.taskId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
+    // #endregion
+    
+    if (actionId === 'delay') {
+      const task = tasks.find(t => t.id === meta.taskId);
+      if (task) {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(9, 0, 0, 0);
+        await updateTask(task.id, { deadline: tomorrow.toISOString() });
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'NotificationScheduler.ts:281',message:'Task delay successful',data:{taskId:task.id},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+        // #endregion
+      }
+    } else if (actionId === 'delete') {
+      await deleteTask(meta.taskId);
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'NotificationScheduler.ts:284',message:'Task delete successful',data:{taskId:meta.taskId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+      // #endregion
     }
-  } else if (actionId === 'delete') {
-    await deleteTask(meta.taskId);
+  } catch (error) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'NotificationScheduler.ts:290',message:'ERROR in notification action',data:{actionId,error:error instanceof Error?error.message:String(error)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
+    // #endregion
+    
+    // Fail gracefully - don't crash the app
+    console.warn('[handleNotificationResponse] Action failed:', error);
   }
 }
 

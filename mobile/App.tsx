@@ -126,26 +126,47 @@ export default function App() {
     });
 
     const subResponse = Notifications.addNotificationResponseReceivedListener(async (response) => {
-      await handleNotificationResponse(response, tasksRef.current);
-      
-      // Refresh app state after action (delete/delay)
-      await refreshAndSchedule();
-      setRefreshTrigger(prev => prev + 1);
-      
-      const meta = response.notification.request.content.data as any;
-      const deepLink = meta?.deepLink as { route?: string; params?: any } | undefined;
-      if (deepLink?.route === 'tasks') {
-        setTasksFilter(deepLink.params?.filter ?? null);
-        setFilterTaskIds(deepLink.params?.taskIds ?? null);
-        setActiveTab('Tasks');
-      }
-      if (deepLink?.route === 'taskDetail' && deepLink.params?.taskId) {
-        try {
-          const task = await getTaskById(deepLink.params.taskId);
-          setSelectedTask(task);
-        } catch {
+      try {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:128',message:'Notification response listener triggered',data:{actionId:response.actionIdentifier},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
+        // #endregion
+        
+        await handleNotificationResponse(response, tasksRef.current);
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:135',message:'After handleNotificationResponse',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
+        // #endregion
+        
+        // Refresh app state after action (delete/delay)
+        await refreshAndSchedule();
+        setRefreshTrigger(prev => prev + 1);
+        
+        const meta = response.notification.request.content.data as any;
+        const deepLink = meta?.deepLink as { route?: string; params?: any } | undefined;
+        if (deepLink?.route === 'tasks') {
+          setTasksFilter(deepLink.params?.filter ?? null);
+          setFilterTaskIds(deepLink.params?.taskIds ?? null);
           setActiveTab('Tasks');
         }
+        if (deepLink?.route === 'taskDetail' && deepLink.params?.taskId) {
+          try {
+            const task = await getTaskById(deepLink.params.taskId);
+            setSelectedTask(task);
+          } catch {
+            setActiveTab('Tasks');
+          }
+        }
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:155',message:'Notification handler completed successfully',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+        // #endregion
+      } catch (error) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:160',message:'ERROR in notification listener',data:{error:error instanceof Error?error.message:String(error)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
+        // #endregion
+        
+        // Fail gracefully - log but don't crash the app
+        console.warn('[Notification Listener] Error:', error);
       }
     });
 
