@@ -77,9 +77,6 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger, initialF
   useEffect(() => {
     if (initialFilter) {
       setFilter(initialFilter as FilterType);
-    } else if (!filter || filter === 'weekend') {
-      // Ensure filter is never empty; reset to 'all' if undefined or weekend ended
-      setFilter('all');
     }
   }, [initialFilter]);
   
@@ -167,6 +164,7 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger, initialF
       setCategory('personnel');
       setDeadline(new Date());
       setDescription('');
+      setShowOptions(false);
 
       // Reload tasks
       await loadTasks();
@@ -771,7 +769,9 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger, initialF
                     ? 'Demain'
                     : filter === 'overdue'
                     ? 'En retard'
-                    : CATEGORIES.find(c => c.value === filter)?.label}
+                    : filter === 'weekend'
+                    ? 'Week-end'
+                    : CATEGORIES.find(c => c.value === filter)?.label || 'Toutes'}
                 </Text>
                 <Feather name={showFilterPicker ? 'chevron-up' : 'chevron-down'} size={20} color="#2C3E50" />
               </TouchableOpacity>
