@@ -145,9 +145,20 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
   if (j1Enabled) {
     const dueTomorrow = getTasksDueTomorrow(ctx.tasks, now);
     if (dueTomorrow.length > 0) {
+      // Build rich message with task titles
+      let bodyMessage: string;
+      if (dueTomorrow.length === 1) {
+        bodyMessage = `La tâche « ${dueTomorrow[0].title} » arrive à échéance demain.`;
+      } else if (dueTomorrow.length <= 3) {
+        const titles = dueTomorrow.map(t => `• ${t.title}`).join('\n');
+        bodyMessage = `${dueTomorrow.length} tâches arrivent à échéance demain :\n${titles}`;
+      } else {
+        bodyMessage = `${dueTomorrow.length} tâches arrivent à échéance demain, dont « ${dueTomorrow[0].title} ».`;
+      }
+      
       await scheduleLocal(
         'Pour demain',
-        `Vous avez ${dueTomorrow.length} tâche(s) à faire demain.`,
+        bodyMessage,
         makeTrigger(J1_TIME),
         { type: 'j1', deepLink: { route: 'tasks', params: { filter: 'tomorrow' } } },
         buildIdentifier('j1', todayKey),
@@ -171,9 +182,21 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
     const overdue = getOverdueTasks(ctx.tasks, now);
     if (overdue.length > 0) {
       const targetTask = overdue[0];
+      
+      // Build rich message with task titles
+      let bodyMessage: string;
+      if (overdue.length === 1) {
+        bodyMessage = `La tâche « ${overdue[0].title} » est en retard.`;
+      } else if (overdue.length <= 3) {
+        const titles = overdue.map(t => `• ${t.title}`).join('\n');
+        bodyMessage = `${overdue.length} tâches en retard :\n${titles}`;
+      } else {
+        bodyMessage = `${overdue.length} tâches en retard, dont « ${overdue[0].title} ».`;
+      }
+      
       await scheduleLocal(
         'Tâches en retard',
-        `${overdue.length} tâche(s) en retard.`,
+        bodyMessage,
         makeTrigger(OVERDUE_TIME),
         { type: 'overdue', deepLink: { route: 'tasks', params: { filter: 'overdue' } }, taskId: targetTask.id },
         buildIdentifier('overdue', todayKey),

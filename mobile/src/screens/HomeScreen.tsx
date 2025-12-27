@@ -263,7 +263,7 @@ export default function HomeScreen({ onOpenTaskDetail, refreshTrigger }: HomeScr
             </Text>
           ) : (
             <View>
-              {tasks.map((task) => {
+              {tasks.slice(0, 3).map((task, index) => {
                 const formattedDeadline = formatTaskDeadlineFrench(task.deadline);
 
                 let statusColor = '#6E7A84';
@@ -275,26 +275,28 @@ export default function HomeScreen({ onOpenTaskDetail, refreshTrigger }: HomeScr
                   statusColor = '#F7A45A';
                 }
 
+                const isLast = index === Math.min(tasks.length, 3) - 1;
+
                 return (
-                  <View key={task.id}>
-                    <TouchableOpacity 
-                      style={styles.taskRow}
-                      onPress={() => toggleTaskStatus(task.id)}
-                      onLongPress={(e: GestureResponderEvent) => {
-                        // Open task detail screen if handler is provided
-                        if (onOpenTaskDetail) {
-                          onOpenTaskDetail(task);
-                        } else if (task.description) {
-                          // Fallback: show description modal
-                          const screenHeight = Dimensions.get('window').height;
-                          const pressY = e.nativeEvent.pageY;
-                          setPressPosition(pressY > screenHeight / 2 ? 'top' : 'bottom');
-                          setLongPressedTask(task);
-                        }
-                      }}
-                      delayLongPress={400}
-                      activeOpacity={0.7}
-                    >
+                  <TouchableOpacity 
+                    key={task.id}
+                    style={[styles.taskRow, isLast && { borderBottomWidth: 0 }]}
+                    onPress={() => toggleTaskStatus(task.id)}
+                    onLongPress={(e: GestureResponderEvent) => {
+                      // Open task detail screen if handler is provided
+                      if (onOpenTaskDetail) {
+                        onOpenTaskDetail(task);
+                      } else if (task.description) {
+                        // Fallback: show description modal
+                        const screenHeight = Dimensions.get('window').height;
+                        const pressY = e.nativeEvent.pageY;
+                        setPressPosition(pressY > screenHeight / 2 ? 'top' : 'bottom');
+                        setLongPressedTask(task);
+                      }
+                    }}
+                    delayLongPress={400}
+                    activeOpacity={0.7}
+                  >
                       <View
                         style={[
                           styles.taskCircle,
@@ -317,7 +319,6 @@ export default function HomeScreen({ onOpenTaskDetail, refreshTrigger }: HomeScr
                         </View>
                       </View>
                     </TouchableOpacity>
-                  </View>
                 );
               })}
             </View>
@@ -339,18 +340,19 @@ export default function HomeScreen({ onOpenTaskDetail, refreshTrigger }: HomeScr
               {news.map((item, index) => {
                 const publishedDate = new Date(item.publishedAt);
                 const formattedDate = formatDateFrench(publishedDate);
+                const isLast = index === news.length - 1;
 
                 return (
-                  <View key={index} style={styles.newsItem}>
-                    <Text style={styles.newsTitle}>{item.title}</Text>
+                  <View key={index} style={[styles.newsItem, isLast && { borderBottomWidth: 0 }]}>
+                    <Text style={styles.newsTitle} numberOfLines={3}>{item.title}</Text>
                     <Text style={styles.newsMeta}>{item.source} · {formattedDate}</Text>
-                    <Text style={styles.newsSummary}>{item.summary || 'Résumé non disponible.'}</Text>
+                    <Text style={styles.newsSummary} numberOfLines={3}>{item.summary || 'Résumé non disponible.'}</Text>
                     <TouchableOpacity
                       onPress={() => Linking.openURL(item.link).catch(() => {})}
                       style={styles.newsLink}
                     >
                       <Text style={styles.newsLinkText}>Lire l'article</Text>
-                      <Feather name="external-link" size={12} color="#6E7A84" />
+                      <Feather name="external-link" size={14} color="#2563EB" />
                     </TouchableOpacity>
                   </View>
                 );
@@ -394,31 +396,47 @@ export default function HomeScreen({ onOpenTaskDetail, refreshTrigger }: HomeScr
 const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F7F8FA',
   },
   container: {
-    padding: 20,
+    paddingHorizontal: 16,
+    paddingTop: 12,
     paddingBottom: 32,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F7F8FA',
   },
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: '#6E7A84',
+    color: '#6B7280',
     fontWeight: '400',
   },
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E9EEF2',
-    marginBottom: 24,
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.06,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 2,
+      },
+      default: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.06,
+        shadowRadius: 10,
+      },
+    }),
   },
   cardHeader: {
     flexDirection: 'row',
@@ -426,19 +444,19 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   cardTitle: {
-    fontSize: 19,
-    color: '#2C3E50',
+    fontSize: 16,
+    color: '#111827',
     fontWeight: '600',
     marginLeft: 8,
   },
   errorText: {
-    fontSize: 16,
-    color: '#DC2626',
+    fontSize: 15,
+    color: '#111827',
     fontWeight: '400',
   },
   placeholderText: {
-    fontSize: 16,
-    color: '#6E7A84',
+    fontSize: 15,
+    color: '#111827',
     fontWeight: '400',
   },
   weatherRow: {
@@ -451,14 +469,14 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
   },
   temperature: {
-    fontSize: 32,
-    fontWeight: '600',
-    color: '#2C3E50',
+    fontSize: 26,
+    fontWeight: '700',
+    color: '#111827',
   },
   city: {
-    fontSize: 16,
-    color: '#6E7A84',
-    fontWeight: '500',
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '400',
     marginLeft: 8,
   },
   weatherEmoji: {
@@ -468,30 +486,28 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#E9EEF2',
+    borderTopColor: '#E5E7EB',
   },
   outfitText: {
     fontSize: 15,
-    color: '#6E7A84',
+    color: '#111827',
     fontWeight: '400',
     lineHeight: 22,
   },
   outfitLabel: {
     fontWeight: '500',
-    color: '#2C3E50',
+    color: '#111827',
   },
   quoteCard: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: '#E9EEF2',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 12,
   },
   quoteText: {
-    fontSize: 17,
-    lineHeight: 26,
-    color: '#2C3E50',
+    fontSize: 15,
+    lineHeight: 22,
+    color: '#374151',
     textAlign: 'center',
     fontWeight: '400',
     fontStyle: 'italic',
@@ -499,7 +515,9 @@ const styles = StyleSheet.create({
   taskRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
   },
   taskCircle: {
     width: 20,
@@ -515,9 +533,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   taskTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#2C3E50',
+    fontSize: 15,
+    fontWeight: '400',
+    color: '#111827',
     marginBottom: 4,
   },
   taskTitleDone: {
@@ -529,49 +547,48 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   taskDeadline: {
-    fontSize: 14,
-    color: '#6E7A84',
+    fontSize: 13,
+    color: '#6B7280',
     fontWeight: '400',
     marginRight: 8,
   },
   taskBadge: {
-    backgroundColor: '#EBF5FF',
+    backgroundColor: '#EAF2FF',
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 12,
+    borderRadius: 10,
+    height: 20,
   },
   taskBadgeText: {
-    color: '#3A82F7',
+    color: '#1D4ED8',
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: '400',
   },
   newsItem: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 16,
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#E9EEF2',
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
   },
   newsTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#2C3E50',
+    fontSize: 15,
+    fontWeight: '400',
+    color: '#111827',
     marginBottom: 8,
-    lineHeight: 24,
+    lineHeight: 20,
   },
   newsMeta: {
     fontSize: 13,
-    color: '#6E7A84',
+    color: '#6B7280',
     fontWeight: '400',
     marginBottom: 10,
   },
   newsSummary: {
     fontSize: 15,
-    color: '#6E7A84',
+    color: '#111827',
     fontWeight: '400',
     marginBottom: 12,
-    lineHeight: 22,
+    lineHeight: 20,
   },
   newsLink: {
     flexDirection: 'row',
@@ -580,11 +597,10 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   newsLinkText: {
-    fontSize: 13,
-    color: '#6E7A84',
-    fontWeight: '400',
+    fontSize: 14,
+    color: '#2563EB',
+    fontWeight: '600',
     marginRight: 4,
-    textDecorationLine: 'underline',
   },
   modalOverlay: {
     flex: 1,

@@ -67,6 +67,9 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger, initialF
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
   
+  // Collapsible form options
+  const [showOptions, setShowOptions] = useState(false);
+  
   // Filter state
   type FilterType = 'all' | 'today' | 'tomorrow' | 'overdue' | 'weekend' | TaskCategory;
   const [filter, setFilter] = useState<FilterType>('all');
@@ -74,6 +77,9 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger, initialF
   useEffect(() => {
     if (initialFilter) {
       setFilter(initialFilter as FilterType);
+    } else if (!filter || filter === 'weekend') {
+      // Ensure filter is never empty; reset to 'all' if undefined or weekend ended
+      setFilter('all');
     }
   }, [initialFilter]);
   
@@ -522,75 +528,6 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger, initialF
         </View>
 
         <View style={styles.formGroup}>
-          <Text style={styles.label}>Catégorie *</Text>
-          {Platform.OS === 'web' ? (
-            <select
-              value={category}
-              onChange={(e: any) => setCategory(e.target.value as TaskCategory)}
-              style={{
-                backgroundColor: '#F8F9FB',
-                borderWidth: 1,
-                borderColor: '#E9EEF2',
-                borderRadius: 12,
-                paddingLeft: 16,
-                paddingRight: 16,
-                paddingTop: 12,
-                paddingBottom: 12,
-                fontSize: 16,
-                color: '#2C3E50',
-                fontFamily: 'system-ui',
-                width: '100%',
-              }}
-            >
-              {CATEGORIES.map((cat) => (
-                <option key={cat.value} value={cat.value}>
-                  {cat.label}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <View>
-              <TouchableOpacity
-                style={styles.dropdownButton}
-                onPress={() => setShowCategoryPicker(!showCategoryPicker)}
-              >
-                <Text style={styles.dropdownButtonText}>
-                  {CATEGORIES.find(c => c.value === category)?.label || 'Sélectionner'}
-                </Text>
-                <Feather name={showCategoryPicker ? 'chevron-up' : 'chevron-down'} size={20} color="#2C3E50" />
-              </TouchableOpacity>
-              {showCategoryPicker && (
-                <View style={styles.dropdownList}>
-                  {CATEGORIES.map((cat) => (
-                    <TouchableOpacity
-                      key={cat.value}
-                      style={[
-                        styles.dropdownItem,
-                        category === cat.value && styles.dropdownItemActive
-                      ]}
-                      onPress={() => {
-                        setCategory(cat.value);
-                        setShowCategoryPicker(false);
-                      }}
-                    >
-                      <Text style={[
-                        styles.dropdownItemText,
-                        category === cat.value && styles.dropdownItemTextActive
-                      ]}>
-                        {cat.label}
-                      </Text>
-                      {category === cat.value && (
-                        <Feather name="check" size={18} color="#3A82F7" />
-                      )}
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </View>
-          )}
-        </View>
-
-        <View style={styles.formGroup}>
           <Text style={styles.label}>Échéance *</Text>
           {Platform.OS === 'web' ? (
             <input
@@ -646,18 +583,100 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger, initialF
           )}
         </View>
 
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>Description (optionnel)</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            value={description}
-            onChangeText={setDescription}
-            placeholder="Détails supplémentaires..."
-            placeholderTextColor="#9CA3AF"
-            multiline
-            numberOfLines={3}
-          />
-        </View>
+        {/* Collapsible Options */}
+        <TouchableOpacity 
+          style={styles.optionsToggle}
+          onPress={() => setShowOptions(!showOptions)}
+        >
+          <Text style={styles.optionsToggleText}>Options</Text>
+          <Feather name={showOptions ? 'chevron-up' : 'chevron-down'} size={20} color="#6E7A84" />
+        </TouchableOpacity>
+
+        {showOptions && (
+          <>
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Catégorie</Text>
+              {Platform.OS === 'web' ? (
+                <select
+                  value={category}
+                  onChange={(e: any) => setCategory(e.target.value as TaskCategory)}
+                  style={{
+                    backgroundColor: '#F8F9FB',
+                    borderWidth: 1,
+                    borderColor: '#E9EEF2',
+                    borderRadius: 12,
+                    paddingLeft: 16,
+                    paddingRight: 16,
+                    paddingTop: 12,
+                    paddingBottom: 12,
+                    fontSize: 16,
+                    color: '#2C3E50',
+                    fontFamily: 'system-ui',
+                    width: '100%',
+                  }}
+                >
+                  {CATEGORIES.map((cat) => (
+                    <option key={cat.value} value={cat.value}>
+                      {cat.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <View>
+                  <TouchableOpacity
+                    style={styles.dropdownButton}
+                    onPress={() => setShowCategoryPicker(!showCategoryPicker)}
+                  >
+                    <Text style={styles.dropdownButtonText}>
+                      {CATEGORIES.find(c => c.value === category)?.label || 'Sélectionner'}
+                    </Text>
+                    <Feather name={showCategoryPicker ? 'chevron-up' : 'chevron-down'} size={20} color="#2C3E50" />
+                  </TouchableOpacity>
+                  {showCategoryPicker && (
+                    <View style={styles.dropdownList}>
+                      {CATEGORIES.map((cat) => (
+                        <TouchableOpacity
+                          key={cat.value}
+                          style={[
+                            styles.dropdownItem,
+                            category === cat.value && styles.dropdownItemActive
+                          ]}
+                          onPress={() => {
+                            setCategory(cat.value);
+                            setShowCategoryPicker(false);
+                          }}
+                        >
+                          <Text style={[
+                            styles.dropdownItemText,
+                            category === cat.value && styles.dropdownItemTextActive
+                          ]}>
+                            {cat.label}
+                          </Text>
+                          {category === cat.value && (
+                            <Feather name="check" size={18} color="#3A82F7" />
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Description (optionnel)</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={description}
+                onChangeText={setDescription}
+                placeholder="Détails supplémentaires..."
+                placeholderTextColor="#9CA3AF"
+                multiline
+                numberOfLines={3}
+              />
+            </View>
+          </>
+        )}
 
         <TouchableOpacity
           style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
@@ -727,8 +746,10 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger, initialF
                 width: '100%',
               }}
             >
-              <option value="all">Toutes les tâches</option>
+              <option value="all">Toutes ({tasks.length})</option>
               <option value="today">Tâches du jour</option>
+              <option value="tomorrow">Demain</option>
+              <option value="overdue">En retard</option>
               {CATEGORIES.map((cat) => (
                 <option key={cat.value} value={cat.value}>
                   {cat.label}
@@ -742,7 +763,15 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger, initialF
                 onPress={() => setShowFilterPicker(!showFilterPicker)}
               >
                 <Text style={styles.dropdownButtonText}>
-                  {filter === 'all' ? 'Toutes les tâches' : filter === 'today' ? 'Tâches du jour' : CATEGORIES.find(c => c.value === filter)?.label}
+                  {filter === 'all' 
+                    ? `Toutes (${tasks.length})`
+                    : filter === 'today' 
+                    ? 'Tâches du jour' 
+                    : filter === 'tomorrow'
+                    ? 'Demain'
+                    : filter === 'overdue'
+                    ? 'En retard'
+                    : CATEGORIES.find(c => c.value === filter)?.label}
                 </Text>
                 <Feather name={showFilterPicker ? 'chevron-up' : 'chevron-down'} size={20} color="#2C3E50" />
               </TouchableOpacity>
@@ -756,7 +785,7 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger, initialF
                     }}
                   >
                     <Text style={[styles.dropdownItemText, filter === 'all' && styles.dropdownItemTextActive]}>
-                      Toutes les tâches
+                      Toutes ({tasks.length})
                     </Text>
                     {filter === 'all' && <Feather name="check" size={18} color="#3A82F7" />}
                   </TouchableOpacity>
@@ -771,6 +800,30 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger, initialF
                       Tâches du jour
                     </Text>
                     {filter === 'today' && <Feather name="check" size={18} color="#3A82F7" />}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.dropdownItem, filter === 'tomorrow' && styles.dropdownItemActive]}
+                    onPress={() => {
+                      setFilter('tomorrow');
+                      setShowFilterPicker(false);
+                    }}
+                  >
+                    <Text style={[styles.dropdownItemText, filter === 'tomorrow' && styles.dropdownItemTextActive]}>
+                      Demain
+                    </Text>
+                    {filter === 'tomorrow' && <Feather name="check" size={18} color="#3A82F7" />}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.dropdownItem, filter === 'overdue' && styles.dropdownItemActive]}
+                    onPress={() => {
+                      setFilter('overdue');
+                      setShowFilterPicker(false);
+                    }}
+                  >
+                    <Text style={[styles.dropdownItemText, filter === 'overdue' && styles.dropdownItemTextActive]}>
+                      En retard
+                    </Text>
+                    {filter === 'overdue' && <Feather name="check" size={18} color="#3A82F7" />}
                   </TouchableOpacity>
                   {CATEGORIES.map((cat) => (
                     <TouchableOpacity
@@ -1411,7 +1464,7 @@ const styles = StyleSheet.create({
   submitButton: {
     backgroundColor: '#3A82F7',
     borderRadius: 12,
-    paddingVertical: 16,
+    paddingVertical: 14,
     alignItems: 'center',
     marginTop: 12,
     shadowColor: '#3A82F7',
@@ -1422,6 +1475,18 @@ const styles = StyleSheet.create({
   },
   submitButtonDisabled: {
     opacity: 0.6,
+  },
+  optionsToggle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginBottom: 8,
+  },
+  optionsToggleText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6E7A84',
   },
   divider: {
     flexDirection: 'row',
@@ -1567,7 +1632,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   taskTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
     color: '#2C3E50',
     flex: 1,
@@ -1611,12 +1676,13 @@ const styles = StyleSheet.create({
   },
   overdueText: {
     color: '#DC2626',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   taskDescription: {
     fontSize: 14,
     color: '#6E7A84',
     marginTop: 4,
+    opacity: 0.8,
   },
   attachmentButton: {
     flexDirection: 'row',

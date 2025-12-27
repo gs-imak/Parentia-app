@@ -1,0 +1,205 @@
+---
+description: Mandatory UI & UX standards enforced as senior-level review
+alwaysApply: true
+---
+
+# Cursor Rules — UI & UX Standards (Senior-Reviewed)
+
+These rules are mandatory.  
+All UI and UX decisions must assume continuous review by a senior UX/UI designer.  
+If a choice feels questionable, it is wrong and must be corrected.
+
+---
+
+## 1. Core Principle
+
+Design quality is not optional.
+
+- No UI element exists without purpose
+- No spacing is arbitrary
+- No interaction is accidental
+- No visual inconsistency is acceptable
+
+Always favor clarity, hierarchy, and restraint over creativity for its own sake.
+
+---
+
+## 2. Spacing & Layout Rules
+
+### Global Spacing System
+
+- Use a 4pt or 8pt spacing system only
+- Spacing must be consistent vertically and horizontally
+- Never mix random values (e.g. 7px, 13px)
+
+Recommended scale:
+- 4
+- 8
+- 12
+- 16
+- 24
+- 32
+- 48
+- 64
+
+### Padding & Margins
+
+- Interactive elements must have a minimum 44px touch target
+- Cards and containers must have clear internal padding
+- Content should breathe, never feel cramped
+
+### Alignment
+
+- Align elements to a clear grid
+- Avoid optical misalignment
+- Left alignment is default unless intentionally centered
+
+---
+
+## 3. Visual Hierarchy
+
+Hierarchy must be immediately readable.
+
+### Typography Hierarchy
+
+- One primary font family
+- Clear size progression
+- Consistent line heights
+
+Rules:
+- Headings must visually dominate body text
+- Body text must never compete with headings
+- Line height should improve readability, not density
+
+### Weight & Contrast
+
+- Use weight changes sparingly
+- Contrast must meet accessibility standards
+- Never rely on color alone to convey meaning
+
+---
+
+## 4. Component Design Rules
+
+### Buttons
+
+- One primary action per screen
+- Secondary actions must not visually compete
+- Destructive actions must be clearly differentiated
+
+Button rules:
+- Consistent height
+- Clear states: default, hover, active, disabled
+- No vague labels (e.g. "OK", "Submit")
+
+### Inputs & Forms
+
+- Labels must always be visible
+- Errors must be specific and helpful
+- Required fields must be clearly indicated
+
+Never:
+- Hide labels inside placeholders only
+- Trigger errors without explanation
+
+---
+
+## 5. Color Usage
+
+Color is functional, not decorative.
+
+Rules:
+- Limited palette
+- One primary brand color
+- One accent color
+- Neutral background dominance
+
+Never:
+- Use color randomly
+- Overuse accent colors
+- Reduce contrast for aesthetics
+
+---
+
+## 6. Feedback & States
+
+Every user action must have feedback.
+
+Required states:
+- Loading
+- Success
+- Error
+- Empty
+- Disabled
+
+Rules:
+- Feedback must be immediate
+- Messages must be human and clear
+- No silent failures
+
+---
+
+## 7. Motion & Animation
+
+Motion supports understanding, not flair.
+
+Rules:
+- Subtle
+- Fast
+- Purpose-driven
+
+Never:
+- Animate for decoration only
+- Block user actions with animation
+- Use inconsistent easing or durations
+
+---
+
+## 8. Accessibility Standards
+
+Accessibility is mandatory.
+
+Minimum requirements:
+- Keyboard navigable
+- Screen reader friendly
+- Sufficient contrast
+- Logical focus order
+
+If accessibility is questionable, it must be fixed.
+
+---
+
+## 9. Consistency Rules
+
+- Components must be reusable
+- Same interaction must behave the same everywhere
+- Same visual pattern must mean the same thing everywhere
+
+No exceptions.
+
+---
+
+## 10. Decision Validation Checklist
+
+Before finalizing any UI or UX decision, confirm:
+
+- Is this clear in under 2 seconds?
+- Is the hierarchy obvious?
+- Is spacing intentional?
+- Is this consistent with the rest of the system?
+- Would a senior designer approve this without comment?
+
+If any answer is no, revise.
+
+---
+
+## 11. Enforcement Rule
+
+If a design decision conflicts with these rules:
+
+- These rules win
+- No shortcuts
+- No temporary hacks
+- No excuses
+
+Design quality is part of the product.

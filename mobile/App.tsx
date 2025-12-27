@@ -127,6 +127,11 @@ export default function App() {
 
     const subResponse = Notifications.addNotificationResponseReceivedListener(async (response) => {
       await handleNotificationResponse(response, tasksRef.current);
+      
+      // Refresh app state after action (delete/delay)
+      await refreshAndSchedule();
+      setRefreshTrigger(prev => prev + 1);
+      
       const meta = response.notification.request.content.data as any;
       const deepLink = meta?.deepLink as { route?: string; params?: any } | undefined;
       if (deepLink?.route === 'tasks') {
