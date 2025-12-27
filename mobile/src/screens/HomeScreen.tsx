@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { RefreshControl, Linking, View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Modal, StyleSheet, Dimensions, type GestureResponderEvent } from 'react-native';
+import { RefreshControl, Linking, View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Modal, StyleSheet, Dimensions, Platform, type GestureResponderEvent } from 'react-native';
 import { formatDateFrench, formatTaskDeadlineFrench } from '../utils/dateFormat';
 import { Feather } from '@expo/vector-icons';
 import {
