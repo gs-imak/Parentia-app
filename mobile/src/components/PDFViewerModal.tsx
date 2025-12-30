@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
   StatusBar,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
 let WebView: any = null;
@@ -258,15 +257,6 @@ export default function PDFViewerModal({
   const containerRef = useRef<View>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const usesPDFJS = isIOSSafari();
-  const insets = useSafeAreaInsets();
-
-  // #region agent log
-  useEffect(() => {
-    if (visible) {
-      fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PDFViewerModal.tsx:262',message:'Modal opened - insets values',data:{insetsTop:insets.top,insetsBottom:insets.bottom,insetsLeft:insets.left,insetsRight:insets.right,calculatedPadding:Math.max(insets.top,20)+12,platform:Platform.OS},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2'})}).catch(()=>{});
-    }
-  }, [visible, insets]);
-  // #endregion
 
   const handleDownload = async () => {
     if (!pdfUrl) return;
@@ -315,24 +305,12 @@ export default function PDFViewerModal({
       transparent={false}
     >
       <View style={styles.container}>
-        <View 
-          style={[styles.header, { paddingTop: Math.max(insets.top + 50, 70) }]}
-          onLayout={(e) => {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PDFViewerModal.tsx:322',message:'Header layout measured',data:{headerY:e.nativeEvent.layout.y,headerHeight:e.nativeEvent.layout.height,headerWidth:e.nativeEvent.layout.width,appliedPaddingTop:Math.max(insets.top+50,70)},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'H1,H4'})}).catch(()=>{});
-            // #endregion
-          }}
-        >
+        <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? 100 : 50 }]}>
           <TouchableOpacity 
             onPress={onClose} 
             style={styles.closeButton}
             activeOpacity={0.6}
             hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-            onLayout={(e) => {
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PDFViewerModal.tsx:327',message:'Close button position',data:{buttonY:e.nativeEvent.layout.y,buttonHeight:e.nativeEvent.layout.height,buttonWidth:e.nativeEvent.layout.width},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H4'})}).catch(()=>{});
-              // #endregion
-            }}
           >
             <Feather name="x" size={28} color="#374151" />
           </TouchableOpacity>
