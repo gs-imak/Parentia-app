@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
   StatusBar,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
 let WebView: any = null;
@@ -306,27 +305,25 @@ export default function PDFViewerModal({
       transparent={false}
     >
       <View style={styles.container}>
-        <SafeAreaView edges={['top']} style={styles.safeArea}>
-          <View style={styles.header}>
-            <TouchableOpacity 
-              onPress={onClose} 
-              style={styles.closeButton}
-              activeOpacity={0.6}
-              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-            >
-              <Feather name="x" size={28} color="#374151" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
-            <TouchableOpacity 
-              onPress={handleDownload} 
-              style={styles.downloadButton}
-              activeOpacity={0.6}
-              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-            >
-              <Feather name="download" size={24} color="#3A82F7" />
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
+        <View style={styles.header}>
+          <TouchableOpacity 
+            onPress={onClose} 
+            style={styles.closeButton}
+            activeOpacity={0.6}
+            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+          >
+            <Feather name="x" size={28} color="#374151" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
+          <TouchableOpacity 
+            onPress={handleDownload} 
+            style={styles.downloadButton}
+            activeOpacity={0.6}
+            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+          >
+            <Feather name="download" size={24} color="#3A82F7" />
+          </TouchableOpacity>
+        </View>
 
         {Platform.OS === 'web' ? (
           usesPDFJS ? (
@@ -404,21 +401,18 @@ const styles = StyleSheet.create({
     minHeight: 0 as any,
     zIndex: 1,
   },
-  safeArea: {
-    backgroundColor: '#FFFFFF',
-    zIndex: 1000,
-    elevation: 10,
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#FFFFFF',
-    paddingTop: 12,
+    paddingTop: Platform.OS === 'ios' ? 56 : 12,
     paddingBottom: 12,
     paddingHorizontal: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#E9EEF2',
+    zIndex: 1000,
+    elevation: 10,
     gap: 8,
   },
   headerTitle: {
