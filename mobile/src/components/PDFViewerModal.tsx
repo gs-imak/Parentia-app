@@ -13,6 +13,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
+// FORCE CACHE BUST - VERSION 2
+console.log('[PDFViewerModal] LOADED VERSION 2 WITH NEW POSITIONING');
+
 let WebView: any = null;
 if (Platform.OS !== 'web') {
   try {
