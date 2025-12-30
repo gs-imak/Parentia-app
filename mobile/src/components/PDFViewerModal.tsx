@@ -307,7 +307,7 @@ export default function PDFViewerModal({
       transparent={false}
     >
       <View style={styles.container}>
-        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <View style={[styles.header, { paddingTop: insets.top + 48 }]}>
           <TouchableOpacity 
             onPress={onClose} 
             style={styles.closeButton}
