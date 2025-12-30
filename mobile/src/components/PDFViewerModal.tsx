@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
   StatusBar,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
 let WebView: any = null;
@@ -258,7 +258,6 @@ export default function PDFViewerModal({
   const containerRef = useRef<View>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const usesPDFJS = isIOSSafari();
-  const insets = useSafeAreaInsets();
 
   const handleDownload = async () => {
     if (!pdfUrl) return;
@@ -299,11 +298,6 @@ export default function PDFViewerModal({
 
   if (!pdfUrl) return null;
 
-  // On iOS, ensure proper spacing for status bar/notch
-  // Use safe area insets + additional padding for the header
-  const topSafeArea = Platform.OS === 'ios' ? insets.top : 0;
-  const headerExtraPadding = Platform.OS === 'ios' ? 16 : 12;
-
   return (
     <Modal
       visible={visible}
@@ -312,11 +306,10 @@ export default function PDFViewerModal({
       transparent={false}
       statusBarTranslucent={Platform.OS === 'android'}
     >
-      <StatusBar barStyle="dark-content" />
-      <View style={[styles.container, { paddingTop: topSafeArea }]}>
-        <View 
-          style={[styles.header, { paddingTop: headerExtraPadding }]}
-        >
+      <SafeAreaProvider>
+        <StatusBar barStyle="dark-content" />
+        <SafeAreaView style={styles.container} edges={['top']}>
+          <View style={styles.header}>
           <TouchableOpacity 
             onPress={onClose} 
             style={styles.closeButton}
@@ -387,7 +380,8 @@ export default function PDFViewerModal({
             )}
           </View>
         )}
-      </View>
+        </SafeAreaView>
+      </SafeAreaProvider>
     </Modal>
   );
 }
@@ -417,6 +411,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#FFFFFF',
+    paddingTop: 12,
     paddingBottom: 16,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
