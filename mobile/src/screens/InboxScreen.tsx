@@ -697,7 +697,7 @@ export default function InboxScreen({ onOpenTaskDetail, refreshTrigger }: InboxS
           animationType="fade"
           onRequestClose={() => setShowImageViewer(false)}
         >
-          <View style={{ flex: 1, backgroundColor: '#F5F7FA' }}>
+          <View style={{ flex: 1, backgroundColor: '#F5F7FA', paddingTop: Platform.OS === 'ios' ? 59 : 0 }}>
             <View style={styles.viewerHeader}>
               <TouchableOpacity onPress={() => setShowImageViewer(false)} style={styles.viewerHeaderButton}>
                 <Feather name="x" size={24} color="#2C3E50" />

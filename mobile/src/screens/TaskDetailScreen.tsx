@@ -1117,7 +1117,7 @@ export default function TaskDetailScreen({
             transparent={false}
             onRequestClose={() => setShowImageViewer(false)}
           >
-            <View style={{ flex: 1, backgroundColor: '#F5F7FA' }}>
+            <View style={{ flex: 1, backgroundColor: '#F5F7FA', paddingTop: Platform.OS === 'ios' ? 59 : 0 }}>
               <View style={styles.header}>
                 <TouchableOpacity 
                   onPress={() => setShowImageViewer(false)} 
