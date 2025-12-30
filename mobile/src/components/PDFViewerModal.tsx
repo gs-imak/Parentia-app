@@ -313,8 +313,8 @@ export default function PDFViewerModal({
       transparent={false}
       statusBarTranslucent={false}
     >
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={[styles.header, { paddingTop: 48 }]}>
+      <View style={[styles.container, { paddingTop: 100, backgroundColor: '#FF0000' }]}>
+        <View style={[styles.header, { paddingTop: 80, backgroundColor: '#00FF00' }]}>
           <TouchableOpacity 
             onPress={onClose} 
             style={styles.closeButton}
@@ -323,7 +323,7 @@ export default function PDFViewerModal({
           >
             <Feather name="x" size={28} color="#374151" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
+          <Text style={[styles.headerTitle, { backgroundColor: '#FFFF00' }]} numberOfLines={1}>{title}</Text>
           <TouchableOpacity 
             onPress={handleDownload} 
             style={styles.downloadButton}
