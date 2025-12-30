@@ -506,3 +506,30 @@ export async function getMessageDraft(
     body: JSON.stringify({ channel }),
   });
 }
+
+// ============================================
+// Push Notification Token API
+// ============================================
+
+/**
+ * Register push notification token with the backend
+ * Called on app startup to enable push notifications
+ */
+export async function registerPushToken(token: string): Promise<void> {
+  await fetch(`${BACKEND_URL}/push-tokens`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+  });
+}
+
+/**
+ * Remove push notification token (on logout)
+ */
+export async function removePushToken(token: string): Promise<void> {
+  await fetch(`${BACKEND_URL}/push-tokens`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+  });
+}

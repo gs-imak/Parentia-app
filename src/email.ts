@@ -1,6 +1,7 @@
 import { createTask, type Task } from './tasks.js';
 import { createInboxEntry, isDuplicateEmail, type InboxEntry } from './inbox.js';
 import { createNotification } from './notifications.js';
+import { sendTaskCreatedPushNotification } from './pushNotifications.js';
 import { extractPdfText, isPdf } from './pdfParser.js';
 import { uploadAttachment, isSupabaseConfigured } from './supabase.js';
 import { 
@@ -253,7 +254,7 @@ export async function processIncomingEmail(
     attachmentUrl: attachmentUrl || undefined,
   });
   
-  // Step 9: Create notification (non-blocking)
+  // Step 9: Create notification record (non-blocking)
   try {
     await createNotification({
       type: 'email_task_created',
@@ -263,6 +264,15 @@ export async function processIncomingEmail(
   } catch (error) {
     console.error('Notification creation failed:', error);
     // Non-blocking: task and inbox entry already created
+  }
+  
+  // Step 10: Send push notification (works even when app is closed)
+  try {
+    await sendTaskCreatedPushNotification(task.id, task.title, 'email');
+    console.log(`Push notification sent for task: ${task.id}`);
+  } catch (error) {
+    console.error('Push notification failed:', error);
+    // Non-blocking: task already created
   }
   
   console.log(`Email processed successfully: ${inboxEntry.id}`);

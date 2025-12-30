@@ -10,7 +10,7 @@ import ProfileScreen from './src/screens/ProfileScreen';
 import TaskDetailScreen from './src/screens/TaskDetailScreen';
 import { type Task } from './src/api/client';
 import NotificationsDebugScreen from './src/screens/NotificationsDebugScreen';
-import { getProfile, getAllTasks, getTaskById, fetchWeather, fetchQuote } from './src/api/client';
+import { getProfile, getAllTasks, getTaskById, fetchWeather, fetchQuote, registerPushToken } from './src/api/client';
 import { rescheduleAllNotifications, handleNotificationResponse, setupNotificationCategories } from './src/notifications/NotificationScheduler';
 import { AppEvents, EVENTS } from './src/utils/events';
 import { getStoredCity } from './src/utils/storage';
@@ -98,22 +98,42 @@ export default function App() {
     }
   }, []);
 
-  // Request notification permissions on app init (iOS requires explicit request)
+  // Request notification permissions and register push token on app init
   useEffect(() => {
-    const requestNotificationPermission = async () => {
+    const setupPushNotifications = async () => {
       if (Platform.OS === 'web') return; // Skip on web
       
       try {
+        // Step 1: Request permission
         const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+        
         if (existingStatus !== 'granted') {
-          await Notifications.requestPermissionsAsync();
+          const { status } = await Notifications.requestPermissionsAsync();
+          finalStatus = status;
         }
+        
+        if (finalStatus !== 'granted') {
+          console.log('[Push] Permission not granted');
+          return;
+        }
+        
+        // Step 2: Get Expo Push Token
+        const tokenData = await Notifications.getExpoPushTokenAsync({
+          projectId: 'parentia-mobile', // Must match app.json slug
+        });
+        const token = tokenData.data;
+        console.log('[Push] Token:', token.substring(0, 30) + '...');
+        
+        // Step 3: Register token with backend
+        await registerPushToken(token);
+        console.log('[Push] Token registered with backend');
       } catch (error) {
-        console.warn('[Notifications] Permission request failed:', error);
+        console.warn('[Push] Setup failed:', error);
       }
     };
     
-    requestNotificationPermission();
+    setupPushNotifications();
   }, []);
 
   // Reset Profile sections when app returns from background

@@ -18,6 +18,7 @@ import { uploadAttachment, isSupabaseConfigured } from './supabase.js';
 import { generatePDF, previewFilledTemplate } from './pdfGenerator.js';
 import { getAllTemplates, getTemplateById, getTemplatesForTaskCategory } from './pdfTemplates.js';
 import { getTaskById } from './tasks.js';
+import { registerPushToken, removePushToken, sendTaskCreatedPushNotification } from './pushNotifications.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -774,6 +775,60 @@ app.patch('/notifications/:id/read', async (req, res) => {
     return res.status(500).json({
       success: false,
       error: 'Impossible de mettre à jour la notification.',
+    });
+  }
+});
+
+// ============================================
+// Push Notification Token Endpoints
+// ============================================
+
+// Register push token (called by mobile app on startup)
+app.post('/push-tokens', async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'Token is required.',
+      });
+    }
+    
+    const success = await registerPushToken(token);
+    if (!success) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid push token format.',
+      });
+    }
+    
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('[Push Token] Registration error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to register push token.',
+    });
+  }
+});
+
+// Remove push token (called on logout)
+app.delete('/push-tokens', async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        error: 'Token is required.',
+      });
+    }
+    
+    await removePushToken(token);
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to remove push token.',
     });
   }
 });
