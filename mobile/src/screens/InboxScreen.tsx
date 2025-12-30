@@ -18,6 +18,8 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { fetchInbox, deleteInboxEntry, createTask, updateTask, getTaskById, type InboxEntry, type TaskCategory, type Task } from '../api/client';
 import PDFViewerModal from '../components/PDFViewerModal';
+import { triggerNearDeadlineTask } from '../notifications/NotificationScheduler';
+import { getStoredProcessedEmailTaskIds, setStoredProcessedEmailTaskIds } from '../utils/storage';
 
 function isProbablyPdfUrl(url: string): boolean {
   const u = (url || '').toLowerCase();
@@ -197,6 +199,35 @@ export default function InboxScreen({ onOpenTaskDetail, refreshTrigger }: InboxS
       
       const data = await fetchInbox();
       setEntries(data.entries);
+      
+      // Trigger notifications for new email-created tasks with near deadlines
+      const processedIds = await getStoredProcessedEmailTaskIds();
+      const newTasks: Task[] = [];
+      
+      for (const entry of data.entries) {
+        // Only process successful entries with tasks that haven't been notified yet
+        if (entry.status === 'success' && entry.taskId && !processedIds.has(entry.taskId)) {
+          try {
+            const task = await getTaskById(entry.taskId);
+            if (task.source === 'email') {
+              newTasks.push(task);
+              processedIds.add(entry.taskId);
+            }
+          } catch {
+            // Task may not exist anymore, skip
+          }
+        }
+      }
+      
+      // Store updated processed IDs
+      if (newTasks.length > 0) {
+        await setStoredProcessedEmailTaskIds(processedIds);
+        
+        // Trigger notification for tasks with near deadline (< 3 days)
+        for (const task of newTasks) {
+          await triggerNearDeadlineTask(task);
+        }
+      }
     } catch (err) {
       setError('Impossible de charger la boîte de réception');
       console.error('Inbox load error:', err);

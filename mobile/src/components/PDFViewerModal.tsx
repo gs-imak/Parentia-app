@@ -8,7 +8,9 @@ import {
   Platform,
   Linking,
   ActivityIndicator,
+  StatusBar,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
 let WebView: any = null;
@@ -256,6 +258,15 @@ export default function PDFViewerModal({
   const containerRef = useRef<View>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const usesPDFJS = isIOSSafari();
+  const insets = useSafeAreaInsets();
+
+  // #region agent log
+  useEffect(() => {
+    if (visible) {
+      fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PDFViewerModal.tsx:262',message:'Modal opened - insets values',data:{insetsTop:insets.top,insetsBottom:insets.bottom,insetsLeft:insets.left,insetsRight:insets.right,calculatedPadding:Math.max(insets.top,20)+12,platform:Platform.OS},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2'})}).catch(()=>{});
+    }
+  }, [visible, insets]);
+  // #endregion
 
   const handleDownload = async () => {
     if (!pdfUrl) return;
@@ -304,13 +315,35 @@ export default function PDFViewerModal({
       transparent={false}
     >
       <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <Feather name="x" size={24} color="#2C3E50" />
+        <View 
+          style={[styles.header, { paddingTop: Math.max(insets.top + 50, 70) }]}
+          onLayout={(e) => {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PDFViewerModal.tsx:322',message:'Header layout measured',data:{headerY:e.nativeEvent.layout.y,headerHeight:e.nativeEvent.layout.height,headerWidth:e.nativeEvent.layout.width,appliedPaddingTop:Math.max(insets.top+50,70)},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'H1,H4'})}).catch(()=>{});
+            // #endregion
+          }}
+        >
+          <TouchableOpacity 
+            onPress={onClose} 
+            style={styles.closeButton}
+            activeOpacity={0.6}
+            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+            onLayout={(e) => {
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PDFViewerModal.tsx:327',message:'Close button position',data:{buttonY:e.nativeEvent.layout.y,buttonHeight:e.nativeEvent.layout.height,buttonWidth:e.nativeEvent.layout.width},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H4'})}).catch(()=>{});
+              // #endregion
+            }}
+          >
+            <Feather name="x" size={28} color="#374151" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{title}</Text>
-          <TouchableOpacity onPress={handleDownload} style={styles.downloadButton}>
-            <Feather name="download" size={20} color="#3A82F7" />
+          <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
+          <TouchableOpacity 
+            onPress={handleDownload} 
+            style={styles.downloadButton}
+            activeOpacity={0.6}
+            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+          >
+            <Feather name="download" size={24} color="#3A82F7" />
           </TouchableOpacity>
         </View>
 
@@ -378,42 +411,54 @@ const styles = StyleSheet.create({
   webViewerContainer: {
     flex: 1,
     minHeight: 0 as any,
+    zIndex: 1,
   },
   pdfJSContainer: {
     flex: 1,
     minHeight: 0 as any,
+    zIndex: 1,
   },
   nativeViewerContainer: {
     flex: 1,
     minHeight: 0 as any,
+    zIndex: 1,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#FFFFFF',
-    paddingTop: 50,
-    paddingBottom: 15,
-    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    paddingHorizontal: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#E9EEF2',
+    zIndex: 1000,
+    elevation: 10,
+    gap: 8,
   },
   headerTitle: {
-    fontSize: 17,
+    flex: 1,
+    fontSize: 16,
     fontWeight: '600',
     color: '#2C3E50',
+    textAlign: 'center',
   },
   closeButton: {
-    width: 44,
-    height: 44,
+    width: 56,
+    height: 56,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 28,
   },
   downloadButton: {
-    width: 44,
-    height: 44,
+    width: 56,
+    height: 56,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#EBF5FF',
+    borderRadius: 28,
   },
   nativeContainer: {
     flex: 1,

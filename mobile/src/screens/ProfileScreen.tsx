@@ -57,19 +57,19 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<Profile>({ children: [] });
   const [loadingProfile, setLoadingProfile] = useState(false);
 
-  // Section collapse state - 5 main sections
-  const [familleExpanded, setFamilleExpanded] = useState(true);
+  // Section collapse state - 5 main sections (ALL closed by default)
+  const [familleExpanded, setFamilleExpanded] = useState(false);
   const [situationExpanded, setSituationExpanded] = useState(false);
   const [assistantExpanded, setAssistantExpanded] = useState(false);
   const [notificationsExpanded, setNotificationsExpanded] = useState(false);
   const [donneesExpanded, setDonneesExpanded] = useState(false);
   
-  // Legacy sub-section states (for forms within sections)
-  const [childrenExpanded, setChildrenExpanded] = useState(true);
-  const [spouseExpanded, setSpouseExpanded] = useState(true);
-  const [marriageExpanded, setMarriageExpanded] = useState(true);
-  const [addressExpanded, setAddressExpanded] = useState(true);
-  const [locationExpanded, setLocationExpanded] = useState(true);
+  // Legacy sub-section states (for forms within sections - ALL closed by default)
+  const [childrenExpanded, setChildrenExpanded] = useState(false);
+  const [spouseExpanded, setSpouseExpanded] = useState(false);
+  const [marriageExpanded, setMarriageExpanded] = useState(false);
+  const [addressExpanded, setAddressExpanded] = useState(false);
+  const [locationExpanded, setLocationExpanded] = useState(false);
 
   // Child form state
   const [childFirstName, setChildFirstName] = useState('');
@@ -578,11 +578,11 @@ export default function ProfileScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await deleteSpouse();
-              setSpouseFirstName('');
-              setSpouseBirthDate(new Date());
-              setEditingSpouse(false);
-              await loadProfile();
+            await deleteSpouse();
+            setSpouseFirstName('');
+            setSpouseBirthDate(new Date());
+            setEditingSpouse(false);
+            await loadProfile();
             } catch (error) {
               Alert.alert('Erreur', 'Impossible de supprimer le conjoint.');
             }
@@ -700,7 +700,7 @@ export default function ProfileScreen() {
           {/* SECTION 1 — Ma famille                                          */}
           {/* ═══════════════════════════════════════════════════════════════ */}
           <View style={styles.sectionCard}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.sectionCardHeader} 
               onPress={() => setFamilleExpanded(!familleExpanded)}
               activeOpacity={0.7}
@@ -708,12 +708,12 @@ export default function ProfileScreen() {
               <View style={styles.sectionCardHeaderLeft}>
                 <View style={[styles.sectionCardIcon, { backgroundColor: '#FEF3E2' }]}>
                   <Feather name="users" size={20} color="#F7A45A" />
-                </View>
+              </View>
                 <Text style={styles.sectionCardTitle}>Ma famille</Text>
               </View>
               <Feather name={familleExpanded ? 'chevron-up' : 'chevron-down'} size={24} color="#6E7A84" />
             </TouchableOpacity>
-            
+
             <Text style={styles.sectionCardSubtitle}>
               Ces informations permettent à l'app d'anticiper les démarches scolaires, médicales et administratives.
             </Text>
@@ -722,210 +722,37 @@ export default function ProfileScreen() {
               <View style={styles.sectionContent}>
                 
                 {/* --- Enfants Subsection --- */}
-                <TouchableOpacity 
+            <TouchableOpacity
                   style={styles.subsectionHeader} 
                   onPress={() => setChildrenExpanded(!childrenExpanded)}
                   activeOpacity={0.7}
                 >
                   <View style={styles.subsectionHeaderLeft}>
                     <Feather name="smile" size={18} color="#2C3E50" />
-                    <Text style={styles.subsectionTitle}>Enfants ({profile.children.length}/5)</Text>
-                  </View>
-                  <Feather name={childrenExpanded ? 'chevron-up' : 'chevron-down'} size={20} color="#6E7A84" />
-                </TouchableOpacity>
+                    <Text style={styles.subsectionTitle}>Enfants ({profile.children.length})</Text>
+              </View>
+              <Feather name={childrenExpanded ? 'chevron-up' : 'chevron-down'} size={20} color="#6E7A84" />
+            </TouchableOpacity>
 
-                {childrenExpanded && (
+            {childrenExpanded && (
                   <View style={styles.subsectionContent}>
-                    {profile.children.map((child) => {
-                      const age = Math.floor((Date.now() - new Date(child.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-                      const isExpanded = expandedChildId === child.id;
-                      const isEditing = editingChildId === child.id;
-                      
-                      if (isEditing) {
-                        return (
+                {profile.children.map((child) => {
+                  const age = Math.floor((Date.now() - new Date(child.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+                  const isExpanded = expandedChildId === child.id;
+                  const isEditing = editingChildId === child.id;
+                  
+                  if (isEditing) {
+                    return (
                           <View key={child.id} style={styles.formBox}>
-                            <Text style={styles.formLabel}>Éditer {child.firstName}</Text>
-                            <TextInput
-                              style={styles.input}
-                              placeholder="Prénom *"
-                              value={editChildFirstName}
-                              onChangeText={setEditChildFirstName}
-                              placeholderTextColor="#9CA3AF"
-                            />
-                            <Text style={styles.formLabel}>Date de naissance *</Text>
-                            {Platform.OS === 'web' ? (
-                              <input
-                                type="date"
-                                style={{
-                                  borderWidth: 1,
-                                  borderColor: '#E9EEF2',
-                                  borderRadius: 10,
-                                  paddingLeft: 14,
-                                  paddingRight: 14,
-                                  paddingTop: 12,
-                                  paddingBottom: 12,
-                                  fontSize: 16,
-                                  color: '#2C3E50',
-                                  backgroundColor: '#F5F7FA',
-                                  width: '100%',
-                                  fontFamily: 'system-ui',
-                                }}
-                                value={editChildBirthDate.toISOString().split('T')[0]}
-                                onChange={(e: any) => {
-                                  const value = e.target.value;
-                                  if (value) {
-                                    const d = new Date(value);
-                                    if (!isNaN(d.getTime())) setEditChildBirthDate(d);
-                                  }
-                                }}
-                              />
-                            ) : (
-                              <>
-                                <TouchableOpacity
-                                  style={styles.dateButton}
-                                  onPress={() => setShowEditChildDatePicker(true)}
-                                >
-                                  <Feather name="calendar" size={18} color="#2C3E50" />
-                                  <Text style={styles.dateButtonText}>
-                                    {editChildBirthDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
-                                  </Text>
-                                </TouchableOpacity>
-                                {showEditChildDatePicker && DateTimePicker && (
-                                  <DateTimePicker
-                                    value={editChildBirthDate}
-                                    mode="date"
-                                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                                    onChange={(event: any, selectedDate?: Date) => {
-                                      setShowEditChildDatePicker(Platform.OS === 'ios');
-                                      if (selectedDate) setEditChildBirthDate(selectedDate);
-                                    }}
-                                  />
-                                )}
-                              </>
-                            )}
-                            <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
-                              <View style={{ flex: 1 }}>
-                                <Text style={styles.formLabel}>Taille (cm)</Text>
-                                <TextInput
-                                  style={styles.input}
-                                  placeholder="Ex: 120"
-                                  value={editChildHeight}
-                                  onChangeText={setEditChildHeight}
-                                  keyboardType="numeric"
-                                  placeholderTextColor="#9CA3AF"
-                                />
-                              </View>
-                              <View style={{ flex: 1 }}>
-                                <Text style={styles.formLabel}>Poids (kg)</Text>
-                                <TextInput
-                                  style={styles.input}
-                                  placeholder="Ex: 25"
-                                  value={editChildWeight}
-                                  onChangeText={setEditChildWeight}
-                                  keyboardType="numeric"
-                                  placeholderTextColor="#9CA3AF"
-                                />
-                              </View>
-                            </View>
-                            <Text style={styles.formLabel}>Notes</Text>
-                            <TextInput
-                              style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
-                              placeholder="Allergies, informations importantes..."
-                              value={editChildNotes}
-                              onChangeText={setEditChildNotes}
-                              multiline
-                              numberOfLines={3}
-                              placeholderTextColor="#9CA3AF"
-                            />
-                            {childFormError && (
-                              <View style={styles.errorBox}>
-                                <Feather name="alert-circle" size={16} color="#DC2626" />
-                                <Text style={styles.errorText}>{childFormError}</Text>
-                              </View>
-                            )}
-                            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-                              <TouchableOpacity
-                                style={[styles.button, updatingChild && styles.buttonDisabled, { flex: 1 }]}
-                                onPress={() => handleUpdateChild(child.id)}
-                                disabled={updatingChild}
-                              >
-                                {updatingChild ? (
-                                  <ActivityIndicator size="small" color="#FFFFFF" />
-                                ) : (
-                                  <Text style={styles.buttonText}>Enregistrer</Text>
-                                )}
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                style={[styles.button, { flex: 1, backgroundColor: '#6E7A84' }]}
-                                onPress={handleCancelEditChild}
-                              >
-                                <Text style={styles.buttonText}>Annuler</Text>
-                              </TouchableOpacity>
-                            </View>
-                          </View>
-                        );
-                      }
-                      
-                      return (
-                        <View key={child.id}>
-                          <TouchableOpacity
-                            style={styles.childItem}
-                            onPress={() => setExpandedChildId(isExpanded ? null : child.id)}
-                            activeOpacity={0.7}
-                          >
-                            <View style={styles.childInfo}>
-                              <Text style={styles.childName}>{child.firstName}</Text>
-                              <Text style={styles.childAge}>{age} an{age > 1 ? 's' : ''}</Text>
-                            </View>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                              <TouchableOpacity onPress={() => handleEditChild(child)}>
-                                <Feather name="edit-2" size={18} color="#3A82F7" />
-                              </TouchableOpacity>
-                              <TouchableOpacity onPress={() => handleDeleteChild(child.id)}>
-                                <Feather name="trash-2" size={18} color="#DC2626" />
-                              </TouchableOpacity>
-                              <Feather name={isExpanded ? 'chevron-up' : 'chevron-down'} size={20} color="#6E7A84" />
-                            </View>
-                          </TouchableOpacity>
-                          {isExpanded && (
-                            <View style={styles.childDetails}>
-                              <Text style={styles.detailRow}>
-                                <Text style={styles.detailLabel}>Né(e) le : </Text>
-                                {new Date(child.birthDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
-                              </Text>
-                              {child.height && (
-                                <Text style={styles.detailRow}>
-                                  <Text style={styles.detailLabel}>Taille : </Text>{child.height} cm
-                                </Text>
-                              )}
-                              {child.weight && (
-                                <Text style={styles.detailRow}>
-                                  <Text style={styles.detailLabel}>Poids : </Text>{child.weight} kg
-                                </Text>
-                              )}
-                              {child.notes && (
-                                <Text style={styles.detailRow}>
-                                  <Text style={styles.detailLabel}>Notes : </Text>{child.notes}
-                                </Text>
-                              )}
-                            </View>
-                          )}
-                        </View>
-                      );
-                    })}
-
-                    {/* Add child form */}
-                    {profile.children.length < 5 && (
-                      <View style={styles.formBox}>
-                        <Text style={styles.formLabel}>Ajouter un enfant</Text>
+                        <Text style={styles.formLabel}>Éditer {child.firstName}</Text>
                         <TextInput
                           style={styles.input}
                           placeholder="Prénom *"
-                          value={childFirstName}
-                          onChangeText={setChildFirstName}
+                          value={editChildFirstName}
+                          onChangeText={setEditChildFirstName}
                           placeholderTextColor="#9CA3AF"
                         />
-                        <Text style={[styles.formLabel, { marginTop: 12 }]}>Date de naissance *</Text>
+                        <Text style={styles.formLabel}>Date de naissance *</Text>
                         {Platform.OS === 'web' ? (
                           <input
                             type="date"
@@ -943,12 +770,12 @@ export default function ProfileScreen() {
                               width: '100%',
                               fontFamily: 'system-ui',
                             }}
-                            value={childBirthDate.toISOString().split('T')[0]}
+                            value={editChildBirthDate.toISOString().split('T')[0]}
                             onChange={(e: any) => {
                               const value = e.target.value;
                               if (value) {
                                 const d = new Date(value);
-                                if (!isNaN(d.getTime())) setChildBirthDate(d);
+                                if (!isNaN(d.getTime())) setEditChildBirthDate(d);
                               }
                             }}
                           />
@@ -956,81 +783,254 @@ export default function ProfileScreen() {
                           <>
                             <TouchableOpacity
                               style={styles.dateButton}
-                              onPress={() => setShowChildDatePicker(true)}
+                              onPress={() => setShowEditChildDatePicker(true)}
                             >
                               <Feather name="calendar" size={18} color="#2C3E50" />
                               <Text style={styles.dateButtonText}>
-                                {childBirthDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                                {editChildBirthDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
                               </Text>
                             </TouchableOpacity>
-                            {showChildDatePicker && DateTimePicker && (
+                            {showEditChildDatePicker && DateTimePicker && (
                               <DateTimePicker
-                                value={childBirthDate}
+                                value={editChildBirthDate}
                                 mode="date"
                                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                                 onChange={(event: any, selectedDate?: Date) => {
-                                  setShowChildDatePicker(Platform.OS === 'ios');
-                                  if (selectedDate) setChildBirthDate(selectedDate);
+                                  setShowEditChildDatePicker(Platform.OS === 'ios');
+                                  if (selectedDate) setEditChildBirthDate(selectedDate);
                                 }}
                               />
                             )}
                           </>
                         )}
-                        <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.formLabel}>Taille (cm)</Text>
-                            <TextInput
-                              style={styles.input}
-                              placeholder="Ex: 120"
-                              value={childHeight}
-                              onChangeText={setChildHeight}
-                              keyboardType="numeric"
-                              placeholderTextColor="#9CA3AF"
-                            />
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.formLabel}>Poids (kg)</Text>
-                            <TextInput
-                              style={styles.input}
-                              placeholder="Ex: 25"
-                              value={childWeight}
-                              onChangeText={setChildWeight}
-                              keyboardType="numeric"
-                              placeholderTextColor="#9CA3AF"
-                            />
-                          </View>
-                        </View>
-                        <Text style={[styles.formLabel, { marginTop: 12 }]}>Notes</Text>
-                        <TextInput
-                          style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
-                          placeholder="Allergies, informations importantes..."
-                          value={childNotes}
-                          onChangeText={setChildNotes}
-                          multiline
-                          numberOfLines={3}
-                          placeholderTextColor="#9CA3AF"
-                        />
+                            <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.formLabel}>Taille (cm)</Text>
+                          <TextInput
+                            style={styles.input}
+                                  placeholder="Ex: 120"
+                            value={editChildHeight}
+                            onChangeText={setEditChildHeight}
+                            keyboardType="numeric"
+                            placeholderTextColor="#9CA3AF"
+                          />
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.formLabel}>Poids (kg)</Text>
+                          <TextInput
+                                  style={styles.input}
+                                  placeholder="Ex: 25"
+                            value={editChildWeight}
+                            onChangeText={setEditChildWeight}
+                            keyboardType="numeric"
+                            placeholderTextColor="#9CA3AF"
+                          />
+                              </View>
+                            </View>
+                            <Text style={styles.formLabel}>Notes</Text>
+                          <TextInput
+                              style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+                              placeholder="Allergies, informations importantes..."
+                            value={editChildNotes}
+                            onChangeText={setEditChildNotes}
+                            multiline
+                            numberOfLines={3}
+                            placeholderTextColor="#9CA3AF"
+                          />
                         {childFormError && (
                           <View style={styles.errorBox}>
                             <Feather name="alert-circle" size={16} color="#DC2626" />
                             <Text style={styles.errorText}>{childFormError}</Text>
                           </View>
                         )}
-                        <TouchableOpacity
-                          style={[styles.button, addingChild && styles.buttonDisabled, { marginTop: 16 }]}
-                          onPress={handleAddChild}
-                          disabled={addingChild}
-                        >
-                          {addingChild ? (
-                            <ActivityIndicator size="small" color="#FFFFFF" />
-                          ) : (
-                            <Text style={styles.buttonText}>Ajouter l'enfant</Text>
+                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                          <TouchableOpacity
+                            style={[styles.button, updatingChild && styles.buttonDisabled, { flex: 1 }]}
+                            onPress={() => handleUpdateChild(child.id)}
+                            disabled={updatingChild}
+                          >
+                            {updatingChild ? (
+                              <ActivityIndicator size="small" color="#FFFFFF" />
+                            ) : (
+                              <Text style={styles.buttonText}>Enregistrer</Text>
+                            )}
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.button, { flex: 1, backgroundColor: '#6E7A84' }]}
+                            onPress={handleCancelEditChild}
+                          >
+                            <Text style={styles.buttonText}>Annuler</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    );
+                  }
+                  
+                  return (
+                    <View key={child.id}>
+                      <TouchableOpacity 
+                        style={styles.childItem}
+                        onPress={() => setExpandedChildId(isExpanded ? null : child.id)}
+                            activeOpacity={0.7}
+                      >
+                        <View style={styles.childInfo}>
+                          <Text style={styles.childName}>{child.firstName}</Text>
+                              <Text style={styles.childAge}>{age} an{age > 1 ? 's' : ''}</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                              <TouchableOpacity onPress={() => handleEditChild(child)}>
+                            <Feather name="edit-2" size={18} color="#3A82F7" />
+                          </TouchableOpacity>
+                              <TouchableOpacity onPress={() => handleDeleteChild(child.id)}>
+                            <Feather name="trash-2" size={18} color="#DC2626" />
+                          </TouchableOpacity>
+                              <Feather name={isExpanded ? 'chevron-up' : 'chevron-down'} size={20} color="#6E7A84" />
+                        </View>
+                      </TouchableOpacity>
+                      {isExpanded && (
+                        <View style={styles.childDetails}>
+                              <Text style={styles.detailRow}>
+                                <Text style={styles.detailLabel}>Né(e) le : </Text>
+                                {new Date(child.birthDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                              </Text>
+                          {child.height && (
+                                <Text style={styles.detailRow}>
+                                  <Text style={styles.detailLabel}>Taille : </Text>{child.height} cm
+                                </Text>
                           )}
+                          {child.weight && (
+                                <Text style={styles.detailRow}>
+                                  <Text style={styles.detailLabel}>Poids : </Text>{child.weight} kg
+                                </Text>
+                          )}
+                          {child.notes && (
+                                <Text style={styles.detailRow}>
+                                  <Text style={styles.detailLabel}>Notes : </Text>{child.notes}
+                                </Text>
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+
+                    {/* Add child form */}
+                {profile.children.length < 5 && (
+                      <View style={styles.formBox}>
+                    <Text style={styles.formLabel}>Ajouter un enfant</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Prénom *"
+                      value={childFirstName}
+                      onChangeText={setChildFirstName}
+                      placeholderTextColor="#9CA3AF"
+                    />
+                        <Text style={[styles.formLabel, { marginTop: 12 }]}>Date de naissance *</Text>
+                    {Platform.OS === 'web' ? (
+                      <input
+                        type="date"
+                        style={{
+                          borderWidth: 1,
+                          borderColor: '#E9EEF2',
+                          borderRadius: 10,
+                          paddingLeft: 14,
+                          paddingRight: 14,
+                          paddingTop: 12,
+                          paddingBottom: 12,
+                          fontSize: 16,
+                          color: '#2C3E50',
+                          backgroundColor: '#F5F7FA',
+                          width: '100%',
+                          fontFamily: 'system-ui',
+                        }}
+                        value={childBirthDate.toISOString().split('T')[0]}
+                        onChange={(e: any) => {
+                          const value = e.target.value;
+                          if (value) {
+                            const d = new Date(value);
+                            if (!isNaN(d.getTime())) setChildBirthDate(d);
+                          }
+                        }}
+                      />
+                    ) : (
+                      <>
+                        <TouchableOpacity
+                          style={styles.dateButton}
+                          onPress={() => setShowChildDatePicker(true)}
+                        >
+                          <Feather name="calendar" size={18} color="#2C3E50" />
+                          <Text style={styles.dateButtonText}>
+                            {childBirthDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                          </Text>
                         </TouchableOpacity>
+                        {showChildDatePicker && DateTimePicker && (
+                          <DateTimePicker
+                            value={childBirthDate}
+                            mode="date"
+                            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+onChange={(event: any, selectedDate?: Date) => {
+                              setShowChildDatePicker(Platform.OS === 'ios');
+                              if (selectedDate) setChildBirthDate(selectedDate);
+                            }}
+                          />
+                        )}
+                      </>
+                    )}
+                        <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.formLabel}>Taille (cm)</Text>
+                      <TextInput
+                        style={styles.input}
+                              placeholder="Ex: 120"
+                        value={childHeight}
+                        onChangeText={setChildHeight}
+                        keyboardType="numeric"
+                        placeholderTextColor="#9CA3AF"
+                      />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.formLabel}>Poids (kg)</Text>
+                      <TextInput
+                              style={styles.input}
+                              placeholder="Ex: 25"
+                        value={childWeight}
+                        onChangeText={setChildWeight}
+                        keyboardType="numeric"
+                        placeholderTextColor="#9CA3AF"
+                      />
+                          </View>
+                        </View>
+                        <Text style={[styles.formLabel, { marginTop: 12 }]}>Notes</Text>
+                      <TextInput
+                          style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+                          placeholder="Allergies, informations importantes..."
+                        value={childNotes}
+                        onChangeText={setChildNotes}
+                        multiline
+                        numberOfLines={3}
+                        placeholderTextColor="#9CA3AF"
+                      />
+                    {childFormError && (
+                      <View style={styles.errorBox}>
+                        <Feather name="alert-circle" size={16} color="#DC2626" />
+                        <Text style={styles.errorText}>{childFormError}</Text>
                       </View>
                     )}
+                    <TouchableOpacity
+                          style={[styles.button, addingChild && styles.buttonDisabled, { marginTop: 16 }]}
+                      onPress={handleAddChild}
+                      disabled={addingChild}
+                    >
+                      {addingChild ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                            <Text style={styles.buttonText}>Ajouter l'enfant</Text>
+                      )}
+                    </TouchableOpacity>
                   </View>
                 )}
+              </View>
+            )}
 
                 {/* --- Conjoint(e) Subsection --- */}
                 <TouchableOpacity 
@@ -1041,129 +1041,129 @@ export default function ProfileScreen() {
                   <View style={styles.subsectionHeaderLeft}>
                     <Feather name="heart" size={18} color="#2C3E50" />
                     <Text style={styles.subsectionTitle}>Conjoint(e)</Text>
-                  </View>
-                  <Feather name={spouseExpanded ? 'chevron-up' : 'chevron-down'} size={20} color="#6E7A84" />
-                </TouchableOpacity>
+              </View>
+              <Feather name={spouseExpanded ? 'chevron-up' : 'chevron-down'} size={20} color="#6E7A84" />
+            </TouchableOpacity>
 
-                {spouseExpanded && (
+            {spouseExpanded && (
                   <View style={styles.subsectionContent}>
-                    {profile.spouse && !editingSpouse ? (
-                      <View style={styles.spouseInfo}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.spouseName}>{profile.spouse.firstName}</Text>
-                          {profile.spouse.birthDate && (
-                            <Text style={styles.spouseBirthDate}>
-                              Né(e) le {new Date(profile.spouse.birthDate).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                            </Text>
-                          )}
-                        </View>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                          <TouchableOpacity onPress={handleEditSpouse}>
-                            <Feather name="edit-2" size={18} color="#3A82F7" />
-                          </TouchableOpacity>
-                          <TouchableOpacity onPress={handleDeleteSpouse}>
-                            <Feather name="trash-2" size={18} color="#DC2626" />
-                          </TouchableOpacity>
-                        </View>
+                {profile.spouse && !editingSpouse ? (
+                    <View style={styles.spouseInfo}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.spouseName}>{profile.spouse.firstName}</Text>
+                        {profile.spouse.birthDate && (
+                          <Text style={styles.spouseBirthDate}>
+                            Né(e) le {new Date(profile.spouse.birthDate).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                          </Text>
+                        )}
                       </View>
-                    ) : (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                        <TouchableOpacity onPress={handleEditSpouse}>
+                          <Feather name="edit-2" size={18} color="#3A82F7" />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={handleDeleteSpouse}>
+                          <Feather name="trash-2" size={18} color="#DC2626" />
+                        </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
                       <View style={styles.formBox}>
-                        <Text style={styles.formLabel}>{editingSpouse ? 'Éditer le conjoint' : 'Informations du conjoint'}</Text>
-                        <TextInput
-                          style={styles.input}
-                          placeholder="Prénom *"
-                          value={spouseFirstName}
-                          onChangeText={setSpouseFirstName}
-                          placeholderTextColor="#9CA3AF"
-                        />
+                    <Text style={styles.formLabel}>{editingSpouse ? 'Éditer le conjoint' : 'Informations du conjoint'}</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Prénom *"
+                      value={spouseFirstName}
+                      onChangeText={setSpouseFirstName}
+                      placeholderTextColor="#9CA3AF"
+                    />
                         <Text style={[styles.formLabel, { marginTop: 12 }]}>Date de naissance</Text>
-                        {Platform.OS === 'web' ? (
-                          <input
-                            type="date"
-                            style={{
-                              borderWidth: 1,
-                              borderColor: '#E9EEF2',
-                              borderRadius: 10,
-                              paddingLeft: 14,
-                              paddingRight: 14,
-                              paddingTop: 12,
-                              paddingBottom: 12,
-                              fontSize: 16,
-                              color: '#2C3E50',
-                              backgroundColor: '#F5F7FA',
-                              width: '100%',
-                              fontFamily: 'system-ui',
-                            }}
-                            value={spouseBirthDate.toISOString().split('T')[0]}
-                            onChange={(e: any) => {
-                              const value = e.target.value;
-                              if (value) {
-                                const d = new Date(value);
-                                if (!isNaN(d.getTime())) setSpouseBirthDate(d);
-                              }
+                    {Platform.OS === 'web' ? (
+                      <input
+                        type="date"
+                        style={{
+                          borderWidth: 1,
+                          borderColor: '#E9EEF2',
+                          borderRadius: 10,
+                          paddingLeft: 14,
+                          paddingRight: 14,
+                          paddingTop: 12,
+                          paddingBottom: 12,
+                          fontSize: 16,
+                          color: '#2C3E50',
+                          backgroundColor: '#F5F7FA',
+                          width: '100%',
+                          fontFamily: 'system-ui',
+                        }}
+                        value={spouseBirthDate.toISOString().split('T')[0]}
+                        onChange={(e: any) => {
+                          const value = e.target.value;
+                          if (value) {
+                            const d = new Date(value);
+                            if (!isNaN(d.getTime())) setSpouseBirthDate(d);
+                          }
+                        }}
+                      />
+                    ) : (
+                      <>
+                        <TouchableOpacity
+                              style={styles.dateButton}
+                          onPress={() => setShowSpouseDatePicker(true)}
+                        >
+                          <Feather name="calendar" size={18} color="#2C3E50" />
+                          <Text style={styles.dateButtonText}>
+                            {spouseBirthDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                          </Text>
+                        </TouchableOpacity>
+                        {showSpouseDatePicker && DateTimePicker && (
+                          <DateTimePicker
+                            value={spouseBirthDate}
+                            mode="date"
+                            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                            onChange={(event: any, selectedDate?: Date) => {
+                              setShowSpouseDatePicker(Platform.OS === 'ios');
+                              if (selectedDate) setSpouseBirthDate(selectedDate);
                             }}
                           />
-                        ) : (
-                          <>
-                            <TouchableOpacity
-                              style={styles.dateButton}
-                              onPress={() => setShowSpouseDatePicker(true)}
-                            >
-                              <Feather name="calendar" size={18} color="#2C3E50" />
-                              <Text style={styles.dateButtonText}>
-                                {spouseBirthDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
-                              </Text>
-                            </TouchableOpacity>
-                            {showSpouseDatePicker && DateTimePicker && (
-                              <DateTimePicker
-                                value={spouseBirthDate}
-                                mode="date"
-                                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                                onChange={(event: any, selectedDate?: Date) => {
-                                  setShowSpouseDatePicker(Platform.OS === 'ios');
-                                  if (selectedDate) setSpouseBirthDate(selectedDate);
-                                }}
-                              />
-                            )}
-                          </>
                         )}
-                        {editingSpouse ? (
+                      </>
+                    )}
+                    {editingSpouse ? (
                           <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
-                            <TouchableOpacity
-                              style={[styles.button, savingSpouse && styles.buttonDisabled, { flex: 1 }]}
-                              onPress={handleSaveSpouse}
-                              disabled={savingSpouse}
-                            >
-                              {savingSpouse ? (
-                                <ActivityIndicator size="small" color="#FFFFFF" />
-                              ) : (
-                                <Text style={styles.buttonText}>Enregistrer</Text>
-                              )}
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              style={[styles.button, { flex: 1, backgroundColor: '#6E7A84' }]}
-                              onPress={handleCancelEditSpouse}
-                            >
-                              <Text style={styles.buttonText}>Annuler</Text>
-                            </TouchableOpacity>
-                          </View>
-                        ) : (
-                          <TouchableOpacity
-                            style={[styles.button, savingSpouse && styles.buttonDisabled, { marginTop: 16 }]}
-                            onPress={handleSaveSpouse}
-                            disabled={savingSpouse}
-                          >
-                            {savingSpouse ? (
-                              <ActivityIndicator size="small" color="#FFFFFF" />
-                            ) : (
-                              <Text style={styles.buttonText}>Enregistrer</Text>
-                            )}
-                          </TouchableOpacity>
-                        )}
+                        <TouchableOpacity
+                          style={[styles.button, savingSpouse && styles.buttonDisabled, { flex: 1 }]}
+                          onPress={handleSaveSpouse}
+                          disabled={savingSpouse}
+                        >
+                          {savingSpouse ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <Text style={styles.buttonText}>Enregistrer</Text>
+                          )}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.button, { flex: 1, backgroundColor: '#6E7A84' }]}
+                          onPress={handleCancelEditSpouse}
+                        >
+                          <Text style={styles.buttonText}>Annuler</Text>
+                        </TouchableOpacity>
                       </View>
+                    ) : (
+                      <TouchableOpacity
+                            style={[styles.button, savingSpouse && styles.buttonDisabled, { marginTop: 16 }]}
+                        onPress={handleSaveSpouse}
+                        disabled={savingSpouse}
+                      >
+                        {savingSpouse ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <Text style={styles.buttonText}>Enregistrer</Text>
+                        )}
+                      </TouchableOpacity>
                     )}
                   </View>
                 )}
+              </View>
+            )}
 
                 {/* --- Date de mariage Subsection --- */}
                 <TouchableOpacity 
@@ -1174,111 +1174,111 @@ export default function ProfileScreen() {
                   <View style={styles.subsectionHeaderLeft}>
                     <Feather name="calendar" size={18} color="#2C3E50" />
                     <Text style={styles.subsectionTitle}>Date de mariage</Text>
-                  </View>
-                  <Feather name={marriageExpanded ? 'chevron-up' : 'chevron-down'} size={20} color="#6E7A84" />
-                </TouchableOpacity>
+              </View>
+              <Feather name={marriageExpanded ? 'chevron-up' : 'chevron-down'} size={20} color="#6E7A84" />
+            </TouchableOpacity>
 
-                {marriageExpanded && (
+            {marriageExpanded && (
                   <View style={styles.subsectionContent}>
-                    {profile.marriageDate && !editingMarriageDate ? (
-                      <View style={styles.marriageInfo}>
-                        <Text style={styles.marriageDate}>
+                {profile.marriageDate && !editingMarriageDate ? (
+                  <View style={styles.marriageInfo}>
+                    <Text style={styles.marriageDate}>
                           {new Date(profile.marriageDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
-                        </Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                          <TouchableOpacity onPress={handleEditMarriageDate}>
-                            <Feather name="edit-2" size={18} color="#3A82F7" />
-                          </TouchableOpacity>
-                          <TouchableOpacity onPress={handleDeleteMarriageDate}>
-                            <Feather name="trash-2" size={18} color="#DC2626" />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    ) : (
+                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <TouchableOpacity onPress={handleEditMarriageDate}>
+                        <Feather name="edit-2" size={18} color="#3A82F7" />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={handleDeleteMarriageDate}>
+                        <Feather name="trash-2" size={18} color="#DC2626" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
                       <View style={styles.formBox}>
                         <Text style={styles.formLabel}>{editingMarriageDate ? 'Éditer la date' : 'Date de mariage'}</Text>
-                        {Platform.OS === 'web' ? (
-                          <input
-                            type="date"
-                            style={{
-                              borderWidth: 1,
-                              borderColor: '#E9EEF2',
-                              borderRadius: 10,
-                              paddingLeft: 14,
-                              paddingRight: 14,
-                              paddingTop: 12,
-                              paddingBottom: 12,
-                              fontSize: 16,
-                              color: '#2C3E50',
-                              backgroundColor: '#F5F7FA',
-                              width: '100%',
-                              fontFamily: 'system-ui',
-                            }}
-                            value={marriageDate.toISOString().split('T')[0]}
-                            onChange={(e: any) => {
-                              const value = e.target.value;
-                              if (value) {
-                                const d = new Date(value);
-                                if (!isNaN(d.getTime())) setMarriageDate(d);
-                              }
+{Platform.OS === 'web' ? (
+                      <input
+                        type="date"
+                        style={{
+                          borderWidth: 1,
+                          borderColor: '#E9EEF2',
+                          borderRadius: 10,
+                          paddingLeft: 14,
+                          paddingRight: 14,
+                          paddingTop: 12,
+                          paddingBottom: 12,
+                          fontSize: 16,
+                          color: '#2C3E50',
+                          backgroundColor: '#F5F7FA',
+                          width: '100%',
+                          fontFamily: 'system-ui',
+                        }}
+                        value={marriageDate.toISOString().split('T')[0]}
+                        onChange={(e: any) => {
+                          const value = e.target.value;
+                          if (value) {
+                            const d = new Date(value);
+                            if (!isNaN(d.getTime())) setMarriageDate(d);
+                          }
+                        }}
+                      />
+                    ) : (
+                      <>
+                        <TouchableOpacity
+                          style={styles.dateButton}
+                          onPress={() => setShowMarriageDatePicker(true)}
+                        >
+                          <Feather name="calendar" size={18} color="#2C3E50" />
+                          <Text style={styles.dateButtonText}>
+                            {marriageDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                          </Text>
+                        </TouchableOpacity>
+                        {showMarriageDatePicker && DateTimePicker && (
+                          <DateTimePicker
+                            value={marriageDate}
+                            mode="date"
+                            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+onChange={(event: any, selectedDate?: Date) => {
+                              setShowMarriageDatePicker(Platform.OS === 'ios');
+                              if (selectedDate) setMarriageDate(selectedDate);
                             }}
                           />
-                        ) : (
-                          <>
-                            <TouchableOpacity
-                              style={styles.dateButton}
-                              onPress={() => setShowMarriageDatePicker(true)}
-                            >
-                              <Feather name="calendar" size={18} color="#2C3E50" />
-                              <Text style={styles.dateButtonText}>
-                                {marriageDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
-                              </Text>
-                            </TouchableOpacity>
-                            {showMarriageDatePicker && DateTimePicker && (
-                              <DateTimePicker
-                                value={marriageDate}
-                                mode="date"
-                                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                                onChange={(event: any, selectedDate?: Date) => {
-                                  setShowMarriageDatePicker(Platform.OS === 'ios');
-                                  if (selectedDate) setMarriageDate(selectedDate);
-                                }}
-                              />
-                            )}
-                          </>
                         )}
-                        {editingMarriageDate ? (
+                      </>
+                    )}
+                    {editingMarriageDate ? (
                           <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
-                            <TouchableOpacity
-                              style={[styles.button, savingMarriageDate && styles.buttonDisabled, { flex: 1 }]}
-                              onPress={handleSaveMarriageDate}
-                              disabled={savingMarriageDate}
-                            >
-                              {savingMarriageDate ? (
-                                <ActivityIndicator size="small" color="#FFFFFF" />
-                              ) : (
-                                <Text style={styles.buttonText}>Enregistrer</Text>
-                              )}
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              style={[styles.button, { flex: 1, backgroundColor: '#6E7A84' }]}
-                              onPress={handleCancelEditMarriageDate}
-                            >
-                              <Text style={styles.buttonText}>Annuler</Text>
-                            </TouchableOpacity>
-                          </View>
-                        ) : (
-                          <TouchableOpacity
+                        <TouchableOpacity
+                          style={[styles.button, savingMarriageDate && styles.buttonDisabled, { flex: 1 }]}
+                          onPress={handleSaveMarriageDate}
+                          disabled={savingMarriageDate}
+                        >
+                          {savingMarriageDate ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <Text style={styles.buttonText}>Enregistrer</Text>
+                          )}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.button, { flex: 1, backgroundColor: '#6E7A84' }]}
+                          onPress={handleCancelEditMarriageDate}
+                        >
+                          <Text style={styles.buttonText}>Annuler</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
                             style={[styles.button, savingMarriageDate && styles.buttonDisabled, { marginTop: 16 }]}
-                            onPress={handleSaveMarriageDate}
-                            disabled={savingMarriageDate}
-                          >
-                            {savingMarriageDate ? (
-                              <ActivityIndicator size="small" color="#FFFFFF" />
-                            ) : (
-                              <Text style={styles.buttonText}>Enregistrer</Text>
-                            )}
-                          </TouchableOpacity>
+                        onPress={handleSaveMarriageDate}
+                        disabled={savingMarriageDate}
+                      >
+                        {savingMarriageDate ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <Text style={styles.buttonText}>Enregistrer</Text>
+                        )}
+                      </TouchableOpacity>
                         )}
                       </View>
                     )}
@@ -1322,110 +1322,110 @@ export default function ProfileScreen() {
                   <View style={styles.subsectionHeaderLeft}>
                     <Feather name="user" size={18} color="#2C3E50" />
                     <Text style={styles.subsectionTitle}>Adresse & identité</Text>
-                  </View>
-                  <Feather name={addressExpanded ? 'chevron-up' : 'chevron-down'} size={20} color="#6E7A84" />
-                </TouchableOpacity>
+              </View>
+              <Feather name={addressExpanded ? 'chevron-up' : 'chevron-down'} size={20} color="#6E7A84" />
+            </TouchableOpacity>
 
                 {addressExpanded && (
                   <View style={styles.subsectionContent}>
                     {/* Show summary when data exists */}
                     {!savingAddress && (profile.firstName || profile.lastName || profile.address || profile.postalCode || profile.city) && (
                       <View style={styles.summaryBox}>
-                        {(profile.firstName || profile.lastName) && (
+                {(profile.firstName || profile.lastName) && (
                           <Text style={styles.summaryText}>
                             <Text style={styles.summaryLabel}>Nom : </Text>
                             {profile.firstName ? `${profile.firstName} ` : ''}{profile.lastName || ''}
-                          </Text>
-                        )}
-                        {profile.address && (
+                  </Text>
+                )}
+                {profile.address && (
                           <Text style={styles.summaryText}>
                             <Text style={styles.summaryLabel}>Adresse : </Text>{profile.address}
-                          </Text>
-                        )}
-                        {(profile.postalCode || profile.city) && (
+                  </Text>
+                )}
+                {(profile.postalCode || profile.city) && (
                           <Text style={styles.summaryText}>
                             <Text style={styles.summaryLabel}>Ville : </Text>
                             {profile.postalCode ? `${profile.postalCode} ` : ''}{profile.city || ''}
-                          </Text>
-                        )}
-                      </View>
-                    )}
+                  </Text>
+                )}
+              </View>
+            )}
 
                     <View style={styles.formBox}>
-                      <Text style={styles.hint}>Ces informations seront utilisées pour pré-remplir vos documents PDF.</Text>
-                      
-                      <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.formLabel}>Prénom</Text>
-                          <TextInput
-                            style={styles.input}
-                            placeholder="Ex: Jean"
-                            value={firstName}
-                            onChangeText={setFirstName}
-                            placeholderTextColor="#9CA3AF"
-                          />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.formLabel}>Nom</Text>
-                          <TextInput
-                            style={styles.input}
-                            placeholder="Ex: Dupont"
-                            value={lastName}
-                            onChangeText={setLastName}
-                            placeholderTextColor="#9CA3AF"
-                          />
-                        </View>
-                      </View>
-
-                      <View style={{ marginTop: 12 }}>
-                        <Text style={styles.formLabel}>Adresse</Text>
-                        <TextInput
-                          style={styles.input}
-                          placeholder="Ex: 15 rue de la Paix"
-                          value={address}
-                          onChangeText={setAddress}
-                          placeholderTextColor="#9CA3AF"
-                        />
-                      </View>
-
-                      <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.formLabel}>Code postal</Text>
-                          <TextInput
-                            style={styles.input}
-                            placeholder="Ex: 75001"
-                            value={addressPostalCode}
-                            onChangeText={setAddressPostalCode}
-                            keyboardType="numeric"
-                            placeholderTextColor="#9CA3AF"
-                          />
-                        </View>
-                        <View style={{ flex: 2 }}>
-                          <Text style={styles.formLabel}>Ville</Text>
-                          <TextInput
-                            style={styles.input}
-                            placeholder="Ex: Paris"
-                            value={addressCity}
-                            onChangeText={setAddressCity}
-                            placeholderTextColor="#9CA3AF"
-                          />
-                        </View>
-                      </View>
-
-                      <TouchableOpacity
-                        style={[styles.button, addressJustSaved && styles.buttonSuccess, (savingAddress || addressJustSaved) && styles.buttonDisabled, { marginTop: 16 }]}
-                        onPress={handleSaveAddress}
-                        disabled={savingAddress || addressJustSaved}
-                      >
-                        {savingAddress ? (
-                          <ActivityIndicator size="small" color="#FFFFFF" />
-                        ) : (
-                          <Text style={styles.buttonText}>{addressJustSaved ? '✓ Enregistré !' : 'Enregistrer l\'adresse'}</Text>
-                        )}
-                      </TouchableOpacity>
-                    </View>
+                <Text style={styles.hint}>Ces informations seront utilisées pour pré-remplir vos documents PDF.</Text>
+                
+                <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.formLabel}>Prénom</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Ex: Jean"
+                      value={firstName}
+                      onChangeText={setFirstName}
+                      placeholderTextColor="#9CA3AF"
+                    />
                   </View>
-                )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.formLabel}>Nom</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Ex: Dupont"
+                      value={lastName}
+                      onChangeText={setLastName}
+                      placeholderTextColor="#9CA3AF"
+                    />
+                  </View>
+                </View>
+
+                <View style={{ marginTop: 12 }}>
+                  <Text style={styles.formLabel}>Adresse</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Ex: 15 rue de la Paix"
+                    value={address}
+                    onChangeText={setAddress}
+                    placeholderTextColor="#9CA3AF"
+                  />
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.formLabel}>Code postal</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Ex: 75001"
+                      value={addressPostalCode}
+                      onChangeText={setAddressPostalCode}
+                      keyboardType="numeric"
+                      placeholderTextColor="#9CA3AF"
+                    />
+                  </View>
+                  <View style={{ flex: 2 }}>
+                    <Text style={styles.formLabel}>Ville</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Ex: Paris"
+                      value={addressCity}
+                      onChangeText={setAddressCity}
+                      placeholderTextColor="#9CA3AF"
+                    />
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.button, addressJustSaved && styles.buttonSuccess, (savingAddress || addressJustSaved) && styles.buttonDisabled, { marginTop: 16 }]}
+                  onPress={handleSaveAddress}
+                  disabled={savingAddress || addressJustSaved}
+                >
+                  {savingAddress ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.buttonText}>{addressJustSaved ? '✓ Enregistré !' : 'Enregistrer l\'adresse'}</Text>
+                  )}
+                </TouchableOpacity>
+                    </View>
+              </View>
+            )}
 
                 {/* --- Localisation Subsection --- */}
                 <TouchableOpacity 
@@ -1436,7 +1436,7 @@ export default function ProfileScreen() {
                   <View style={styles.subsectionHeaderLeft}>
                     <Feather name="map-pin" size={18} color="#2C3E50" />
                     <Text style={styles.subsectionTitle}>Localisation</Text>
-                  </View>
+          </View>
                   <Feather name={locationExpanded ? 'chevron-up' : 'chevron-down'} size={20} color="#6E7A84" />
                 </TouchableOpacity>
 

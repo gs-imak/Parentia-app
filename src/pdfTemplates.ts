@@ -45,6 +45,8 @@ Madame, Monsieur,
 
 Je soussigné(e) {{parentName}}, parent de {{childName}}, élève en classe de {{childClass}}, vous prie de bien vouloir excuser son absence du {{absenceDate}}.
 
+{{childName}} {{absenceVerb}} le {{absenceDate}}.
+
 {{absenceMotiveSentence}}
 
 Je vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distinguées.
@@ -65,6 +67,8 @@ Objet : Justificatif d'absence de {{childName}} du {{absenceDate}}
 Madame, Monsieur,
 
 Je soussigné(e) {{parentName}}, parent de {{childName}}, vous prie de bien vouloir excuser son absence au sein de la crèche {{crecheName}} le {{absenceDate}}.
+
+{{childName}} {{absenceVerb}} le {{absenceDate}}.
 
 {{absenceMotiveSentence}}
 

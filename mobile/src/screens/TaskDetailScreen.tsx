@@ -1114,20 +1114,26 @@ export default function TaskDetailScreen({
           <Modal
             visible={showImageViewer}
             animationType="fade"
+            transparent={false}
             onRequestClose={() => setShowImageViewer(false)}
           >
             <View style={{ flex: 1, backgroundColor: '#F5F7FA' }}>
               <View style={styles.header}>
-                <TouchableOpacity onPress={() => setShowImageViewer(false)} style={styles.closeButton}>
+                <TouchableOpacity 
+                  onPress={() => setShowImageViewer(false)} 
+                  style={styles.closeButton}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
                   <Feather name="x" size={24} color="#2C3E50" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Pièce jointe</Text>
                 <TouchableOpacity 
                   onPress={() => {
                     if (task.imageUrl) {
-                      if (Platform.OS === 'web') {
-                        // Download without navigating away (keeps browser back working)
-                        try {
+                      try {
+                        if (Platform.OS === 'web') {
+                          // Download without navigating away (keeps browser back working)
                           const urlParts = task.imageUrl.split('?')[0].split('/');
                           const rawName = urlParts[urlParts.length - 1] || 'piece-jointe';
                           const filename = decodeURIComponent(rawName);
@@ -1138,16 +1144,24 @@ export default function TaskDetailScreen({
                           document.body.appendChild(link);
                           link.click();
                           document.body.removeChild(link);
-                        } catch {
-                          // Fallback: open in new tab if download attribute is not supported
-                          window.open(task.imageUrl, '_blank', 'noopener,noreferrer');
+                        } else {
+                          Linking.openURL(task.imageUrl).catch(() => {
+                            Alert.alert('Erreur', 'Impossible d\'ouvrir le fichier.');
+                          });
                         }
-                      } else {
-                        Linking.openURL(task.imageUrl);
+                      } catch (err) {
+                        // Fallback: open in new tab if download attribute is not supported
+                        if (Platform.OS === 'web') {
+                          window.open(task.imageUrl, '_blank', 'noopener,noreferrer');
+                        } else {
+                          Alert.alert('Erreur', 'Impossible d\'ouvrir le fichier.');
+                        }
                       }
                     }
                   }} 
                   style={styles.closeButton}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   <Feather name="download" size={20} color="#3A82F7" />
                 </TouchableOpacity>
@@ -1553,11 +1567,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#FFFFFF',
-    paddingTop: Platform.OS === 'ios' ? 50 : 20,
+    paddingTop: Platform.OS === 'ios' ? 60 : 20,
     paddingBottom: 15,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#E9EEF2',
+    zIndex: 1000,
+    elevation: 10,
+    position: 'relative',
   },
   headerTitle: {
     fontSize: 17,

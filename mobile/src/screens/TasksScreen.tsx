@@ -19,8 +19,7 @@ import { createTask, getAllTasks, deleteTask, updateTask, createTaskFromImage, t
 import { formatDateFrench, formatTaskDeadlineFrench } from '../utils/dateFormat';
 import PDFViewerModal from '../components/PDFViewerModal';
 import { AppEvents, EVENTS } from '../utils/events';
-import { isUrgentTask } from '../notifications/RuleEngine';
-import { triggerUrgentTask } from '../notifications/NotificationScheduler';
+import { triggerNearDeadlineTask } from '../notifications/NotificationScheduler';
 
 function isProbablyPdfUrl(url: string): boolean {
   const u = (url || '').toLowerCase();
@@ -330,9 +329,10 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger, initialF
       
       setSuccessMessage(`Tâche créée : ${response.task.title}`);
       setTimeout(() => setSuccessMessage(null), 4000);
-      if (isUrgentTask(response.task, new Date())) {
-        await triggerUrgentTask(response.task);
-      }
+      
+      // Trigger notification for tasks with near deadlines (< 3 days)
+      await triggerNearDeadlineTask(response.task);
+      
       await loadTasks();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erreur inconnue';
@@ -385,9 +385,9 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger, initialF
       
       setSuccessMessage(`Tâche créée : ${response.task.title}`);
       setTimeout(() => setSuccessMessage(null), 4000);
-      if (isUrgentTask(response.task, new Date())) {
-        await triggerUrgentTask(response.task);
-      }
+      
+      // Trigger notification for tasks with near deadlines (< 3 days)
+      await triggerNearDeadlineTask(response.task);
       
       // Reload tasks
       await loadTasks();
@@ -594,85 +594,85 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger, initialF
           <>
             <View style={styles.formGroup}>
               <Text style={styles.label}>Catégorie</Text>
-              {Platform.OS === 'web' ? (
-                <select
-                  value={category}
-                  onChange={(e: any) => setCategory(e.target.value as TaskCategory)}
-                  style={{
-                    backgroundColor: '#F8F9FB',
-                    borderWidth: 1,
-                    borderColor: '#E9EEF2',
-                    borderRadius: 12,
-                    paddingLeft: 16,
-                    paddingRight: 16,
-                    paddingTop: 12,
-                    paddingBottom: 12,
-                    fontSize: 16,
-                    color: '#2C3E50',
-                    fontFamily: 'system-ui',
-                    width: '100%',
-                  }}
-                >
+          {Platform.OS === 'web' ? (
+            <select
+              value={category}
+              onChange={(e: any) => setCategory(e.target.value as TaskCategory)}
+              style={{
+                backgroundColor: '#F8F9FB',
+                borderWidth: 1,
+                borderColor: '#E9EEF2',
+                borderRadius: 12,
+                paddingLeft: 16,
+                paddingRight: 16,
+                paddingTop: 12,
+                paddingBottom: 12,
+                fontSize: 16,
+                color: '#2C3E50',
+                fontFamily: 'system-ui',
+                width: '100%',
+              }}
+            >
+              {CATEGORIES.map((cat) => (
+                <option key={cat.value} value={cat.value}>
+                  {cat.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <View>
+              <TouchableOpacity
+                style={styles.dropdownButton}
+                onPress={() => setShowCategoryPicker(!showCategoryPicker)}
+              >
+                <Text style={styles.dropdownButtonText}>
+                  {CATEGORIES.find(c => c.value === category)?.label || 'Sélectionner'}
+                </Text>
+                <Feather name={showCategoryPicker ? 'chevron-up' : 'chevron-down'} size={20} color="#2C3E50" />
+              </TouchableOpacity>
+              {showCategoryPicker && (
+                <View style={styles.dropdownList}>
                   {CATEGORIES.map((cat) => (
-                    <option key={cat.value} value={cat.value}>
-                      {cat.label}
-                    </option>
+                    <TouchableOpacity
+                      key={cat.value}
+                      style={[
+                        styles.dropdownItem,
+                        category === cat.value && styles.dropdownItemActive
+                      ]}
+                      onPress={() => {
+                        setCategory(cat.value);
+                        setShowCategoryPicker(false);
+                      }}
+                    >
+                      <Text style={[
+                        styles.dropdownItemText,
+                        category === cat.value && styles.dropdownItemTextActive
+                      ]}>
+                        {cat.label}
+                      </Text>
+                      {category === cat.value && (
+                        <Feather name="check" size={18} color="#3A82F7" />
+                      )}
+                    </TouchableOpacity>
                   ))}
-                </select>
-              ) : (
-                <View>
-                  <TouchableOpacity
-                    style={styles.dropdownButton}
-                    onPress={() => setShowCategoryPicker(!showCategoryPicker)}
-                  >
-                    <Text style={styles.dropdownButtonText}>
-                      {CATEGORIES.find(c => c.value === category)?.label || 'Sélectionner'}
-                    </Text>
-                    <Feather name={showCategoryPicker ? 'chevron-up' : 'chevron-down'} size={20} color="#2C3E50" />
-                  </TouchableOpacity>
-                  {showCategoryPicker && (
-                    <View style={styles.dropdownList}>
-                      {CATEGORIES.map((cat) => (
-                        <TouchableOpacity
-                          key={cat.value}
-                          style={[
-                            styles.dropdownItem,
-                            category === cat.value && styles.dropdownItemActive
-                          ]}
-                          onPress={() => {
-                            setCategory(cat.value);
-                            setShowCategoryPicker(false);
-                          }}
-                        >
-                          <Text style={[
-                            styles.dropdownItemText,
-                            category === cat.value && styles.dropdownItemTextActive
-                          ]}>
-                            {cat.label}
-                          </Text>
-                          {category === cat.value && (
-                            <Feather name="check" size={18} color="#3A82F7" />
-                          )}
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
                 </View>
               )}
             </View>
+          )}
+        </View>
 
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Description (optionnel)</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                value={description}
-                onChangeText={setDescription}
-                placeholder="Détails supplémentaires..."
-                placeholderTextColor="#9CA3AF"
-                multiline
-                numberOfLines={3}
-              />
-            </View>
+        <View style={styles.formGroup}>
+          <Text style={styles.label}>Description (optionnel)</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Détails supplémentaires..."
+            placeholderTextColor="#9CA3AF"
+            multiline
+            numberOfLines={3}
+          />
+        </View>
           </>
         )}
 

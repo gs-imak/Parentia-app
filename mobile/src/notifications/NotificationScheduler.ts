@@ -1,10 +1,10 @@
 import * as Notifications from 'expo-notifications';
-import { Task, Profile, WeatherSummary, updateTask, deleteTask } from '../api/client';
+import { Task } from '../api/client';
 import {
   getTasksDueToday,
   getTasksDueTomorrow,
   getOverdueTasks,
-  isUrgentTask,
+  hasNearDeadline,
   hasSchoolAgeChild,
   isRainy,
   getWeekendSimpleTasks,
@@ -18,7 +18,7 @@ import {
   getOverdueNotificationEnabled,
   getSmartNotificationsEnabled,
 } from '../utils/storage';
-import { NotificationMeta, SchedulerContext, DeepLinkPayload } from './types';
+import { NotificationMeta, SchedulerContext } from './types';
 
 type TriggerTime = { hour: number; minute: number };
 
@@ -29,21 +29,12 @@ const OVERDUE_TIME: TriggerTime = { hour: 9, minute: 0 };
 const RAIN_TIME: TriggerTime = { hour: 7, minute: 45 };
 const WEEKEND_TIME: TriggerTime = { hour: 9, minute: 30 };
 
-const CATEGORY_OVERDUE = 'overdue-actions';
-
 function buildIdentifier(type: string, dateKey: string): string {
   return `${type}-${dateKey}`;
 }
 
 function dateKey(d: Date): string {
   return d.toISOString().split('T')[0];
-}
-
-async function ensureCategories() {
-  await Notifications.setNotificationCategoryAsync(CATEGORY_OVERDUE, [
-    { identifier: 'delay', buttonTitle: 'Décaler la deadline' },
-    { identifier: 'delete', buttonTitle: 'Supprimer la tâche', options: { isDestructive: true } },
-  ]);
 }
 
 function makeTrigger(time: TriggerTime, dayOffset = 0): Notifications.ScheduleTriggerInput {
@@ -81,11 +72,6 @@ async function scheduleLocal(
     sound: true,
   };
   
-  // Only add categoryIdentifier if it's for overdue notifications (iOS crashes on undefined)
-  if (meta.type === 'overdue') {
-    content.categoryIdentifier = CATEGORY_OVERDUE;
-  }
-  
   await Notifications.scheduleNotificationAsync({
     identifier,
     content,
@@ -98,12 +84,10 @@ export async function cancelAllScheduledNotifications() {
 }
 
 export async function rescheduleAllNotifications(ctx: SchedulerContext) {
-  await ensureCategories();
   await cancelAllScheduledNotifications();
 
   const now = ctx.now ?? new Date();
   const todayKey = dateKey(now);
-  const pdfReadyIds = ctx.pdfReadyTaskIds ?? new Set<string>();
 
   const [
     morningEnabled,
@@ -179,28 +163,26 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
     );
   }
 
-  // Overdue 09:00
+  // Overdue 09:00 - Tap to view all overdue tasks and manage individually
   if (overdueEnabled) {
     const overdue = getOverdueTasks(ctx.tasks, now);
     if (overdue.length > 0) {
-      const targetTask = overdue[0];
-      
       // Build rich message with task titles
       let bodyMessage: string;
       if (overdue.length === 1) {
-        bodyMessage = `La tâche « ${overdue[0].title} » est en retard.`;
+        bodyMessage = `La tâche « ${overdue[0].title} » est en retard. Appuyez pour gérer.`;
       } else if (overdue.length <= 3) {
         const titles = overdue.map(t => `• ${t.title}`).join('\n');
-        bodyMessage = `${overdue.length} tâches en retard :\n${titles}`;
+        bodyMessage = `${overdue.length} tâches en retard :\n${titles}\n\nAppuyez pour les gérer.`;
       } else {
-        bodyMessage = `${overdue.length} tâches en retard, dont « ${overdue[0].title} ».`;
+        bodyMessage = `${overdue.length} tâches en retard. Appuyez pour les consulter et les gérer individuellement.`;
       }
       
       await scheduleLocal(
         'Tâches en retard',
         bodyMessage,
         makeTrigger(OVERDUE_TIME),
-        { type: 'overdue', deepLink: { route: 'tasks', params: { filter: 'overdue' } }, taskId: targetTask.id },
+        { type: 'overdue', deepLink: { route: 'tasks', params: { filter: 'overdue' } } },
         buildIdentifier('overdue', todayKey),
       );
     }
@@ -225,7 +207,7 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
     // Weekend checklist Saturday 09:30
     const isSaturday = (now.getDay() === 6);
     if (isSaturday) {
-      const { eligibleTasks } = getWeekendSimpleTasks(ctx.tasks, now, pdfReadyIds);
+      const { eligibleTasks } = getWeekendSimpleTasks(ctx.tasks, now, new Set<string>());
       if (eligibleTasks.length > 0) {
         const lines = eligibleTasks.map(t => `• ${t.title}`).join('\n');
         await scheduleLocal(
@@ -253,16 +235,28 @@ export async function triggerUrgentTask(task: Task) {
   );
 }
 
-export async function triggerDocumentReady(task: Task) {
+/**
+ * Trigger notification when a task is created via email/photo with deadline < 3 days
+ */
+export async function triggerNearDeadlineTask(task: Task) {
   const smartEnabled = await getSmartNotificationsEnabled();
   if (!smartEnabled) return;
+  
+  // Only trigger for tasks created from email or photo
+  if (task.source !== 'email' && task.source !== 'photo') return;
+  
+  // Check if deadline is within 3 days
+  if (!hasNearDeadline(task, new Date())) return;
+  
   const nowKey = dateKey(new Date());
+  const sourceLabel = task.source === 'email' ? 'email' : 'photo';
+  
   await scheduleLocal(
-    'Document prêt',
-    `${task.title}`,
+    'Nouvelle tâche urgente',
+    `Une tâche a été créée depuis un ${sourceLabel} avec une échéance proche : « ${task.title} » - ${formatDateFr(new Date(task.deadline))}`,
     { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 1, repeats: false },
-    { type: 'document_ready', deepLink: { route: 'taskDetail', params: { taskId: task.id } }, taskId: task.id },
-    buildIdentifier('doc', `${nowKey}-${task.id}`),
+    { type: 'near_deadline', deepLink: { route: 'taskDetail', params: { taskId: task.id } }, taskId: task.id },
+    buildIdentifier('near_deadline', `${nowKey}-${task.id}`),
   );
 }
 
@@ -270,47 +264,13 @@ export async function handleNotificationResponse(
   response: Notifications.NotificationResponse,
   tasks: Task[],
 ) {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'NotificationScheduler.ts:267',message:'handleNotificationResponse called',data:{actionId:response.actionIdentifier},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
-  // #endregion
-  
+  // Notification actions removed - users now manage tasks individually in the app
+  // This function is kept for potential future use with other notification types
   const meta = response.notification.request.content.data as NotificationMeta | undefined;
-  if (!meta || meta.type !== 'overdue' || !meta.taskId) return;
-
-  const actionId = response.actionIdentifier;
+  if (!meta) return;
   
-  try {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'NotificationScheduler.ts:275',message:'Before action execution',data:{actionId,taskId:meta.taskId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
-    // #endregion
-    
-    if (actionId === 'delay') {
-      const task = tasks.find(t => t.id === meta.taskId);
-      if (task) {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        tomorrow.setHours(9, 0, 0, 0);
-        await updateTask(task.id, { deadline: tomorrow.toISOString() });
-        
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'NotificationScheduler.ts:281',message:'Task delay successful',data:{taskId:task.id},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
-        // #endregion
-      }
-    } else if (actionId === 'delete') {
-      await deleteTask(meta.taskId);
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'NotificationScheduler.ts:284',message:'Task delete successful',data:{taskId:meta.taskId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
-      // #endregion
-    }
-  } catch (error) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'NotificationScheduler.ts:290',message:'ERROR in notification action',data:{actionId,error:error instanceof Error?error.message:String(error)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
-    // #endregion
-    
-    // Fail gracefully - don't crash the app
-    console.warn('[handleNotificationResponse] Action failed:', error);
-  }
+  // DeepLink navigation is handled by App.tsx based on meta.deepLink
+  // No additional action processing needed here
 }
 
 

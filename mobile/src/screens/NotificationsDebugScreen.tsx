@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { getProfile, getAllTasks, fetchWeather, fetchQuote } from '../api/client';
-import { rescheduleAllNotifications, triggerUrgentTask, triggerDocumentReady } from '../notifications/NotificationScheduler';
+import { rescheduleAllNotifications, triggerUrgentTask, triggerNearDeadlineTask } from '../notifications/NotificationScheduler';
 import { getStoredCity } from '../utils/storage';
 import * as Notifications from 'expo-notifications';
 
@@ -55,7 +55,7 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
           console.log('[Debug] Loading context...');
           const ctx = await loadContext();
           console.log('[Debug] Context loaded, scheduling notifications...');
-          await rescheduleAllNotifications({ ...ctx, pdfReadyTaskIds: new Set<string>() });
+          await rescheduleAllNotifications(ctx);
           console.log('[Debug] Notifications scheduled');
           
           // NEW: Show scheduled notifications count
@@ -89,14 +89,67 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
           console.log('[Debug] Loading context...');
           const ctx = await loadContext();
           console.log('[Debug] Context loaded, tasks:', ctx.tasks?.length ?? 0);
-          const target = ctx.tasks.find(t => t.status !== 'done');
-          if (!target) throw new Error('Aucune tâche non terminée disponible');
-          console.log('[Debug] Triggering document ready:', target.title);
-          await triggerDocumentReady(target);
+          // Find a task from email or photo source with near deadline
+          const target = ctx.tasks.find(t => 
+            (t.source === 'email' || t.source === 'photo') && t.status !== 'done'
+          );
+          if (!target) throw new Error('Aucune tâche email/photo disponible');
+          console.log('[Debug] Triggering near deadline notification:', target.title);
+          await triggerNearDeadlineTask(target);
         })}
       >
-        <Feather name="file" size={18} color="#fff" />
-        <Text style={styles.buttonText}>Document prêt immédiat</Text>
+        <Feather name="clock" size={18} color="#fff" />
+        <Text style={styles.buttonText}>Tâche échéance proche</Text>
+      </TouchableOpacity>
+
+      {/* NEW: Test overdue notification immediately */}
+      <TouchableOpacity
+        style={[styles.button, { backgroundColor: '#DC2626' }]}
+        onPress={() => runAction(async () => {
+          const ctx = await loadContext();
+          
+          // Get all overdue tasks
+          const now = new Date();
+          const today = new Date(now);
+          today.setHours(0, 0, 0, 0);
+          
+          const overdueTasks = ctx.tasks.filter((task: any) => {
+            const deadline = new Date(task.deadline);
+            deadline.setHours(0, 0, 0, 0);
+            return deadline < today;
+          });
+          
+          if (overdueTasks.length === 0) {
+            throw new Error('Aucune tâche en retard. Créez des tâches avec une deadline passée.');
+          }
+          
+          // Build rich message with task titles
+          let bodyMessage: string;
+          if (overdueTasks.length === 1) {
+            bodyMessage = `La tâche « ${overdueTasks[0].title} » est en retard. Appuyez pour gérer.`;
+          } else if (overdueTasks.length <= 3) {
+            const titles = overdueTasks.map((t: any) => `• ${t.title}`).join('\n');
+            bodyMessage = `${overdueTasks.length} tâches en retard :\n${titles}\n\nAppuyez pour les gérer.`;
+          } else {
+            bodyMessage = `${overdueTasks.length} tâches en retard. Appuyez pour les consulter et les gérer individuellement.`;
+          }
+          
+          // Schedule overdue notification in 5 seconds
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: 'Tâches en retard',
+              body: bodyMessage,
+              data: { type: 'overdue', deepLink: { route: 'tasks', params: { filter: 'overdue' } } },
+              sound: true,
+            },
+            trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 5, repeats: false },
+          });
+          
+          setStatus(`✅ Notification tâches en retard dans 5s\n${overdueTasks.length} tâche(s) en retard détectée(s)`);
+        })}
+      >
+        <Feather name="alert-circle" size={18} color="#fff" />
+        <Text style={styles.buttonText}>Test Notification 09h (dans 5s)</Text>
       </TouchableOpacity>
 
       {/* NEW: Test evening notification immediately */}

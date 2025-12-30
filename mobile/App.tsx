@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, AppState, AppStateStatus } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
 import { Feather } from '@expo/vector-icons';
 import HomeScreen from './src/screens/HomeScreen';
@@ -10,7 +11,7 @@ import TaskDetailScreen from './src/screens/TaskDetailScreen';
 import { type Task } from './src/api/client';
 import NotificationsDebugScreen from './src/screens/NotificationsDebugScreen';
 import { getProfile, getAllTasks, getTaskById, fetchWeather, fetchQuote } from './src/api/client';
-import { rescheduleAllNotifications, handleNotificationResponse, triggerDocumentReady } from './src/notifications/NotificationScheduler';
+import { rescheduleAllNotifications, handleNotificationResponse } from './src/notifications/NotificationScheduler';
 import { AppEvents, EVENTS } from './src/utils/events';
 import { getStoredCity } from './src/utils/storage';
 
@@ -20,10 +21,10 @@ export default function App() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [tasksCache, setTasksCache] = useState<Task[]>([]);
   const tasksRef = useRef<Task[]>([]);
-  const [pdfReadyIds, setPdfReadyIds] = useState<Set<string>>(new Set());
   const [tasksFilter, setTasksFilter] = useState<string | null>(null);
   const [filterTaskIds, setFilterTaskIds] = useState<string[] | null>(null);
   const [showDebug, setShowDebug] = useState(false);
+  const [profileKey, setProfileKey] = useState(0);
   
   // Secret tap gesture to access debug screen (3 quick taps)
   const [debugTapCount, setDebugTapCount] = useState(0);
@@ -91,12 +92,11 @@ export default function App() {
         profile,
         weather,
         quoteEvening: eveningQuote,
-        pdfReadyTaskIds: pdfReadyIds,
       });
     } catch (error) {
       // best effort
     }
-  }, [pdfReadyIds]);
+  }, []);
 
   // Request notification permissions on app init (iOS requires explicit request)
   useEffect(() => {
@@ -116,6 +116,19 @@ export default function App() {
     requestNotificationPermission();
   }, []);
 
+  // Reset Profile sections when app returns from background
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        // Increment profileKey to reset Profile sections to collapsed state
+        setProfileKey(prev => prev + 1);
+      }
+    };
+    
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, []);
+
   useEffect(() => {
     Notifications.setNotificationHandler({
       handleNotification: async () => ({
@@ -126,47 +139,26 @@ export default function App() {
     });
 
     const subResponse = Notifications.addNotificationResponseReceivedListener(async (response) => {
-      try {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:128',message:'Notification response listener triggered',data:{actionId:response.actionIdentifier},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
-        // #endregion
-        
-        await handleNotificationResponse(response, tasksRef.current);
-        
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:135',message:'After handleNotificationResponse',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
-        // #endregion
-        
-        // Refresh app state after action (delete/delay)
-        await refreshAndSchedule();
-        setRefreshTrigger(prev => prev + 1);
-        
-        const meta = response.notification.request.content.data as any;
-        const deepLink = meta?.deepLink as { route?: string; params?: any } | undefined;
-        if (deepLink?.route === 'tasks') {
-          setTasksFilter(deepLink.params?.filter ?? null);
-          setFilterTaskIds(deepLink.params?.taskIds ?? null);
+      await handleNotificationResponse(response, tasksRef.current);
+      
+      // Refresh app state after action (delete/delay)
+      await refreshAndSchedule();
+      setRefreshTrigger(prev => prev + 1);
+      
+      const meta = response.notification.request.content.data as any;
+      const deepLink = meta?.deepLink as { route?: string; params?: any } | undefined;
+      if (deepLink?.route === 'tasks') {
+        setTasksFilter(deepLink.params?.filter ?? null);
+        setFilterTaskIds(deepLink.params?.taskIds ?? null);
+        setActiveTab('Tasks');
+      }
+      if (deepLink?.route === 'taskDetail' && deepLink.params?.taskId) {
+        try {
+          const task = await getTaskById(deepLink.params.taskId);
+          setSelectedTask(task);
+        } catch {
           setActiveTab('Tasks');
         }
-        if (deepLink?.route === 'taskDetail' && deepLink.params?.taskId) {
-          try {
-            const task = await getTaskById(deepLink.params.taskId);
-            setSelectedTask(task);
-          } catch {
-            setActiveTab('Tasks');
-          }
-        }
-        
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:155',message:'Notification handler completed successfully',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
-        // #endregion
-      } catch (error) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:160',message:'ERROR in notification listener',data:{error:error instanceof Error?error.message:String(error)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
-        // #endregion
-        
-        // Fail gracefully - log but don't crash the app
-        console.warn('[Notification Listener] Error:', error);
       }
     });
 
@@ -179,25 +171,6 @@ export default function App() {
     AppEvents.addEventListener(EVENTS.PROFILE_LOADED, onEvents);
     // @ts-ignore
     AppEvents.addEventListener(EVENTS.NOTIFICATION_TOGGLES_UPDATED, onEvents);
-    const pdfHandler = async (e: any) => {
-      const detail = e.detail || {};
-      if (detail.taskId) {
-        try {
-          const task = await getTaskById(detail.taskId);
-          setPdfReadyIds(prev => {
-            const next = new Set(prev);
-            next.add(detail.taskId);
-            return next;
-          });
-          await triggerDocumentReady(task);
-        } catch {
-          // ignore
-        }
-      }
-      await refreshAndSchedule();
-    };
-    // @ts-ignore
-    AppEvents.addEventListener(EVENTS.PDF_GENERATED, pdfHandler);
 
     refreshAndSchedule();
 
@@ -209,8 +182,6 @@ export default function App() {
       AppEvents.removeEventListener(EVENTS.PROFILE_LOADED, onEvents);
       // @ts-ignore
       AppEvents.removeEventListener(EVENTS.NOTIFICATION_TOGGLES_UPDATED, onEvents);
-      // @ts-ignore
-      AppEvents.removeEventListener(EVENTS.PDF_GENERATED, pdfHandler);
     };
   }, [refreshAndSchedule]);
 
@@ -230,90 +201,95 @@ export default function App() {
       case 'Inbox':
         return <InboxScreen onOpenTaskDetail={handleOpenTaskDetail} refreshTrigger={refreshTrigger} />;
       case 'Profile':
-        return <ProfileScreen />;
+        return <ProfileScreen key={profileKey} />;
       default:
         return <HomeScreen onOpenTaskDetail={handleOpenTaskDetail} refreshTrigger={refreshTrigger} />;
     }
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text
-          style={styles.headerTitle}
-          onPress={handleSecretTap}
-        >
-          HC Family
-        </Text>
-      </View>
-      <View style={styles.content}>
-        {showDebug ? <NotificationsDebugScreen onClose={() => setShowDebug(false)} /> : renderScreen()}
-      </View>
-      <View style={styles.tabBar}>
-        <TouchableOpacity
-          style={styles.tab}
-          onPress={() => setActiveTab('Home')}
-        >
-          <Feather
-            name="home"
-            size={24}
-            color={activeTab === 'Home' ? '#2C3E50' : '#6E7A84'}
-          />
-          <Text style={[styles.tabLabel, activeTab === 'Home' && styles.tabLabelActive]}>
-            Home
+    <SafeAreaProvider>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text
+            style={styles.headerTitle}
+            onPress={handleSecretTap}
+          >
+            HC Family
           </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.tab}
-          onPress={() => setActiveTab('Tasks')}
-        >
-          <Feather
-            name="check-circle"
-            size={24}
-            color={activeTab === 'Tasks' ? '#2C3E50' : '#6E7A84'}
-          />
-          <Text style={[styles.tabLabel, activeTab === 'Tasks' && styles.tabLabelActive]}>
-            Tâches
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.tab}
-          onPress={() => setActiveTab('Inbox')}
-        >
-          <Feather
-            name="inbox"
-            size={24}
-            color={activeTab === 'Inbox' ? '#2C3E50' : '#6E7A84'}
-          />
-          <Text style={[styles.tabLabel, activeTab === 'Inbox' && styles.tabLabelActive]}>
-            Inbox
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.tab}
-          onPress={() => setActiveTab('Profile')}
-        >
-          <Feather
-            name="user"
-            size={24}
-            color={activeTab === 'Profile' ? '#2C3E50' : '#6E7A84'}
-          />
-          <Text style={[styles.tabLabel, activeTab === 'Profile' && styles.tabLabelActive]}>
-            Profil
-          </Text>
-        </TouchableOpacity>
-      </View>
+        </View>
+        <View style={styles.content}>
+          {showDebug ? <NotificationsDebugScreen onClose={() => setShowDebug(false)} /> : renderScreen()}
+        </View>
+        <View style={styles.tabBar}>
+          <TouchableOpacity
+            style={styles.tab}
+            onPress={() => setActiveTab('Home')}
+          >
+            <Feather
+              name="home"
+              size={24}
+              color={activeTab === 'Home' ? '#2C3E50' : '#6E7A84'}
+            />
+            <Text style={[styles.tabLabel, activeTab === 'Home' && styles.tabLabelActive]}>
+              Home
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.tab}
+            onPress={() => setActiveTab('Tasks')}
+          >
+            <Feather
+              name="check-circle"
+              size={24}
+              color={activeTab === 'Tasks' ? '#2C3E50' : '#6E7A84'}
+            />
+            <Text style={[styles.tabLabel, activeTab === 'Tasks' && styles.tabLabelActive]}>
+              Tâches
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.tab}
+            onPress={() => setActiveTab('Inbox')}
+          >
+            <Feather
+              name="inbox"
+              size={24}
+              color={activeTab === 'Inbox' ? '#2C3E50' : '#6E7A84'}
+            />
+            <Text style={[styles.tabLabel, activeTab === 'Inbox' && styles.tabLabelActive]}>
+              Inbox
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.tab}
+            onPress={() => {
+              setProfileKey(prev => prev + 1);
+              setActiveTab('Profile');
+            }}
+          >
+            <Feather
+              name="user"
+              size={24}
+              color={activeTab === 'Profile' ? '#2C3E50' : '#6E7A84'}
+            />
+            <Text style={[styles.tabLabel, activeTab === 'Profile' && styles.tabLabelActive]}>
+              Profil
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-      {/* Task Detail Modal */}
-      {selectedTask && (
-        <TaskDetailScreen
-          task={selectedTask}
-          onClose={handleCloseTaskDetail}
-          onTaskUpdated={handleTaskUpdated}
-          onTaskDeleted={handleTaskDeleted}
-        />
-      )}
-    </View>
+        {/* Task Detail Modal */}
+        {selectedTask && (
+          <TaskDetailScreen
+            task={selectedTask}
+            onClose={handleCloseTaskDetail}
+            onTaskUpdated={handleTaskUpdated}
+            onTaskDeleted={handleTaskDeleted}
+          />
+        )}
+      </View>
+    </SafeAreaProvider>
   );
 }
 

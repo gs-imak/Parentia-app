@@ -7,7 +7,7 @@ export type NotificationType =
   | 'overdue'
   | 'urgent'
   | 'rain_children'
-  | 'document_ready'
+  | 'near_deadline'
   | 'weekend_simple';
 
 export interface SchedulerContext {
@@ -16,7 +16,6 @@ export interface SchedulerContext {
   weather?: WeatherSummary;
   quoteEvening?: string;
   now?: Date;
-  pdfReadyTaskIds?: Set<string>;
 }
 
 export interface DeepLinkPayload {
@@ -29,6 +28,13 @@ export interface NotificationMeta {
   deepLink?: DeepLinkPayload;
   taskId?: string;
 }
+
+
+
+
+
+
+
 
 
 

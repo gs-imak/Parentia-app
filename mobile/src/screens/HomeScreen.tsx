@@ -11,8 +11,19 @@ import {
   type Quote,
   type WeatherSummary,
   type Task,
+  type TaskCategory,
   type NewsItem,
 } from '../api/client';
+
+// Category colors for task badges
+const CATEGORY_COLORS: Record<TaskCategory, { bg: string; text: string }> = {
+  'administratif': { bg: '#DBEAFE', text: '#1D4ED8' },
+  'enfants-école': { bg: '#EDE9FE', text: '#7C3AED' },
+  'santé': { bg: '#FEE2E2', text: '#DC2626' },
+  'finances': { bg: '#D1FAE5', text: '#059669' },
+  'logement': { bg: '#FEF3C7', text: '#D97706' },
+  'personnel': { bg: '#F3F4F6', text: '#4B5563' },
+};
 import { getStoredCity, getStoredWeatherCity, getStoredCoordinates, getStoredQuote, setStoredQuote } from '../utils/storage';
 import { AppEvents, EVENTS } from '../utils/events';
 
@@ -188,7 +199,9 @@ export default function HomeScreen({ onOpenTaskDetail, refreshTrigger }: HomeScr
         {/* Weather block */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Feather name="cloud" size={20} color="#2C3E50" />
+            <View style={styles.sectionIcon}>
+              <Feather name="sun" size={18} color="#F59E0B" />
+            </View>
             <Text style={styles.cardTitle}>
               {weather && weather.outfit && weather.outfit.trim() ? 'Météo & habits' : 'Météo'}
             </Text>
@@ -236,7 +249,9 @@ export default function HomeScreen({ onOpenTaskDetail, refreshTrigger }: HomeScr
         {/* Tasks block */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Feather name="check-square" size={20} color="#2C3E50" />
+            <View style={[styles.sectionIcon, { backgroundColor: '#DBEAFE' }]}>
+              <Feather name="check-square" size={18} color="#3B82F6" />
+            </View>
             <Text style={styles.cardTitle}>
               {(() => {
                 // Check if any task is actually due today (date-only comparison)
@@ -313,9 +328,18 @@ export default function HomeScreen({ onOpenTaskDetail, refreshTrigger }: HomeScr
                         </Text>
                         <View style={styles.taskMeta}>
                           <Text style={styles.taskDeadline}>{formattedDeadline}</Text>
-                          <View style={styles.taskBadge}>
-                            <Text style={styles.taskBadgeText}>{task.category}</Text>
-                          </View>
+                          {(() => {
+                            // Apply category colors when task is in_progress or done
+                            const useColor = task.status === 'in_progress' || task.status === 'done';
+                            const categoryColor = CATEGORY_COLORS[task.category] || CATEGORY_COLORS['personnel'];
+                            const badgeBg = useColor ? categoryColor.bg : '#EAF2FF';
+                            const badgeText = useColor ? categoryColor.text : '#1D4ED8';
+                            return (
+                              <View style={[styles.taskBadge, { backgroundColor: badgeBg }]}>
+                                <Text style={[styles.taskBadgeText, { color: badgeText }]}>{task.category}</Text>
+                              </View>
+                            );
+                          })()}
                         </View>
                       </View>
                     </TouchableOpacity>
@@ -328,7 +352,9 @@ export default function HomeScreen({ onOpenTaskDetail, refreshTrigger }: HomeScr
         {/* News block */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Feather name="book-open" size={20} color="#2C3E50" />
+            <View style={[styles.sectionIcon, { backgroundColor: '#FEE2E2' }]}>
+              <Feather name="book-open" size={18} color="#EF4444" />
+            </View>
             <Text style={styles.cardTitle}>News du jour</Text>
           </View>
           {newsError ? (
@@ -341,10 +367,12 @@ export default function HomeScreen({ onOpenTaskDetail, refreshTrigger }: HomeScr
                 const publishedDate = new Date(item.publishedAt);
                 const formattedDate = formatDateFrench(publishedDate);
                 const isLast = index === news.length - 1;
-
+                
                 return (
                   <View key={index} style={[styles.newsItem, isLast && { borderBottomWidth: 0 }]}>
-                    <Text style={styles.newsTitle} numberOfLines={3}>{item.title}</Text>
+                    <Text style={styles.newsTitle} numberOfLines={3}>
+                      {item.title}
+                    </Text>
                     <Text style={styles.newsMeta}>{item.source} · {formattedDate}</Text>
                     <Text style={styles.newsSummary} numberOfLines={3}>{item.summary || 'Résumé non disponible.'}</Text>
                     <TouchableOpacity
@@ -443,11 +471,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
+  sectionIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#FEF3C7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   cardTitle: {
     fontSize: 16,
     color: '#111827',
     fontWeight: '600',
-    marginLeft: 8,
+    marginLeft: 10,
   },
   errorText: {
     fontSize: 15,
@@ -553,14 +589,12 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   taskBadge: {
-    backgroundColor: '#EAF2FF',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
     height: 20,
   },
   taskBadgeText: {
-    color: '#1D4ED8',
     fontSize: 13,
     fontWeight: '400',
   },
@@ -572,7 +606,7 @@ const styles = StyleSheet.create({
   },
   newsTitle: {
     fontSize: 15,
-    fontWeight: '400',
+    fontWeight: '700',
     color: '#111827',
     marginBottom: 8,
     lineHeight: 20,
@@ -584,11 +618,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   newsSummary: {
-    fontSize: 15,
-    color: '#111827',
+    fontSize: 14,
+    color: '#4B5563',
     fontWeight: '400',
     marginBottom: 12,
-    lineHeight: 20,
+    lineHeight: 19,
   },
   newsLink: {
     flexDirection: 'row',

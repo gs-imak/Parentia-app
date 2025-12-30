@@ -67,10 +67,24 @@ export function getOverdueTasks(tasks: Task[], now: NowInput): Task[] {
 export function isUrgentTask(task: Task, now: NowInput): boolean {
   const today = toStartOfDay(now);
   const limit = new Date(today);
-  limit.setDate(limit.getDate() + 2);
+  limit.setDate(limit.getDate() + 3); // 3 days from now
   const d = parseDeadline(task.deadline);
   const isFromEmailOrPhoto = task.source === 'email' || task.source === 'photo';
-  return isFromEmailOrPhoto && (isBeforeDate(d, limit) || isSameDate(d, limit) || isSameDate(d, today));
+  // Task is urgent if created from email/photo AND deadline is within 3 days (or past)
+  return isFromEmailOrPhoto && (isBeforeDate(d, limit) || isSameDate(d, limit) || isSameDate(d, today) || isBeforeDate(d, today));
+}
+
+/**
+ * Check if a newly created task has a near deadline (< 3 days)
+ * Used for triggering notifications on task creation from email/photo
+ */
+export function hasNearDeadline(task: Task, now: NowInput): boolean {
+  const today = toStartOfDay(now);
+  const threeDaysFromNow = new Date(today);
+  threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
+  const d = parseDeadline(task.deadline);
+  // Deadline is less than 3 days away (including overdue)
+  return isBeforeDate(d, threeDaysFromNow) || isSameDate(d, threeDaysFromNow);
 }
 
 export function hasSchoolAgeChild(profile: Profile): boolean {
@@ -171,6 +185,13 @@ export function formatDateFr(date: Date): string {
 export function formatTemperatureInt(tempC: number): string {
   return `${Math.round(tempC)}°C`;
 }
+
+
+
+
+
+
+
 
 
 

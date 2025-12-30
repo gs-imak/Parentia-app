@@ -235,3 +235,27 @@ export async function setSmartNotificationsEnabled(value: boolean): Promise<void
 export async function getSmartNotificationsEnabled(): Promise<boolean> {
   return getBoolean(STORAGE_KEY_TOGGLE_SMART, true);
 }
+
+// Track which email task IDs have already been notified to avoid duplicate notifications
+const STORAGE_KEY_PROCESSED_EMAIL_TASKS = 'parentia_processed_email_tasks';
+
+export async function getStoredProcessedEmailTaskIds(): Promise<Set<string>> {
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEY_PROCESSED_EMAIL_TASKS);
+    if (!raw) return new Set();
+    const ids: string[] = JSON.parse(raw);
+    return new Set(ids);
+  } catch {
+    return new Set();
+  }
+}
+
+export async function setStoredProcessedEmailTaskIds(ids: Set<string>): Promise<void> {
+  try {
+    // Keep only the last 100 IDs to prevent storage bloat
+    const arr = Array.from(ids).slice(-100);
+    await AsyncStorage.setItem(STORAGE_KEY_PROCESSED_EMAIL_TASKS, JSON.stringify(arr));
+  } catch {
+    // ignore storage errors
+  }
+}
