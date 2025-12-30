@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform, AppState, AppStateStatus } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { Feather } from '@expo/vector-icons';
 import HomeScreen from './src/screens/HomeScreen';
 import TasksScreen from './src/screens/TasksScreen';
@@ -119,8 +120,15 @@ export default function App() {
         }
         
         // Step 2: Get Expo Push Token
+        // Use project ID from app.json extra.eas.projectId
+        const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+        if (!projectId) {
+          console.warn('[Push] No project ID found in app.json');
+          return;
+        }
+        
         const tokenData = await Notifications.getExpoPushTokenAsync({
-          projectId: 'parentia-mobile', // Must match app.json slug
+          projectId,
         });
         const token = tokenData.data;
         console.log('[Push] Token:', token.substring(0, 30) + '...');
