@@ -323,7 +323,7 @@ export default function PDFViewerModal({
           >
             <Feather name="x" size={28} color="#374151" />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { backgroundColor: '#FFFF00' }]} numberOfLines={1}>{title}</Text>
+          <Text style={[styles.headerTitle, { backgroundColor: '#FFFF00', fontSize: 32, color: '#FF0000' }]} numberOfLines={1}>TEST VERSION 123 - {title}</Text>
           <TouchableOpacity 
             onPress={handleDownload} 
             style={styles.downloadButton}
