@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   StatusBar,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
 let WebView: any = null;
@@ -257,6 +258,7 @@ export default function PDFViewerModal({
   const containerRef = useRef<View>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const usesPDFJS = isIOSSafari();
+  const insets = useSafeAreaInsets();
 
   const handleDownload = async () => {
     if (!pdfUrl) return;
@@ -305,7 +307,7 @@ export default function PDFViewerModal({
       transparent={false}
     >
       <View style={styles.container}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
           <TouchableOpacity 
             onPress={onClose} 
             style={styles.closeButton}
@@ -406,7 +408,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#FFFFFF',
-    paddingTop: 8,
     paddingBottom: 12,
     paddingHorizontal: 12,
     borderBottomWidth: 1,
