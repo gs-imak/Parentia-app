@@ -11,7 +11,7 @@ import TaskDetailScreen from './src/screens/TaskDetailScreen';
 import { type Task } from './src/api/client';
 import NotificationsDebugScreen from './src/screens/NotificationsDebugScreen';
 import { getProfile, getAllTasks, getTaskById, fetchWeather, fetchQuote } from './src/api/client';
-import { rescheduleAllNotifications, handleNotificationResponse } from './src/notifications/NotificationScheduler';
+import { rescheduleAllNotifications, handleNotificationResponse, setupNotificationCategories } from './src/notifications/NotificationScheduler';
 import { AppEvents, EVENTS } from './src/utils/events';
 import { getStoredCity } from './src/utils/storage';
 
@@ -130,6 +130,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // Set up notification categories with action buttons (must be done before scheduling)
+    setupNotificationCategories();
+    
     Notifications.setNotificationHandler({
       handleNotification: async () => ({
         shouldShowAlert: true,
@@ -139,11 +142,14 @@ export default function App() {
     });
 
     const subResponse = Notifications.addNotificationResponseReceivedListener(async (response) => {
-      await handleNotificationResponse(response, tasksRef.current);
+      const { actionTaken } = await handleNotificationResponse(response, tasksRef.current);
       
       // Refresh app state after action (delete/delay)
       await refreshAndSchedule();
       setRefreshTrigger(prev => prev + 1);
+      
+      // If an action was taken (delete/delay), don't navigate - task was handled
+      if (actionTaken) return;
       
       const meta = response.notification.request.content.data as any;
       const deepLink = meta?.deepLink as { route?: string; params?: any } | undefined;
