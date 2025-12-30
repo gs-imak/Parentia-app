@@ -249,6 +249,20 @@ const pdfStyles = StyleSheet.create({
   },
 });
 
+// #region agent log
+const DEBUG_VERSION = 'V4_SAFEAREA_DEBUG';
+// #endregion
+
+function DebugSafeAreaLogger() {
+  // #region agent log
+  const insets = useSafeAreaInsets();
+  useEffect(() => {
+    fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PDFViewerModal.tsx:DebugSafeAreaLogger',message:'SafeArea insets INSIDE provider',data:{insetsTop:insets.top,insetsBottom:insets.bottom,insetsLeft:insets.left,insetsRight:insets.right,platform:Platform.OS,version:DEBUG_VERSION},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  }, [insets]);
+  // #endregion
+  return null;
+}
+
 export default function PDFViewerModal({
   visible,
   pdfUrl,
@@ -258,6 +272,14 @@ export default function PDFViewerModal({
   const containerRef = useRef<View>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const usesPDFJS = isIOSSafari();
+
+  // #region agent log
+  useEffect(() => {
+    if (visible) {
+      fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PDFViewerModal.tsx:componentMount',message:'Modal opened - checking version',data:{visible,pdfUrl:!!pdfUrl,platform:Platform.OS,version:DEBUG_VERSION},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+    }
+  }, [visible, pdfUrl]);
+  // #endregion
 
   const handleDownload = async () => {
     if (!pdfUrl) return;
@@ -307,9 +329,27 @@ export default function PDFViewerModal({
       statusBarTranslucent={Platform.OS === 'android'}
     >
       <SafeAreaProvider>
+        <DebugSafeAreaLogger />
         <StatusBar barStyle="dark-content" />
-        <SafeAreaView style={styles.container} edges={['top']}>
-          <View style={styles.header}>
+        <SafeAreaView 
+          style={styles.container} 
+          edges={['top']}
+          onLayout={(e) => {
+            // #region agent log
+            const layout = e.nativeEvent.layout;
+            fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PDFViewerModal.tsx:SafeAreaView.onLayout',message:'SafeAreaView layout',data:{y:layout.y,height:layout.height,width:layout.width,x:layout.x,version:DEBUG_VERSION},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+            // #endregion
+          }}
+        >
+          <View 
+            style={styles.header}
+            onLayout={(e) => {
+              // #region agent log
+              const layout = e.nativeEvent.layout;
+              fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PDFViewerModal.tsx:header.onLayout',message:'Header layout position',data:{y:layout.y,height:layout.height,width:layout.width,x:layout.x,version:DEBUG_VERSION},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+              // #endregion
+            }}
+          >
           <TouchableOpacity 
             onPress={onClose} 
             style={styles.closeButton}
