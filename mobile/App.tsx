@@ -157,6 +157,34 @@ export default function App() {
     return () => subscription.remove();
   }, []);
 
+  // Handle notification taps (navigation to task/tasks)
+  const handleNotificationNavigation = useCallback(async (response: Notifications.NotificationResponse) => {
+    const { actionTaken } = await handleNotificationResponse(response, tasksRef.current);
+    
+    // Refresh app state after action (delete/delay)
+    await refreshAndSchedule();
+    setRefreshTrigger(prev => prev + 1);
+    
+    // If an action was taken (delete/delay), don't navigate - task was handled
+    if (actionTaken) return;
+    
+    const meta = response.notification.request.content.data as any;
+    const deepLink = meta?.deepLink as { route?: string; params?: any } | undefined;
+    if (deepLink?.route === 'tasks') {
+      setTasksFilter(deepLink.params?.filter ?? null);
+      setFilterTaskIds(deepLink.params?.taskIds ?? null);
+      setActiveTab('Tasks');
+    }
+    if (deepLink?.route === 'taskDetail' && deepLink.params?.taskId) {
+      try {
+        const task = await getTaskById(deepLink.params.taskId);
+        setSelectedTask(task);
+      } catch {
+        setActiveTab('Tasks');
+      }
+    }
+  }, [refreshAndSchedule]);
+
   useEffect(() => {
     // Set up notification categories with action buttons (must be done before scheduling)
     setupNotificationCategories();
@@ -169,32 +197,15 @@ export default function App() {
       }),
     });
 
-    const subResponse = Notifications.addNotificationResponseReceivedListener(async (response) => {
-      const { actionTaken } = await handleNotificationResponse(response, tasksRef.current);
-      
-      // Refresh app state after action (delete/delay)
-      await refreshAndSchedule();
-      setRefreshTrigger(prev => prev + 1);
-      
-      // If an action was taken (delete/delay), don't navigate - task was handled
-      if (actionTaken) return;
-      
-      const meta = response.notification.request.content.data as any;
-      const deepLink = meta?.deepLink as { route?: string; params?: any } | undefined;
-      if (deepLink?.route === 'tasks') {
-        setTasksFilter(deepLink.params?.filter ?? null);
-        setFilterTaskIds(deepLink.params?.taskIds ?? null);
-        setActiveTab('Tasks');
-      }
-      if (deepLink?.route === 'taskDetail' && deepLink.params?.taskId) {
-        try {
-          const task = await getTaskById(deepLink.params.taskId);
-          setSelectedTask(task);
-        } catch {
-          setActiveTab('Tasks');
-        }
+    // Handle notification tap when app was CLOSED (cold start)
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) {
+        handleNotificationNavigation(response);
       }
     });
+
+    // Handle notification tap when app is running (warm/hot start)
+    const subResponse = Notifications.addNotificationResponseReceivedListener(handleNotificationNavigation);
 
     const onEvents = async () => {
       await refreshAndSchedule();

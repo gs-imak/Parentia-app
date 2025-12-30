@@ -515,12 +515,24 @@ export async function getMessageDraft(
  * Register push notification token with the backend
  * Called on app startup to enable push notifications
  */
-export async function registerPushToken(token: string): Promise<void> {
-  await fetch(`${BACKEND_URL}/push-tokens`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token }),
-  });
+export async function registerPushToken(token: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${BACKEND_URL}/push-tokens`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    
+    if (!response.ok) {
+      console.error('[Push] Failed to register token:', response.status);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('[Push] Network error registering token:', error);
+    return false;
+  }
 }
 
 /**
