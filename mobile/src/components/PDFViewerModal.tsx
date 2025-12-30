@@ -259,6 +259,12 @@ export default function PDFViewerModal({
   const [containerWidth, setContainerWidth] = useState(0);
   const usesPDFJS = isIOSSafari();
   const insets = useSafeAreaInsets();
+  
+  // Debug log to verify insets are being read
+  useEffect(() => {
+    console.log('[PDFViewerModal] Safe area insets:', insets);
+    console.log('[PDFViewerModal] Calculated paddingTop:', insets.top + 48);
+  }, [insets]);
 
   const handleDownload = async () => {
     if (!pdfUrl) return;
@@ -305,9 +311,10 @@ export default function PDFViewerModal({
       animationType="fade"
       onRequestClose={onClose}
       transparent={false}
+      statusBarTranslucent={false}
     >
-      <View style={styles.container}>
-        <View style={[styles.header, { paddingTop: insets.top + 48 }]}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={[styles.header, { paddingTop: 48 }]}>
           <TouchableOpacity 
             onPress={onClose} 
             style={styles.closeButton}
