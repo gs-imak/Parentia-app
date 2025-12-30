@@ -13,8 +13,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
-// FORCE CACHE BUST - VERSION 2
-console.log('[PDFViewerModal] LOADED VERSION 2 WITH NEW POSITIONING');
+// #region agent log
+// FORCE CACHE BUST - VERSION 3 WITH DEBUG INSTRUMENTATION
+fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PDFViewerModal.tsx:17',message:'Module loaded - VERSION 3',data:{version:3,timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+// #endregion
 
 let WebView: any = null;
 if (Platform.OS !== 'web') {
@@ -263,11 +265,13 @@ export default function PDFViewerModal({
   const usesPDFJS = isIOSSafari();
   const insets = useSafeAreaInsets();
   
-  // Debug log to verify insets are being read
+  // #region agent log
   useEffect(() => {
-    console.log('[PDFViewerModal] Safe area insets:', insets);
-    console.log('[PDFViewerModal] Calculated paddingTop:', insets.top + 48);
-  }, [insets]);
+    if (visible && pdfUrl) {
+      fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PDFViewerModal.tsx:270',message:'Modal opened - insets values',data:{insetsTop:insets.top,insetsBottom:insets.bottom,insetsLeft:insets.left,insetsRight:insets.right,visible:visible},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    }
+  }, [visible, pdfUrl, insets]);
+  // #endregion
 
   const handleDownload = async () => {
     if (!pdfUrl) return;
@@ -308,6 +312,17 @@ export default function PDFViewerModal({
 
   if (!pdfUrl) return null;
 
+  // #region agent log
+  const containerPaddingTop = insets.top;
+  const headerMarginTop = 24;
+  const totalTopOffset = containerPaddingTop + headerMarginTop;
+  useEffect(() => {
+    if (visible) {
+      fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PDFViewerModal.tsx:315',message:'Render values calculated',data:{containerPaddingTop:containerPaddingTop,headerMarginTop:headerMarginTop,totalTopOffset:totalTopOffset,platform:Platform.OS},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    }
+  }, [visible, containerPaddingTop, headerMarginTop, totalTopOffset]);
+  // #endregion
+
   return (
     <Modal
       visible={visible}
@@ -316,8 +331,24 @@ export default function PDFViewerModal({
       transparent={false}
       statusBarTranslucent={false}
     >
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={[styles.header, { marginTop: 24 }]}>
+      <View 
+        style={[styles.container, { paddingTop: containerPaddingTop }]}
+        onLayout={(e) => {
+          // #region agent log
+          const layout = e.nativeEvent.layout;
+          fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PDFViewerModal.tsx:332',message:'Container onLayout',data:{containerY:layout.y,containerHeight:layout.height,containerWidth:layout.width,appliedPaddingTop:containerPaddingTop},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+          // #endregion
+        }}
+      >
+        <View 
+          style={[styles.header, { marginTop: headerMarginTop }]}
+          onLayout={(e) => {
+            // #region agent log
+            const layout = e.nativeEvent.layout;
+            fetch('http://127.0.0.1:7242/ingest/dd150d80-0fe5-40cf-9c99-37e53bfab0b3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PDFViewerModal.tsx:342',message:'Header onLayout',data:{headerY:layout.y,headerHeight:layout.height,headerWidth:layout.width,appliedMarginTop:headerMarginTop},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+            // #endregion
+          }}
+        >
           <TouchableOpacity 
             onPress={onClose} 
             style={styles.closeButton}
