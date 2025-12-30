@@ -49,6 +49,18 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
       </TouchableOpacity>
       <Text style={styles.hint}>Dev uniquement. Déclenche les notifications localement.</Text>
 
+      {/* Cancel all pending notifications */}
+      <TouchableOpacity
+        style={[styles.button, { backgroundColor: '#6B7280' }]}
+        onPress={() => runAction(async () => {
+          await Notifications.cancelAllScheduledNotificationsAsync();
+          setStatus('✅ Toutes les notifications annulées');
+        })}
+      >
+        <Feather name="x-circle" size={18} color="#fff" />
+        <Text style={styles.buttonText}>Annuler toutes les notifications</Text>
+      </TouchableOpacity>
+
       <TouchableOpacity
         style={styles.button}
         onPress={() => runAction(async () => {
@@ -102,7 +114,7 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
         <Text style={styles.buttonText}>Tâche échéance proche</Text>
       </TouchableOpacity>
 
-      {/* NEW: Test overdue notification immediately */}
+      {/* NEW: Test overdue notification immediately - with action buttons */}
       <TouchableOpacity
         style={[styles.button, { backgroundColor: '#DC2626' }]}
         onPress={() => runAction(async () => {
@@ -116,40 +128,36 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
           const overdueTasks = ctx.tasks.filter((task: any) => {
             const deadline = new Date(task.deadline);
             deadline.setHours(0, 0, 0, 0);
-            return deadline < today;
+            return deadline < today && task.status !== 'done';
           });
           
           if (overdueTasks.length === 0) {
             throw new Error('Aucune tâche en retard. Créez des tâches avec une deadline passée.');
           }
           
-          // Build rich message with task titles
-          let bodyMessage: string;
-          if (overdueTasks.length === 1) {
-            bodyMessage = `La tâche « ${overdueTasks[0].title} » est en retard. Appuyez pour gérer.`;
-          } else if (overdueTasks.length <= 3) {
-            const titles = overdueTasks.map((t: any) => `• ${t.title}`).join('\n');
-            bodyMessage = `${overdueTasks.length} tâches en retard :\n${titles}\n\nAppuyez pour les gérer.`;
-          } else {
-            bodyMessage = `${overdueTasks.length} tâches en retard. Appuyez pour les consulter et les gérer individuellement.`;
-          }
+          // Send individual notification for first overdue task only (for testing)
+          const task = overdueTasks[0];
+          const deadlineDate = new Date(task.deadline);
+          const daysOverdue = Math.floor((now.getTime() - deadlineDate.getTime()) / (1000 * 60 * 60 * 24));
+          const overdueText = daysOverdue === 1 ? '1 jour de retard' : `${daysOverdue} jours de retard`;
           
-          // Schedule overdue notification in 5 seconds
+          // Schedule with action buttons category
           await Notifications.scheduleNotificationAsync({
             content: {
-              title: 'Tâches en retard',
-              body: bodyMessage,
-              data: { type: 'overdue', deepLink: { route: 'tasks', params: { filter: 'overdue' } } },
+              title: 'Tâche en retard',
+              body: `« ${task.title} » - ${overdueText}`,
+              data: { type: 'overdue', taskId: task.id, deepLink: { route: 'taskDetail', params: { taskId: task.id } } },
               sound: true,
+              categoryIdentifier: 'OVERDUE_TASK',
             },
-            trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 5, repeats: false },
+            trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 3, repeats: false },
           });
           
-          setStatus(`✅ Notification tâches en retard dans 5s\n${overdueTasks.length} tâche(s) en retard détectée(s)`);
+          setStatus(`✅ Notification avec actions dans 3s\nTâche: ${task.title}\n\n⚠️ Long-press la notification pour voir les actions:\n• +1 jour\n• +3 jours\n• Supprimer`);
         })}
       >
         <Feather name="alert-circle" size={18} color="#fff" />
-        <Text style={styles.buttonText}>Test Notification 09h (dans 5s)</Text>
+        <Text style={styles.buttonText}>Test Notification 09h (1 tâche)</Text>
       </TouchableOpacity>
 
       {/* NEW: Test evening notification immediately */}

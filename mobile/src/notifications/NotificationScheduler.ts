@@ -203,6 +203,7 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
     const overdue = getOverdueTasks(ctx.tasks, now);
     if (overdue.length > 0) {
       // Schedule individual notification for each overdue task (max 5 to avoid spam)
+      // Uses CALENDAR trigger at 9:00 AM to avoid immediate spam
       const tasksToNotify = overdue.slice(0, 5);
       
       for (let i = 0; i < tasksToNotify.length; i++) {
@@ -214,8 +215,8 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
         await scheduleLocal(
           'Tâche en retard',
           `« ${task.title} » - ${overdueText}`,
-          // Stagger notifications by a few seconds each
-          { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: (i + 1) * 2, repeats: false },
+          // Schedule at 9:00 AM (same time, all notifications arrive together)
+          makeTrigger(OVERDUE_TIME),
           { type: 'overdue', taskId: task.id, deepLink: { route: 'taskDetail', params: { taskId: task.id } } },
           buildIdentifier('overdue-task', `${todayKey}-${task.id}`),
           CATEGORY_OVERDUE_TASK,
@@ -227,7 +228,7 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
         await scheduleLocal(
           'Tâches en retard',
           `${overdue.length - 5} autres tâches en retard. Appuyez pour voir tout.`,
-          { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 12, repeats: false },
+          makeTrigger(OVERDUE_TIME),
           { type: 'overdue', deepLink: { route: 'tasks', params: { filter: 'overdue' } } },
           buildIdentifier('overdue-summary', todayKey),
         );
