@@ -149,7 +149,7 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
       const taskLines = dueToday.map(t => `• ${t.title}`).join('\n');
       taskSection = `Voici vos principales démarches du jour\n${taskLines}`;
     } else {
-      taskSection = 'Vous n'avez aucune démarche prévue aujourd'hui.';
+      taskSection = "Vous n'avez aucune démarche prévue aujourd'hui.";
     }
     
     const bodyParts = [
