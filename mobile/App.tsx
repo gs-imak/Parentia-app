@@ -14,7 +14,7 @@ import NotificationsDebugScreen from './src/screens/NotificationsDebugScreen';
 import { getProfile, getAllTasks, getTaskById, fetchWeather, fetchQuote, registerPushToken } from './src/api/client';
 import { rescheduleAllNotifications, handleNotificationResponse, setupNotificationCategories } from './src/notifications/NotificationScheduler';
 import { AppEvents, EVENTS } from './src/utils/events';
-import { getStoredCity } from './src/utils/storage';
+import { getStoredCity, getStoredCoordinates } from './src/utils/storage';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('Home');
@@ -71,10 +71,11 @@ export default function App() {
 
   const refreshAndSchedule = useCallback(async () => {
     try {
-      const [profile, tasks, city, quoteResp] = await Promise.all([
+      const [profile, tasks, city, coords, quoteResp] = await Promise.all([
         getProfile(),
         getAllTasks(),
         getStoredCity(),
+        getStoredCoordinates(),
         fetchQuote().catch(() => null),
       ]);
       setTasksCache(tasks.tasks);
@@ -82,7 +83,7 @@ export default function App() {
       let weather = undefined;
       if (city) {
         try {
-          weather = await fetchWeather(city);
+          weather = await fetchWeather(city, coords || undefined);
         } catch {
           weather = undefined;
         }

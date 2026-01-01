@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator
 import { Feather } from '@expo/vector-icons';
 import { getProfile, getAllTasks, fetchWeather, fetchQuote } from '../api/client';
 import { rescheduleAllNotifications, triggerUrgentTask, triggerNearDeadlineTask } from '../notifications/NotificationScheduler';
-import { getStoredCity } from '../utils/storage';
+import { getStoredCity, getStoredCoordinates } from '../utils/storage';
 import * as Notifications from 'expo-notifications';
 
 interface Props {
@@ -15,13 +15,14 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
   const [status, setStatus] = useState<string | null>(null);
 
   const loadContext = async () => {
-    const [profile, tasks, city, quoteResp] = await Promise.all([
+    const [profile, tasks, city, coords, quoteResp] = await Promise.all([
       getProfile(),
       getAllTasks(),
       getStoredCity(),
+      getStoredCoordinates(),
       fetchQuote().catch(() => null),
     ]);
-    const weather = city ? await fetchWeather(city).catch(() => undefined) : undefined;
+    const weather = city ? await fetchWeather(city, coords || undefined).catch(() => undefined) : undefined;
     const quoteEvening = quoteResp && quoteResp.type === 'evening' ? quoteResp.text : undefined;
     return { profile, tasks: tasks.tasks, weather, quoteEvening };
   };
