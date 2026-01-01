@@ -141,14 +141,21 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
   // Morning 07:30
   if (morningEnabled && ctx.weather) {
     const dueToday = getTasksDueToday(ctx.tasks, now).slice(0, 3);
-    const taskLines = dueToday.length
-      ? dueToday.map(t => `• ${t.title}`).join('\n')
-      : 'Vous n’avez aucune tâche prioritaire aujourd’hui.';
     const greeting = ctx.profile.firstName ? `Bonjour ${ctx.profile.firstName},` : 'Bonjour,';
+    
+    // Build task section
+    let taskSection: string;
+    if (dueToday.length > 0) {
+      const taskLines = dueToday.map(t => `• ${t.title}`).join('\n');
+      taskSection = `Voici vos principales démarches du jour\n${taskLines}`;
+    } else {
+      taskSection = 'Vous n'avez aucune démarche prévue aujourd'hui.';
+    }
+    
     const bodyParts = [
       greeting,
       `Météo: ${formatTemperatureInt(ctx.weather.temperatureC)} · ${ctx.weather.outfit || ''}`.trim(),
-      taskLines,
+      taskSection,
       'Bonne journée.',
     ];
     await scheduleLocal(
@@ -208,8 +215,12 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
       
       for (let i = 0; i < tasksToNotify.length; i++) {
         const task = tasksToNotify[i];
-        const deadlineDate = new Date(task.deadline);
-        const daysOverdue = Math.floor((now.getTime() - deadlineDate.getTime()) / (1000 * 60 * 60 * 24));
+        // Calculate days overdue using start-of-day for consistency
+        const deadlineStart = new Date(task.deadline);
+        deadlineStart.setHours(0, 0, 0, 0);
+        const todayStart = new Date(now);
+        todayStart.setHours(0, 0, 0, 0);
+        const daysOverdue = Math.round((todayStart.getTime() - deadlineStart.getTime()) / (1000 * 60 * 60 * 24));
         const overdueText = daysOverdue === 1 ? '1 jour de retard' : `${daysOverdue} jours de retard`;
         
         await scheduleLocal(
