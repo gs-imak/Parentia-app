@@ -342,8 +342,11 @@ export async function handleNotificationResponse(
       
       if (actionId === ACTION_DELAY_1_DAY || actionId === ACTION_DELAY_3_DAYS) {
         const daysToAdd = actionId === ACTION_DELAY_1_DAY ? 1 : 3;
-        const currentDeadline = new Date(task.deadline);
-        const newDeadline = new Date(currentDeadline);
+        // For overdue tasks: add days from TODAY, not from the old deadline
+        // This ensures the task is no longer overdue after the action
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const newDeadline = new Date(today);
         newDeadline.setDate(newDeadline.getDate() + daysToAdd);
         
         await updateTask(taskId, { deadline: newDeadline.toISOString() });
