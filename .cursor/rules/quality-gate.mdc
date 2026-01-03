@@ -1,0 +1,137 @@
+# Quality Gate Rule - Prevent Bugs Before They Ship
+
+## MANDATORY CHECKS BEFORE ANY FIX
+
+### 1. DUPLICATE CODE DETECTION
+Before fixing ANY bug, search the entire codebase for similar patterns:
+```
+grep -r "PATTERN" src/ mobile/src/
+```
+- If you fix a function, search for copies of that function in other files
+- If you fix a date manipulation, search for ALL date manipulations
+- If you fix a validation, search for ALL similar validations
+- **NEVER assume a bug exists in only one place**
+
+### 2. DATA FLOW TRACING
+For any bug involving data (weather, tasks, dates, user input):
+1. Trace the data from SOURCE to DISPLAY
+2. Identify every transformation point
+3. Check for caching at each layer
+4. Verify timezone handling at each step
+5. Document the flow before proposing a fix
+
+### 3. EDGE CASES CHECKLIST
+For DATE operations, always verify:
+- [ ] End-of-year transition (December → January)
+- [ ] Leap years (February 29)
+- [ ] Timezone differences (UTC vs local)
+- [ ] Past dates (are they valid or should be rejected?)
+- [ ] Future dates (how far is acceptable?)
+- [ ] Explicit vs implicit years ("décembre" vs "décembre 2025")
+
+For NOTIFICATIONS/SCHEDULED TASKS:
+- [ ] Is the content static or dynamic?
+- [ ] When is the content computed (schedule time vs trigger time)?
+- [ ] What happens if app is closed for 24+ hours?
+- [ ] Does it repeat? If so, will stale data persist?
+
+For CACHED DATA:
+- [ ] What is the TTL?
+- [ ] Is there a way to invalidate?
+- [ ] What happens when cache is stale?
+
+### 4. COMPILE AND TEST BEFORE CLAIMING FIXED
+Never say "fixed" until:
+1. `npm run build` succeeds with no new errors
+2. At least one automated or manual test verifies the fix
+3. The fix has been traced through the code to confirm logic
+
+### 5. SEARCH FOR RELATED PATTERNS
+When fixing a bug, run these searches:
+```bash
+# Date manipulation patterns
+grep -r "getFullYear\|currentYear\|aiYear" src/
+
+# Caching patterns  
+grep -ri "cache\|Cache\|repeats.*true" src/ mobile/
+
+# Year correction patterns
+grep -r "< currentYear\|> currentYear" src/
+
+# Static content that might become stale
+grep -r "repeats:\s*true" mobile/
+```
+
+### 6. COMMIT MESSAGE REQUIREMENTS
+Every fix commit must include:
+- Root cause (WHY it was broken)
+- What was changed (WHAT files/functions)
+- Impact scope (WHERE else this pattern existed)
+
+Example:
+```
+fix(emailAI): date parsing respects explicit years
+
+ROOT CAUSE: correctDeadline() auto-corrected all past years,
+including valid recent dates like "décembre 2025" in January 2026.
+
+CHANGED: Allow dates up to 90 days in the past.
+
+ALSO FIXED: Same pattern in imageAI.ts (photo task creation).
+```
+
+## ANTI-PATTERNS TO CATCH
+
+### ❌ Hardcoded dates/years in prompts
+```typescript
+// BAD: Hardcoded year
+"Nous sommes en décembre 2025"
+
+// GOOD: Dynamic
+`Nous sommes le ${new Date().toLocaleDateString('fr-FR')}`
+```
+
+### ❌ Repeating notifications with dynamic content
+```typescript
+// BAD: Content is frozen at schedule time
+{ repeats: true, body: `Weather: ${currentTemp}` }
+
+// GOOD: Non-repeating, reschedule with fresh data
+{ repeats: false, body: `Weather: ${currentTemp}` }
+```
+
+### ❌ Correcting data without understanding context
+```typescript
+// BAD: Blindly "fix" past years
+if (year < currentYear) year = currentYear;
+
+// GOOD: Only correct clearly invalid data
+if (daysDiff > 90) return defaultDate;
+```
+
+### ❌ Fixing in one file, ignoring duplicates
+```typescript
+// BAD: Fix emailAI.ts, forget imageAI.ts has same code
+
+// GOOD: Search first, fix all instances
+grep -r "correctDeadline" src/
+```
+
+## BEFORE PUSHING
+
+Run this checklist:
+1. [ ] `git diff` - Review ALL changes
+2. [ ] `npm run build` - No compilation errors
+3. [ ] Searched for duplicate patterns
+4. [ ] Tested the specific scenario that was broken
+5. [ ] Working tree is clean after commit
+
+## RESPONSE FORMAT
+
+When fixing bugs, structure your response as:
+
+1. **ROOT CAUSE**: One sentence explaining WHY it broke
+2. **AFFECTED FILES**: List all files with this pattern
+3. **FIX APPLIED**: What you changed
+4. **VERIFICATION**: How you confirmed it works
+5. **REMAINING RISKS**: Anything the user should know
