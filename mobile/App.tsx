@@ -145,18 +145,21 @@ export default function App() {
     setupPushNotifications();
   }, []);
 
-  // Reset Profile sections when app returns from background
+  // Reset Profile sections and refresh notifications when app returns from background
   useEffect(() => {
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
       if (nextAppState === 'active') {
         // Increment profileKey to reset Profile sections to collapsed state
         setProfileKey(prev => prev + 1);
+        // CRITICAL FIX: Refresh notifications with fresh weather/tasks data
+        // This ensures 07:30 notification always uses TODAY's data
+        refreshAndSchedule();
       }
     };
     
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     return () => subscription.remove();
-  }, []);
+  }, [refreshAndSchedule]);
 
   // Handle notification taps (navigation to task/tasks)
   const handleNotificationNavigation = useCallback(async (response: Notifications.NotificationResponse) => {

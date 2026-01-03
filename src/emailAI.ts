@@ -157,12 +157,15 @@ Règles importantes:
 
 3. DATE LIMITE (deadline):
    - ⚠️ PRIORITÉ: Si un PDF est joint avec une date, utiliser LA DATE DU PDF, pas celle de l'email.
-   - CRITIQUE: Utilise la date EXACTE visible. Ne modifie PAS le jour ou le mois.
-   - Exemples de dates à respecter exactement:
-     * "6 décembre" → 6 décembre 2025
-     * "31/12" → 31 décembre 2025
-     * "avant le 07.11.2025" → 7 novembre 2025
-   - Nous sommes en décembre 2025. Pour les années ambiguës ou passées, utilise 2025.
+   - CRITIQUE: Utilise la date EXACTE visible. Ne modifie PAS le jour, le mois OU L'ANNÉE.
+   - ⚠️ RESPECT DE L'ANNÉE EXPLICITE:
+     * Si l'email/PDF mentionne explicitement une année (ex: "décembre 2025", "15/12/2025"), 
+       UTILISER CETTE ANNÉE EXACTE, même si elle est dans le passé récent.
+     * NE JAMAIS "corriger" une année explicite vers l'année courante ou future.
+     * Ex: "Payer facture décembre 2025" en janvier 2026 → deadline = décembre 2025 (PAS 2026)
+   - Pour les dates SANS année explicite (ex: "6 décembre", "31/12"):
+     * Utiliser l'année courante
+     * Sauf si cela créerait une date trop ancienne (>3 mois dans le passé)
    - Si AUCUNE date n'est visible (ni dans le PDF, ni dans l'email) → aujourd'hui + 7 jours
    - NE JAMAIS inventer ou modifier une date visible.
 
@@ -350,46 +353,54 @@ function getDefaultDeadline(): string {
 }
 
 /**
- * Correct deadline if AI returned a past year or clearly wrong date
+ * Correct deadline if AI returned a clearly wrong date.
+ * 
+ * CRITICAL FIX: Do NOT auto-correct dates from the previous year if they're
+ * within a reasonable range (e.g., "Décembre 2025" when we're in January 2026).
+ * 
+ * Only correct dates that are:
+ * 1. More than 90 days in the past (clearly stale)
+ * 2. Invalid/unparseable
+ * 
+ * Dates that should be PRESERVED as-is:
+ * - Any date from the previous month of the previous year (end-of-year transition)
+ * - Any date explicitly mentioned in the email with year (even if past)
  */
 function correctDeadline(aiDeadline: string): string {
   try {
     const parsed = new Date(aiDeadline);
     if (isNaN(parsed.getTime())) {
+      console.log(`[Date Correction] Invalid date format, using D+7: ${aiDeadline}`);
       return getDefaultDeadline();
     }
 
     const now = new Date();
-    const currentYear = now.getFullYear();
-    const aiYear = parsed.getFullYear();
-
-    // If AI returned a past year (2023, 2024, etc.)
-    if (aiYear < currentYear) {
-      // Try same day/month in current year
-      const corrected = new Date(currentYear, parsed.getMonth(), parsed.getDate(), 12, 0, 0, 0);
-      
-      // If that date is still in the past (or within last 7 days), use D+7
-      const sevenDaysAgo = new Date(now);
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      
-      if (corrected < sevenDaysAgo) {
-        return getDefaultDeadline();
-      }
-      
-      console.log(`[Date Correction] Fixed past year: ${aiDeadline} → ${corrected.toISOString()}`);
-      return corrected.toISOString();
-    }
-
-    // If date is more than 1 year in the past
-    const oneYearAgo = new Date(now);
-    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-    if (parsed < oneYearAgo) {
-      console.log(`[Date Correction] Date too old, using D+7: ${aiDeadline}`);
+    
+    // Calculate days difference
+    const daysDiff = Math.floor((now.getTime() - parsed.getTime()) / (1000 * 60 * 60 * 24));
+    
+    // CRITICAL: Allow dates up to 90 days in the past
+    // This handles:
+    // - "Décembre 2025" when current date is January 2026
+    // - Invoice due dates that are slightly past
+    // - End-of-year transitions
+    const MAX_PAST_DAYS = 90;
+    
+    if (daysDiff > MAX_PAST_DAYS) {
+      // Date is more than 90 days in the past - likely an error
+      console.log(`[Date Correction] Date too old (${daysDiff} days ago), using D+7: ${aiDeadline}`);
       return getDefaultDeadline();
     }
-
+    
+    // Date is valid and within acceptable range
+    // Preserve the original date even if it's in the past
+    if (daysDiff > 0) {
+      console.log(`[Date Correction] Preserving recent past date (${daysDiff} days ago): ${aiDeadline}`);
+    }
+    
     return parsed.toISOString();
   } catch {
+    console.log(`[Date Correction] Parse error, using D+7`);
     return getDefaultDeadline();
   }
 }

@@ -70,7 +70,16 @@ function dateKey(d: Date): string {
   return d.toISOString().split('T')[0];
 }
 
-function makeTrigger(time: TriggerTime, dayOffset = 0): Notifications.ScheduleTriggerInput {
+/**
+ * Create a trigger for a specific time.
+ * @param time - Hour and minute for the trigger
+ * @param dayOffset - Days from now (0 = today, 1 = tomorrow)
+ * @param repeats - Whether the notification should repeat daily.
+ *   IMPORTANT: Repeating notifications have STATIC content - the body text
+ *   is frozen at scheduling time. For notifications that need fresh data
+ *   (like weather/tasks), use repeats=false and reschedule daily.
+ */
+function makeTrigger(time: TriggerTime, dayOffset = 0, repeats = false): Notifications.SchedulableNotificationTriggerInput {
   const now = new Date();
   const target = new Date(now);
   target.setDate(target.getDate() + dayOffset);
@@ -78,23 +87,25 @@ function makeTrigger(time: TriggerTime, dayOffset = 0): Notifications.ScheduleTr
   if (target <= now) {
     target.setDate(target.getDate() + 1);
   }
-  return { type: Notifications.SchedulableTriggerInputTypes.CALENDAR, hour: target.getHours(), minute: target.getMinutes(), repeats: true };
+  
+  if (repeats) {
+    // Repeating notifications (static content)
+    return { type: Notifications.SchedulableTriggerInputTypes.CALENDAR, hour: target.getHours(), minute: target.getMinutes(), repeats: true };
+  } else {
+    // Non-repeating notification at specific date/time (for fresh data)
+    // Use TIME_INTERVAL for precise scheduling
+    const secondsUntilTarget = Math.max(1, Math.floor((target.getTime() - now.getTime()) / 1000));
+    return { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: secondsUntilTarget, repeats: false };
+  }
 }
 
-function makeWeeklyTrigger(time: TriggerTime, weekday: number): Notifications.ScheduleTriggerInput {
-  return {
-    type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-    weekday,
-    hour: time.hour,
-    minute: time.minute,
-    repeats: true,
-  };
-}
+// NOTE: makeWeeklyTrigger removed - all notifications now use non-repeating triggers
+// to ensure fresh data is used each time the app reschedules
 
 async function scheduleLocal(
   title: string,
   body: string,
-  trigger: Notifications.ScheduleTriggerInput,
+  trigger: Notifications.SchedulableNotificationTriggerInput,
   meta: NotificationMeta,
   identifier: string,
   categoryId?: string,
@@ -139,6 +150,9 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
   ]);
 
   // Morning 07:30
+  // CRITICAL FIX: Weather and tasks must be fetched fresh daily.
+  // Use NON-REPEATING trigger so content is computed fresh each time
+  // the app reschedules notifications (on foreground, task update, etc.)
   if (morningEnabled && ctx.weather) {
     const dueToday = getTasksDueToday(ctx.tasks, now).slice(0, 3);
     const greeting = ctx.profile.firstName ? `Bonjour ${ctx.profile.firstName},` : 'Bonjour,';
@@ -152,6 +166,9 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
       taskSection = "Vous n'avez aucune démarche prévue aujourd'hui.";
     }
     
+    // Log for debugging: verify weather is fresh
+    console.log(`[Notification] Morning: ${formatTemperatureInt(ctx.weather.temperatureC)}, ${dueToday.length} tasks for ${todayKey}`);
+    
     const bodyParts = [
       greeting,
       `Météo: ${formatTemperatureInt(ctx.weather.temperatureC)} · ${ctx.weather.outfit || ''}`.trim(),
@@ -161,13 +178,14 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
     await scheduleLocal(
       'Matin',
       bodyParts.join('\n'),
-      makeTrigger(MORNING_TIME),
+      makeTrigger(MORNING_TIME, 0, false), // NON-REPEATING: fresh data each schedule
       { type: 'morning', deepLink: { route: 'tasks', params: { filter: 'today' } } },
       buildIdentifier('morning', todayKey),
     );
   }
 
   // J-1 18:00
+  // NON-REPEATING: task list must be fresh
   if (j1Enabled) {
     const dueTomorrow = getTasksDueTomorrow(ctx.tasks, now);
     if (dueTomorrow.length > 0) {
@@ -185,7 +203,7 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
       await scheduleLocal(
         'Pour demain',
         bodyMessage,
-        makeTrigger(J1_TIME),
+        makeTrigger(J1_TIME, 0, false), // NON-REPEATING: fresh data each schedule
         { type: 'j1', deepLink: { route: 'tasks', params: { filter: 'tomorrow' } } },
         buildIdentifier('j1', todayKey),
       );
@@ -193,24 +211,24 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
   }
 
   // Evening 19:00
-  // FIX: Remove quote dependency - evening notification should always send when enabled
+  // NON-REPEATING: quote should be fresh each day
   if (eveningEnabled) {
     const eveningMessage = ctx.quoteEvening || 'Bonne soirée. Profitez de ce moment pour vous reposer.';
     await scheduleLocal(
       'Phrase du soir',
       eveningMessage,
-      makeTrigger(EVENING_TIME),
+      makeTrigger(EVENING_TIME, 0, false), // NON-REPEATING: fresh quote each schedule
       { type: 'evening' },
       buildIdentifier('evening', todayKey),
     );
   }
 
   // Overdue 09:00 - Individual notifications per task with action buttons
+  // NON-REPEATING: overdue task list must be computed fresh each day
   if (overdueEnabled) {
     const overdue = getOverdueTasks(ctx.tasks, now);
     if (overdue.length > 0) {
       // Schedule individual notification for each overdue task (max 5 to avoid spam)
-      // Uses CALENDAR trigger at 9:00 AM to avoid immediate spam
       const tasksToNotify = overdue.slice(0, 5);
       
       for (let i = 0; i < tasksToNotify.length; i++) {
@@ -226,8 +244,7 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
         await scheduleLocal(
           'Tâche en retard',
           `« ${task.title} » - ${overdueText}`,
-          // Schedule at 9:00 AM (same time, all notifications arrive together)
-          makeTrigger(OVERDUE_TIME),
+          makeTrigger(OVERDUE_TIME, 0, false), // NON-REPEATING: fresh data each schedule
           { type: 'overdue', taskId: task.id, deepLink: { route: 'taskDetail', params: { taskId: task.id } } },
           buildIdentifier('overdue-task', `${todayKey}-${task.id}`),
           CATEGORY_OVERDUE_TASK,
@@ -239,7 +256,7 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
         await scheduleLocal(
           'Tâches en retard',
           `${overdue.length - 5} autres tâches en retard. Appuyez pour voir tout.`,
-          makeTrigger(OVERDUE_TIME),
+          makeTrigger(OVERDUE_TIME, 0, false), // NON-REPEATING: fresh data each schedule
           { type: 'overdue', deepLink: { route: 'tasks', params: { filter: 'overdue' } } },
           buildIdentifier('overdue-summary', todayKey),
         );
@@ -249,6 +266,7 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
 
   if (smartEnabled) {
     // Rain + children 07:45 (anti-spam: skip if morning will send and rainy overlap)
+    // NON-REPEATING: weather must be fresh
     if (ctx.weather && isRainy(ctx.weather) && hasSchoolAgeChild(ctx.profile)) {
       const dueToday = getTasksDueToday(ctx.tasks, now);
       const willSendMorning = morningEnabled && ctx.weather && (dueToday.length > 0 || true); // morning always sends weather; so skip rain if morning is active
@@ -256,7 +274,7 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
         await scheduleLocal(
           'Pluie annoncée',
           'Prévoyez les affaires adaptées pour vos enfants.',
-          makeTrigger(RAIN_TIME),
+          makeTrigger(RAIN_TIME, 0, false), // NON-REPEATING: weather must be fresh
           { type: 'rain_children', deepLink: { route: 'tasks', params: { filter: 'today' } } },
           buildIdentifier('rain', todayKey),
         );
@@ -264,6 +282,7 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
     }
 
     // Weekend checklist Saturday 09:30
+    // NON-REPEATING: task list must be fresh
     const isSaturday = (now.getDay() === 6);
     if (isSaturday) {
       const { eligibleTasks } = getWeekendSimpleTasks(ctx.tasks, now, new Set<string>());
@@ -272,7 +291,7 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
         await scheduleLocal(
           'Check-list week-end',
           lines,
-          makeWeeklyTrigger(WEEKEND_TIME, 7),
+          makeTrigger(WEEKEND_TIME, 0, false), // NON-REPEATING: task list must be fresh
           { type: 'weekend_simple', deepLink: { route: 'tasks', params: { filter: 'weekend', taskIds: eligibleTasks.map(t => t.id) } } },
           buildIdentifier('weekend', todayKey),
         );
