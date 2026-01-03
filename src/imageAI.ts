@@ -178,50 +178,43 @@ function getDefaultDeadline(): string {
 }
 
 /**
- * Correct deadline if AI returned a past year or clearly wrong date
- * Rules:
- * - If year < current year: try same day/month in current year, if that's in past use D+7
- * - If date is more than 1 year in the past: use D+7
+ * Correct deadline if AI returned a clearly wrong date.
+ * 
+ * CRITICAL FIX: Do NOT auto-correct dates from the previous year if they're
+ * within a reasonable range (e.g., "Décembre 2025" when we're in January 2026).
+ * 
+ * Only correct dates that are:
+ * 1. More than 90 days in the past (clearly stale)
+ * 2. Invalid/unparseable
  */
 function correctDeadline(aiDeadline: string): string {
   try {
     const parsed = new Date(aiDeadline);
     if (isNaN(parsed.getTime())) {
+      console.log(`[Image Date Correction] Invalid date format, using D+7: ${aiDeadline}`);
       return getDefaultDeadline();
     }
 
     const now = new Date();
-    const currentYear = now.getFullYear();
-    const aiYear = parsed.getFullYear();
-
-    // If AI returned a past year (2023, 2024, etc.)
-    if (aiYear < currentYear) {
-      // Try same day/month in current year
-      const corrected = new Date(currentYear, parsed.getMonth(), parsed.getDate(), 12, 0, 0, 0);
-      
-      // If that date is still in the past (or within last 7 days), use next year or D+7
-      const sevenDaysAgo = new Date(now);
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      
-      if (corrected < sevenDaysAgo) {
-        // Date already passed this year too, use D+7
-        return getDefaultDeadline();
-      }
-      
-      console.log(`[Date Correction] Fixed past year: ${aiDeadline} → ${corrected.toISOString()}`);
-      return corrected.toISOString();
-    }
-
-    // If date is more than 1 year in the past
-    const oneYearAgo = new Date(now);
-    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-    if (parsed < oneYearAgo) {
-      console.log(`[Date Correction] Date too old, using D+7: ${aiDeadline}`);
+    
+    // Calculate days difference
+    const daysDiff = Math.floor((now.getTime() - parsed.getTime()) / (1000 * 60 * 60 * 24));
+    
+    // CRITICAL: Allow dates up to 90 days in the past
+    const MAX_PAST_DAYS = 90;
+    
+    if (daysDiff > MAX_PAST_DAYS) {
+      console.log(`[Image Date Correction] Date too old (${daysDiff} days ago), using D+7: ${aiDeadline}`);
       return getDefaultDeadline();
     }
-
+    
+    if (daysDiff > 0) {
+      console.log(`[Image Date Correction] Preserving recent past date (${daysDiff} days ago): ${aiDeadline}`);
+    }
+    
     return parsed.toISOString();
   } catch {
+    console.log(`[Image Date Correction] Parse error, using D+7`);
     return getDefaultDeadline();
   }
 }
