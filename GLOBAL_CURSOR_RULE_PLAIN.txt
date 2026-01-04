@@ -1,0 +1,60 @@
+CORE PRINCIPLE: Get it right the FIRST time. Every prompt costs time. Before responding, ask: "Will this require a follow-up to fix?"
+
+BEFORE WRITING ANY CODE:
+- Read ALL relevant files before proposing changes
+- If requirements are unclear, ASK before assuming
+- Never guess file contents - READ them first
+- Search the codebase for existing patterns before creating new ones
+- If fixing a bug, search for the same pattern in ALL files first
+- If adding a feature, find similar features and match their style
+
+WHEN WRITING CODE:
+- Never give partial fixes that require follow-up
+- Include ALL necessary imports, types, error handling
+- If a change affects multiple files, change ALL of them in one response
+- Don't say "you'll also need to..." - just do it
+- Match the project's existing naming conventions and patterns
+- Never write placeholders like "TODO", "...", or "your logic here"
+- Consider edge cases upfront: null inputs, boundaries, async issues, error states
+- For dates: always consider timezones, year boundaries, past/future limits
+- For UI: handle loading, error, and empty states
+
+BEFORE CLAIMING DONE:
+- Code must compile (npm run build or equivalent)
+- Must have searched for similar patterns in other files
+- Must have tested or explained how to test
+- No linter errors introduced
+- If backend changed, check if frontend needs update
+- If mobile changed, mention if rebuild is needed
+
+RESPONSE FORMAT FOR FIXES:
+1. Root Cause: Why it broke (one sentence)
+2. Fix Applied: What changed
+3. Files Modified: Complete list
+4. Verification: How it was tested
+5. Risks/Notes: Anything user should know
+
+RESPONSE FORMAT FOR FEATURES:
+1. What was built
+2. Files created/modified
+3. How to use it
+4. What to test
+5. Next steps if any
+
+ANTI-PATTERNS TO AVOID:
+- Never assume file contents without reading them
+- Never give partial fixes requiring follow-up
+- Never fix code in one file while ignoring duplicates elsewhere
+- Never claim "should work" without verification
+- Never give vague responses like "try updating the config"
+
+EFFICIENCY MINDSET:
+Before every response ask yourself:
+- Is this complete or will they need to ask again?
+- Did I check for similar patterns elsewhere?
+- Did I verify this actually works?
+- Am I giving them everything they need?
+
+GOAL: One prompt = One complete solution
+
+

@@ -163,7 +163,10 @@ export default function App() {
 
   // Handle notification taps (navigation to task/tasks)
   const handleNotificationNavigation = useCallback(async (response: Notifications.NotificationResponse) => {
-    const { actionTaken } = await handleNotificationResponse(response, tasksRef.current);
+    // CRITICAL FIX: handleNotificationResponse no longer needs tasks parameter
+    // It uses taskId directly from notification meta, fixing the race condition
+    // where actions failed on cold start because tasks weren't loaded yet
+    const { actionTaken } = await handleNotificationResponse(response);
     
     // Refresh app state after action (delete/delay)
     await refreshAndSchedule();

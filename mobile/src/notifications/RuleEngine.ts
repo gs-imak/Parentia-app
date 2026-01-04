@@ -41,6 +41,8 @@ function formatDateLongFr(date: Date): string {
 export function getTasksDueToday(tasks: Task[], now: NowInput): Task[] {
   const today = toStartOfDay(now);
   return tasks.filter(task => {
+    // CRITICAL: Skip completed tasks - they shouldn't appear in notifications
+    if (task.status === 'done') return false;
     const d = parseDeadline(task.deadline);
     return isSameDate(d, today);
   });
@@ -51,6 +53,8 @@ export function getTasksDueTomorrow(tasks: Task[], now: NowInput): Task[] {
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
   return tasks.filter(task => {
+    // CRITICAL: Skip completed tasks - they shouldn't appear in notifications
+    if (task.status === 'done') return false;
     const d = parseDeadline(task.deadline);
     return isSameDate(d, tomorrow);
   });
@@ -59,12 +63,17 @@ export function getTasksDueTomorrow(tasks: Task[], now: NowInput): Task[] {
 export function getOverdueTasks(tasks: Task[], now: NowInput): Task[] {
   const today = toStartOfDay(now);
   return tasks.filter(task => {
+    // CRITICAL: Skip completed tasks - they shouldn't appear in notifications
+    if (task.status === 'done') return false;
     const d = parseDeadline(task.deadline);
     return isBeforeDate(d, today);
   });
 }
 
 export function isUrgentTask(task: Task, now: NowInput): boolean {
+  // Completed tasks are never urgent
+  if (task.status === 'done') return false;
+  
   const today = toStartOfDay(now);
   const limit = new Date(today);
   limit.setDate(limit.getDate() + 3); // 3 days from now
@@ -79,6 +88,9 @@ export function isUrgentTask(task: Task, now: NowInput): boolean {
  * Used for triggering notifications on task creation from email/photo
  */
 export function hasNearDeadline(task: Task, now: NowInput): boolean {
+  // Completed tasks don't need near-deadline notifications
+  if (task.status === 'done') return false;
+  
   const today = toStartOfDay(now);
   const threeDaysFromNow = new Date(today);
   threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
@@ -132,6 +144,9 @@ export function getWeekendSimpleTasks(tasks: Task[], now: NowInput, pdfReadyTask
   afterJ3.setDate(afterJ3.getDate() + 3);
 
   const eligible = tasks.filter(task => {
+    // CRITICAL: Skip completed tasks - they shouldn't appear in weekend notifications
+    if (task.status === 'done') return false;
+    
     const d = parseDeadline(task.deadline);
     // inclusions: no deadline today, not past, not within 48h, and either no deadline or deadline > J+3
     const hasDeadline = !isNaN(d.getTime());
@@ -144,7 +159,7 @@ export function getWeekendSimpleTasks(tasks: Task[], now: NowInput, pdfReadyTask
     }
 
     // One of the short actions OR PDF ready and not done OR not long/multi-step
-    const isPdfReady = pdfReadyTaskIds.has(task.id) && task.status !== 'done';
+    const isPdfReady = pdfReadyTaskIds.has(task.id);
     const shortAction = containsShortAction(task);
     const notLongMultiStep = !containsExclusion(task); // we model exclusion keywords also as long/multi-step blockers
     const hasAnyInclusion = isPdfReady || shortAction || notLongMultiStep;

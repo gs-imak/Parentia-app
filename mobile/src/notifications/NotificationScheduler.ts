@@ -154,20 +154,35 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
   // Use NON-REPEATING trigger so content is computed fresh each time
   // the app reschedules notifications (on foreground, task update, etc.)
   if (morningEnabled && ctx.weather) {
-    const dueToday = getTasksDueToday(ctx.tasks, now).slice(0, 3);
+    const dueToday = getTasksDueToday(ctx.tasks, now);
+    const overdue = getOverdueTasks(ctx.tasks, now);
     const greeting = ctx.profile.firstName ? `Bonjour ${ctx.profile.firstName},` : 'Bonjour,';
+    
+    // CRITICAL FIX: Include both today's tasks AND overdue tasks in morning notification
+    // Client reported "démarches du jour" not showing - this was because only exact-date
+    // matches were shown, not overdue tasks that still need attention
+    const allRelevantTasks = [...overdue, ...dueToday].slice(0, 3);
     
     // Build task section
     let taskSection: string;
-    if (dueToday.length > 0) {
-      const taskLines = dueToday.map(t => `• ${t.title}`).join('\n');
-      taskSection = `Voici vos principales démarches du jour\n${taskLines}`;
+    if (allRelevantTasks.length > 0) {
+      const taskLines = allRelevantTasks.map(t => `• ${t.title}`).join('\n');
+      const overdueCount = overdue.length;
+      const todayCount = dueToday.length;
+      
+      if (overdueCount > 0 && todayCount > 0) {
+        taskSection = `Vous avez ${overdueCount} tâche(s) en retard et ${todayCount} pour aujourd'hui :\n${taskLines}`;
+      } else if (overdueCount > 0) {
+        taskSection = `Vous avez ${overdueCount} tâche(s) en retard :\n${taskLines}`;
+      } else {
+        taskSection = `Voici vos principales démarches du jour :\n${taskLines}`;
+      }
     } else {
       taskSection = "Vous n'avez aucune démarche prévue aujourd'hui.";
     }
     
     // Log for debugging: verify weather is fresh
-    console.log(`[Notification] Morning: ${formatTemperatureInt(ctx.weather.temperatureC)}, ${dueToday.length} tasks for ${todayKey}`);
+    console.log(`[Notification] Morning: ${formatTemperatureInt(ctx.weather.temperatureC)}, ${dueToday.length} today + ${overdue.length} overdue for ${todayKey}`);
     
     const bodyParts = [
       greeting,
@@ -340,7 +355,6 @@ export async function triggerNearDeadlineTask(task: Task) {
 
 export async function handleNotificationResponse(
   response: Notifications.NotificationResponse,
-  tasks: Task[],
 ): Promise<{ actionTaken: boolean }> {
   const meta = response.notification.request.content.data as NotificationMeta | undefined;
   if (!meta) return { actionTaken: false };
@@ -349,18 +363,20 @@ export async function handleNotificationResponse(
   const taskId = meta.taskId;
   
   // Handle notification action buttons
+  // CRITICAL FIX: Don't rely on local tasks cache - use taskId directly from notification meta
+  // This fixes the race condition where actions fail on cold start because tasks aren't loaded yet
   if (taskId && actionId !== Notifications.DEFAULT_ACTION_IDENTIFIER) {
     try {
-      const task = tasks.find(t => t.id === taskId);
-      if (!task) return { actionTaken: false };
-      
       if (actionId === ACTION_DELETE) {
+        console.log('[Notification] Deleting task:', taskId);
         await deleteTask(taskId);
+        console.log('[Notification] Task deleted successfully');
         return { actionTaken: true };
       }
       
       if (actionId === ACTION_DELAY_1_DAY || actionId === ACTION_DELAY_3_DAYS) {
         const daysToAdd = actionId === ACTION_DELAY_1_DAY ? 1 : 3;
+        console.log(`[Notification] Delaying task ${taskId} by ${daysToAdd} days`);
         // For overdue tasks: add days from TODAY, not from the old deadline
         // This ensures the task is no longer overdue after the action
         const today = new Date();
@@ -369,10 +385,11 @@ export async function handleNotificationResponse(
         newDeadline.setDate(newDeadline.getDate() + daysToAdd);
         
         await updateTask(taskId, { deadline: newDeadline.toISOString() });
+        console.log('[Notification] Task delayed successfully to:', newDeadline.toISOString());
         return { actionTaken: true };
       }
     } catch (error) {
-      console.error('Failed to process notification action:', error);
+      console.error('[Notification] Failed to process notification action:', error);
     }
   }
   
