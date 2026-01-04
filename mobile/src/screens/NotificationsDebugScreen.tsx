@@ -191,28 +191,51 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
         style={[styles.button, { backgroundColor: '#F59E0B' }]}
         onPress={() => runAction(async () => {
           const ctx = await loadContext();
-          if (!ctx.weather) throw new Error('Météo non disponible');
+          const now = new Date();
+          const today = new Date(now);
+          today.setHours(0, 0, 0, 0);
+          const tomorrow = new Date(today);
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          
+          // Match actual scheduler: include both overdue AND today tasks
+          const overdue = ctx.tasks.filter((task: any) => {
+            const deadline = new Date(task.deadline);
+            deadline.setHours(0, 0, 0, 0);
+            return deadline < today && task.status !== 'done';
+          });
           
           const dueToday = ctx.tasks.filter((task: any) => {
             const deadline = new Date(task.deadline);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const tomorrow = new Date(today);
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            return deadline >= today && deadline < tomorrow;
-          }).slice(0, 3);
+            deadline.setHours(0, 0, 0, 0);
+            return deadline >= today && deadline < tomorrow && task.status !== 'done';
+          });
           
-          const taskLines = dueToday.length
-            ? dueToday.map((t: any) => `• ${t.title}`).join('\n')
-            : 'Vous n\'avez aucune tâche prioritaire aujourd\'hui.';
+          const allRelevantTasks = [...overdue, ...dueToday].slice(0, 3);
+          
+          let taskSection: string;
+          if (allRelevantTasks.length > 0) {
+            const taskLines = allRelevantTasks.map((t: any) => `• ${t.title}`).join('\n');
+            if (overdue.length > 0 && dueToday.length > 0) {
+              taskSection = `Vous avez ${overdue.length} tâche(s) en retard et ${dueToday.length} pour aujourd'hui :\n${taskLines}`;
+            } else if (overdue.length > 0) {
+              taskSection = `Vous avez ${overdue.length} tâche(s) en retard :\n${taskLines}`;
+            } else {
+              taskSection = `Voici vos principales démarches du jour :\n${taskLines}`;
+            }
+          } else {
+            taskSection = "Vous n'avez aucune démarche prévue aujourd'hui.";
+          }
           
           const greeting = ctx.profile.firstName ? `Bonjour ${ctx.profile.firstName},` : 'Bonjour,';
-          const bodyParts = [
-            greeting,
-            `Météo: ${Math.round(ctx.weather.temperatureC)}° · ${ctx.weather.outfit || ''}`.trim(),
-            taskLines,
-            'Bonne journée.',
-          ];
+          const bodyParts = [greeting];
+          
+          // Weather is now optional
+          if (ctx.weather) {
+            bodyParts.push(`Météo: ${Math.round(ctx.weather.temperatureC)}°C · ${ctx.weather.outfit || ''}`.trim());
+          }
+          
+          bodyParts.push(taskSection);
+          bodyParts.push('Bonne journée.');
           
           await Notifications.scheduleNotificationAsync({
             content: {
@@ -224,7 +247,7 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
             trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 5, repeats: false },
           });
           
-          setStatus(`✅ Notification du matin dans 5s\n${dueToday.length} tâche(s) incluse(s)`);
+          setStatus(`✅ Notification du matin dans 5s\n${overdue.length} en retard + ${dueToday.length} aujourd'hui`);
         })}
       >
         <Feather name="sun" size={18} color="#fff" />
