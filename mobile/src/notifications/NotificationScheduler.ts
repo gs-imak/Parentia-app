@@ -153,7 +153,8 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
   // CRITICAL FIX: Weather and tasks must be fetched fresh daily.
   // Use NON-REPEATING trigger so content is computed fresh each time
   // the app reschedules notifications (on foreground, task update, etc.)
-  if (morningEnabled && ctx.weather) {
+  // CRITICAL: Weather is now OPTIONAL - don't skip the entire notification if weather fails!
+  if (morningEnabled) {
     const dueToday = getTasksDueToday(ctx.tasks, now);
     const overdue = getOverdueTasks(ctx.tasks, now);
     const greeting = ctx.profile.firstName ? `Bonjour ${ctx.profile.firstName},` : 'Bonjour,';
@@ -181,15 +182,19 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
       taskSection = "Vous n'avez aucune démarche prévue aujourd'hui.";
     }
     
-    // Log for debugging: verify weather is fresh
-    console.log(`[Notification] Morning: ${formatTemperatureInt(ctx.weather.temperatureC)}, ${dueToday.length} today + ${overdue.length} overdue for ${todayKey}`);
+    // Build body - weather is optional
+    const bodyParts = [greeting];
     
-    const bodyParts = [
-      greeting,
-      `Météo: ${formatTemperatureInt(ctx.weather.temperatureC)} · ${ctx.weather.outfit || ''}`.trim(),
-      taskSection,
-      'Bonne journée.',
-    ];
+    if (ctx.weather) {
+      bodyParts.push(`Météo: ${formatTemperatureInt(ctx.weather.temperatureC)} · ${ctx.weather.outfit || ''}`.trim());
+      console.log(`[Notification] Morning: ${formatTemperatureInt(ctx.weather.temperatureC)}, ${dueToday.length} today + ${overdue.length} overdue for ${todayKey}`);
+    } else {
+      console.log(`[Notification] Morning: no weather, ${dueToday.length} today + ${overdue.length} overdue for ${todayKey}`);
+    }
+    
+    bodyParts.push(taskSection);
+    bodyParts.push('Bonne journée.');
+    
     await scheduleLocal(
       'Matin',
       bodyParts.join('\n'),
@@ -280,20 +285,17 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
   }
 
   if (smartEnabled) {
-    // Rain + children 07:45 (anti-spam: skip if morning will send and rainy overlap)
+    // Rain + children 07:45 (anti-spam: skip if morning notification is enabled)
     // NON-REPEATING: weather must be fresh
-    if (ctx.weather && isRainy(ctx.weather) && hasSchoolAgeChild(ctx.profile)) {
-      const dueToday = getTasksDueToday(ctx.tasks, now);
-      const willSendMorning = morningEnabled && ctx.weather && (dueToday.length > 0 || true); // morning always sends weather; so skip rain if morning is active
-      if (!willSendMorning) {
-        await scheduleLocal(
-          'Pluie annoncée',
-          'Prévoyez les affaires adaptées pour vos enfants.',
-          makeTrigger(RAIN_TIME, 0, false), // NON-REPEATING: weather must be fresh
-          { type: 'rain_children', deepLink: { route: 'tasks', params: { filter: 'today' } } },
-          buildIdentifier('rain', todayKey),
-        );
-      }
+    // Only send rain notification if morning is disabled (otherwise morning already covers the day)
+    if (!morningEnabled && ctx.weather && isRainy(ctx.weather) && hasSchoolAgeChild(ctx.profile)) {
+      await scheduleLocal(
+        'Pluie annoncée',
+        'Prévoyez les affaires adaptées pour vos enfants.',
+        makeTrigger(RAIN_TIME, 0, false), // NON-REPEATING: weather must be fresh
+        { type: 'rain_children', deepLink: { route: 'tasks', params: { filter: 'today' } } },
+        buildIdentifier('rain', todayKey),
+      );
     }
 
     // Weekend checklist Saturday 09:30
