@@ -58,3 +58,4 @@ Before every response ask yourself:
 GOAL: One prompt = One complete solution
 
 
+

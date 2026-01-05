@@ -210,18 +210,17 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
             return deadline >= today && deadline < tomorrow && task.status !== 'done';
           });
           
-          const allRelevantTasks = [...overdue, ...dueToday].slice(0, 3);
-          
+          // Build task section - prioritize TODAY's tasks, then mention overdue separately
           let taskSection: string;
-          if (allRelevantTasks.length > 0) {
-            const taskLines = allRelevantTasks.map((t: any) => `• ${t.title}`).join('\n');
-            if (overdue.length > 0 && dueToday.length > 0) {
-              taskSection = `Vous avez ${overdue.length} tâche(s) en retard et ${dueToday.length} pour aujourd'hui :\n${taskLines}`;
-            } else if (overdue.length > 0) {
-              taskSection = `Vous avez ${overdue.length} tâche(s) en retard :\n${taskLines}`;
-            } else {
-              taskSection = `Voici vos principales démarches du jour :\n${taskLines}`;
+          if (dueToday.length > 0) {
+            const todayLines = dueToday.slice(0, 3).map((t: any) => `• ${t.title}`).join('\n');
+            taskSection = `Vos démarches du jour :\n${todayLines}`;
+            if (overdue.length > 0) {
+              taskSection += `\n\n⚠️ ${overdue.length} tâche(s) en retard`;
             }
+          } else if (overdue.length > 0) {
+            const overdueLines = overdue.slice(0, 3).map((t: any) => `• ${t.title}`).join('\n');
+            taskSection = `⚠️ Vous avez ${overdue.length} tâche(s) en retard :\n${overdueLines}`;
           } else {
             taskSection = "Vous n'avez aucune démarche prévue aujourd'hui.";
           }

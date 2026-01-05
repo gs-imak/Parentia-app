@@ -159,25 +159,24 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
     const overdue = getOverdueTasks(ctx.tasks, now);
     const greeting = ctx.profile.firstName ? `Bonjour ${ctx.profile.firstName},` : 'Bonjour,';
     
-    // CRITICAL FIX: Include both today's tasks AND overdue tasks in morning notification
-    // Client reported "démarches du jour" not showing - this was because only exact-date
-    // matches were shown, not overdue tasks that still need attention
-    const allRelevantTasks = [...overdue, ...dueToday].slice(0, 3);
-    
-    // Build task section
+    // Build task section - prioritize TODAY's tasks, then mention overdue separately
     let taskSection: string;
-    if (allRelevantTasks.length > 0) {
-      const taskLines = allRelevantTasks.map(t => `• ${t.title}`).join('\n');
-      const overdueCount = overdue.length;
-      const todayCount = dueToday.length;
+    const overdueCount = overdue.length;
+    const todayCount = dueToday.length;
+    
+    if (todayCount > 0) {
+      // Show today's tasks first (max 3)
+      const todayLines = dueToday.slice(0, 3).map(t => `• ${t.title}`).join('\n');
+      taskSection = `Vos démarches du jour :\n${todayLines}`;
       
-      if (overdueCount > 0 && todayCount > 0) {
-        taskSection = `Vous avez ${overdueCount} tâche(s) en retard et ${todayCount} pour aujourd'hui :\n${taskLines}`;
-      } else if (overdueCount > 0) {
-        taskSection = `Vous avez ${overdueCount} tâche(s) en retard :\n${taskLines}`;
-      } else {
-        taskSection = `Voici vos principales démarches du jour :\n${taskLines}`;
+      // Add overdue mention if any
+      if (overdueCount > 0) {
+        taskSection += `\n\n⚠️ ${overdueCount} tâche(s) en retard`;
       }
+    } else if (overdueCount > 0) {
+      // No today tasks, show overdue
+      const overdueLines = overdue.slice(0, 3).map(t => `• ${t.title}`).join('\n');
+      taskSection = `⚠️ Vous avez ${overdueCount} tâche(s) en retard :\n${overdueLines}`;
     } else {
       taskSection = "Vous n'avez aucune démarche prévue aujourd'hui.";
     }
