@@ -220,46 +220,55 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
           <Text style={styles.buttonText}>4. Test API Décaler +1j (direct)</Text>
         </TouchableOpacity>
         
-        {/* Test 5: EXACT morning 7h30 notification */}
+        {/* Test 5: EXACT morning 7h30 notification - SIMULATES REAL SCENARIO */}
         <TouchableOpacity
           style={[styles.button, { backgroundColor: '#F59E0B' }]}
           onPress={() => runAction(async () => {
             const ctx = await loadContext();
             const now = new Date();
-            const today = new Date(now);
-            today.setHours(0, 0, 0, 0);
-            const tomorrow = new Date(today);
-            tomorrow.setDate(tomorrow.getDate() + 1);
             
-            // EXACT same logic as NotificationScheduler.ts
+            // CRITICAL: Simulate EXACT same logic as NotificationScheduler.ts
+            // If it's past 7:30 AM, the notification is scheduled for TOMORROW
+            // So we must compute tasks for TOMORROW's perspective
+            const morningTriggerTime = new Date(now);
+            morningTriggerTime.setHours(7, 30, 0, 0);
+            const isScheduledForTomorrow = now > morningTriggerTime;
+            
+            // Compute the effective date (today or tomorrow based on current time)
+            const effectiveDate = new Date(now);
+            if (isScheduledForTomorrow) {
+              effectiveDate.setDate(effectiveDate.getDate() + 1);
+            }
+            effectiveDate.setHours(0, 0, 0, 0);
+            
+            const nextDay = new Date(effectiveDate);
+            nextDay.setDate(nextDay.getDate() + 1);
+            
+            // Compute tasks for the EFFECTIVE date (not current date!)
             const overdue = ctx.tasks.filter((t: any) => {
               const d = new Date(t.deadline);
               d.setHours(0, 0, 0, 0);
-              return d < today && t.status !== 'done';
+              return d < effectiveDate && t.status !== 'done';
             });
             
-            const dueToday = ctx.tasks.filter((t: any) => {
+            const dueOnEffectiveDate = ctx.tasks.filter((t: any) => {
               const d = new Date(t.deadline);
               d.setHours(0, 0, 0, 0);
-              return d >= today && d < tomorrow && t.status !== 'done';
+              return d >= effectiveDate && d < nextDay && t.status !== 'done';
             });
             
             const overdueCount = overdue.length;
-            const todayCount = dueToday.length;
+            const todayCount = dueOnEffectiveDate.length;
             
             // Build task section - EXACT same logic as scheduler
             let taskSection: string;
             if (todayCount > 0) {
-              // Show today's tasks first (max 3)
-              const todayLines = dueToday.slice(0, 3).map((t: any) => `• ${t.title}`).join('\n');
+              const todayLines = dueOnEffectiveDate.slice(0, 3).map((t: any) => `• ${t.title}`).join('\n');
               taskSection = `Vos démarches du jour :\n${todayLines}`;
-              
-              // Add overdue mention if any
               if (overdueCount > 0) {
                 taskSection += `\n\n⚠️ ${overdueCount} tâche(s) en retard`;
               }
             } else if (overdueCount > 0) {
-              // No today tasks, show overdue
               const overdueLines = overdue.slice(0, 3).map((t: any) => `• ${t.title}`).join('\n');
               taskSection = `⚠️ Vous avez ${overdueCount} tâche(s) en retard :\n${overdueLines}`;
             } else {
@@ -281,7 +290,7 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
             // Send the exact notification
             await Notifications.scheduleNotificationAsync({
               content: {
-                title: '☀️ TEST NOTIF 7h30',
+                title: isScheduledForTomorrow ? '☀️ TEST NOTIF DEMAIN 7h30' : '☀️ TEST NOTIF AUJOURD\'HUI 7h30',
                 body: notificationBody,
                 data: { type: 'morning', deepLink: { route: 'tasks', params: { filter: 'today' } } },
                 sound: true,
@@ -290,26 +299,31 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
             });
             
             // Build diagnostic
-            let diagnostic = `✅ NOTIFICATION 7H30 ENVOYÉE (3s)\n\n`;
-            diagnostic += `📊 RÉSUMÉ:\n`;
+            const effectiveDateStr = effectiveDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+            let diagnostic = `✅ NOTIFICATION ENVOYÉE (3s)\n\n`;
+            diagnostic += `⏰ SIMULATION:\n`;
+            diagnostic += `• Heure actuelle: ${now.toLocaleTimeString('fr-FR')}\n`;
+            diagnostic += `• Passé 7h30: ${isScheduledForTomorrow ? 'OUI → notif pour DEMAIN' : 'NON → notif pour AUJOURD\'HUI'}\n`;
+            diagnostic += `• Date effective: ${effectiveDateStr}\n\n`;
+            
+            diagnostic += `📊 TÂCHES (du point de vue de ${effectiveDateStr}):\n`;
             diagnostic += `• Tâches du jour: ${todayCount}\n`;
             diagnostic += `• Tâches en retard: ${overdueCount}\n\n`;
             
             if (todayCount > 0) {
-              diagnostic += `✅ ATTENDU: "Vos démarches du jour" avec ${todayCount} tâche(s)\n`;
+              diagnostic += `✅ CORRECT: Affiche "Vos démarches du jour"\n`;
+              diagnostic += `Tâches: ${dueOnEffectiveDate.map((t: any) => t.title).join(', ')}\n`;
             } else if (overdueCount > 0) {
-              diagnostic += `⚠️ ATTENDU: "Vous avez ${overdueCount} tâche(s) en retard" (NORMAL car 0 tâches du jour)\n`;
-            } else {
-              diagnostic += `ℹ️ ATTENDU: "Aucune démarche prévue"\n`;
+              diagnostic += `⚠️ Affiche tâches en retard (NORMAL si 0 tâches du jour)\n`;
             }
             
-            diagnostic += `\n📱 CONTENU EXACT:\n${notificationBody}`;
+            diagnostic += `\n📱 CONTENU:\n${notificationBody}`;
             
             setStatus(diagnostic);
           })}
         >
           <Feather name="sun" size={18} color="#fff" />
-          <Text style={styles.buttonText}>5. Test Notif 7h30 EXACT (3s)</Text>
+          <Text style={styles.buttonText}>5. Test Notif 7h30 (simule demain)</Text>
         </TouchableOpacity>
       </View>
 
