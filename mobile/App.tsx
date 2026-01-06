@@ -38,6 +38,9 @@ export default function App() {
   const [showDebug, setShowDebug] = useState(false);
   const [profileKey, setProfileKey] = useState(0);
   
+  // Track last processed notification to prevent re-processing on every app open
+  const lastProcessedNotificationRef = useRef<string | null>(null);
+  
   // Secret tap gesture to access debug screen (3 quick taps)
   const [debugTapCount, setDebugTapCount] = useState(0);
   const debugTapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -243,13 +246,30 @@ export default function App() {
     });
 
     // Handle notification tap when app was CLOSED (cold start)
-    Notifications.getLastNotificationResponseAsync().then((response) => {
+    // CRITICAL: Only process ONCE - track by notification identifier to prevent re-processing
+    Notifications.getLastNotificationResponseAsync().then(async (response) => {
       console.log('[App] Cold start notification check - response:', response ? 'exists' : 'null');
       if (response) {
+        // Create unique ID for this notification response
+        const notificationId = response.notification.request.identifier + '-' + response.actionIdentifier;
+        console.log('[App] Notification ID:', notificationId);
+        console.log('[App] Last processed:', lastProcessedNotificationRef.current);
+        
+        // Only process if we haven't processed this exact notification+action before
+        if (lastProcessedNotificationRef.current === notificationId) {
+          console.log('[App] Already processed this notification, skipping');
+          return;
+        }
+        
         console.log('[App] Cold start - processing notification response');
-        handleNotificationNavigation(response).catch(err => {
+        try {
+          await handleNotificationNavigation(response);
+          // Mark as processed
+          lastProcessedNotificationRef.current = notificationId;
+          console.log('[App] Notification response processed and marked');
+        } catch (err) {
           console.error('[App] Cold start notification handling failed:', err);
-        });
+        }
       }
     }).catch(err => {
       console.error('[App] getLastNotificationResponseAsync failed:', err);
