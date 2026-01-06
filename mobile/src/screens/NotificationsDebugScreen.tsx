@@ -152,23 +152,23 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
             const daysOverdue = Math.floor((today.getTime() - deadlineDate.getTime()) / (1000 * 60 * 60 * 24));
             const overdueText = daysOverdue === 1 ? '1 jour de retard' : `${daysOverdue} jours de retard`;
             
-            // Schedule with action buttons category
+            // Schedule with action buttons category for 30 SECONDS (not 3 - time to close app)
             await Notifications.scheduleNotificationAsync({
               content: {
                 title: '🔴 TEST ACTION BUTTONS',
-                body: `« ${task.title} » - ${overdueText}\n\n👆 Long-press pour voir les boutons!`,
+                body: `« ${task.title} » - ${overdueText}\n\n⚠️ FERMEZ L'APP MAINTENANT!\nNotif arrive dans 30s`,
                 data: { type: 'overdue', taskId: task.id, deepLink: { route: 'taskDetail', params: { taskId: task.id } } },
                 sound: true,
                 categoryIdentifier: 'OVERDUE_TASK',
               },
-              trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 3, repeats: false },
+              trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 30, repeats: false },
             });
             
-            setStatus(`✅ NOTIFICATION ENVOYÉE (3s)\n\nTâche: ${task.title}\nID: ${task.id}\n\n📱 INSTRUCTIONS:\n1. Quittez l'app\n2. Long-press la notification\n3. Testez "+1 jour", "+3 jours", "Supprimer"\n4. Rouvrez l'app pour vérifier\n\n⚠️ Si les boutons n'apparaissent pas, le bug de catégorie persiste!`);
+            setStatus(`✅ NOTIFICATION PROGRAMMÉE (30s)\n\n🚨 INSTRUCTIONS:\n1. FERMEZ L'APP MAINTENANT (swipe up)\n2. Attendez 30 secondes\n3. Notification arrive\n4. Long-press la notification\n5. Testez les boutons\n6. Rouvrez l'app pour vérifier\n\nTâche: ${task.title}\nID: ${task.id}\n\n⚠️ Si les boutons n'apparaissent pas = bug catégorie\n⚠️ Si boutons apparaissent mais action ne marche pas = bug handling`);
           })}
         >
           <Feather name="trash-2" size={18} color="#fff" />
-          <Text style={styles.buttonText}>2. Test boutons Supprimer/Décaler</Text>
+          <Text style={styles.buttonText}>2. Test boutons (30s - fermer app)</Text>
         </TouchableOpacity>
         
         {/* Test 3: Manually delete a task via API to verify API works */}
