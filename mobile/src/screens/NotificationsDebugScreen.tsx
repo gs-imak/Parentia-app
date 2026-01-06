@@ -64,6 +64,30 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
           onPress={() => runAction(async () => {
             const ctx = await loadContext();
             const now = new Date();
+            
+            console.log('[Debug] Current time:', now.toISOString());
+            console.log('[Debug] Total tasks:', ctx.tasks.length);
+            
+            if (ctx.tasks.length === 0) {
+              throw new Error('❌ AUCUNE TÂCHE dans l\'app!');
+            }
+            
+            // Show ALL tasks with their deadlines
+            let report = `📊 DIAGNOSTIC COMPLET\n\n`;
+            report += `Heure actuelle: ${now.toLocaleString('fr-FR')}\n\n`;
+            report += `Total tâches: ${ctx.tasks.length}\n\n`;
+            
+            // Show each task with its deadline
+            report += `📋 TOUTES VOS TÂCHES:\n`;
+            ctx.tasks.forEach((t: any) => {
+              const deadline = new Date(t.deadline);
+              const status = t.status === 'done' ? '✅' : '⏳';
+              report += `${status} ${t.title}\n`;
+              report += `   Deadline: ${deadline.toLocaleString('fr-FR')}\n`;
+              report += `   Status: ${t.status}\n\n`;
+            });
+            
+            // Now compute relative to TODAY
             const today = new Date(now);
             today.setHours(0, 0, 0, 0);
             const tomorrow = new Date(today);
@@ -81,28 +105,21 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
               return d >= today && d < tomorrow && t.status !== 'done';
             });
             
-            let report = `📊 DIAGNOSTIC DES TÂCHES\n\n`;
-            report += `Total tâches: ${ctx.tasks.length}\n`;
-            report += `Tâches du jour: ${dueToday.length}\n`;
-            report += `Tâches en retard: ${overdue.length}\n\n`;
-            
-            if (dueToday.length > 0) {
-              report += `✅ TÂCHES DU JOUR:\n`;
-              dueToday.forEach((t: any) => {
-                report += `• ${t.title}\n`;
-              });
-            } else {
-              report += `❌ AUCUNE tâche du jour\n`;
-            }
+            report += `\n🔍 ANALYSE (par rapport à AUJOURD'HUI ${today.toLocaleDateString('fr-FR')}):\n`;
+            report += `• Tâches en retard: ${overdue.length}\n`;
+            report += `• Tâches du jour: ${dueToday.length}\n\n`;
             
             if (overdue.length > 0) {
-              report += `\n⚠️ TÂCHES EN RETARD:\n`;
-              overdue.forEach((t: any) => {
-                report += `• ${t.title}\n`;
-              });
+              report += `⚠️ EN RETARD:\n`;
+              overdue.forEach((t: any) => report += `• ${t.title}\n`);
+            } else {
+              report += `✅ Aucune tâche en retard\n`;
             }
             
-            report += `\n💡 Si 0 tâches du jour, la notif 7h30 affiche les tâches en retard (normal).`;
+            if (dueToday.length > 0) {
+              report += `\n📅 AUJOURD'HUI:\n`;
+              dueToday.forEach((t: any) => report += `• ${t.title}\n`);
+            }
             
             setStatus(report);
           })}
