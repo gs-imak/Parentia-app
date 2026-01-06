@@ -17,14 +17,14 @@ import { AppEvents, EVENTS } from './src/utils/events';
 import { getStoredCity, getStoredCoordinates } from './src/utils/storage';
 
 // VERSION MARKER - Use this to verify correct build is running
-const BUILD_VERSION = '2026-01-06-v4';
+const BUILD_VERSION = '2026-01-06-v5-CRITICAL';
 
 export default function App() {
   // Log version on mount to verify correct build
   useEffect(() => {
     console.log('=================================================');
     console.log('[App] HC Family Build Version:', BUILD_VERSION);
-    console.log('[App] Build includes: notification action fixes, morning priority fix');
+    console.log('[App] Build includes: notification action fixes, morning priority fix, category re-registration fix');
     console.log('=================================================');
   }, []);
   
@@ -161,10 +161,18 @@ export default function App() {
 
   // Reset Profile sections and refresh notifications when app returns from background
   useEffect(() => {
-    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
       if (nextAppState === 'active') {
         // Increment profileKey to reset Profile sections to collapsed state
         setProfileKey(prev => prev + 1);
+        // CRITICAL FIX: Always re-register categories BEFORE scheduling
+        // This ensures action buttons work even after app returns from background
+        try {
+          await setupNotificationCategories();
+          console.log('[App] Categories re-registered on app foreground');
+        } catch (err) {
+          console.error('[App] Failed to re-register categories:', err);
+        }
         // CRITICAL FIX: Refresh notifications with fresh weather/tasks data
         // This ensures 07:30 notification always uses TODAY's data
         refreshAndSchedule();
