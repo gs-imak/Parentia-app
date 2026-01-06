@@ -54,6 +54,176 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
       </TouchableOpacity>
       <Text style={styles.hint}>Dev uniquement. Déclenche les notifications localement.</Text>
 
+      {/* ===================== CRITICAL TESTS ===================== */}
+      <View style={styles.criticalSection}>
+        <Text style={styles.criticalTitle}>⚠️ TESTS CRITIQUES (Matthieu)</Text>
+        
+        {/* Test 1: Show task breakdown */}
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: '#7C3AED' }]}
+          onPress={() => runAction(async () => {
+            const ctx = await loadContext();
+            const now = new Date();
+            const today = new Date(now);
+            today.setHours(0, 0, 0, 0);
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            
+            const overdue = ctx.tasks.filter((t: any) => {
+              const d = new Date(t.deadline);
+              d.setHours(0, 0, 0, 0);
+              return d < today && t.status !== 'done';
+            });
+            
+            const dueToday = ctx.tasks.filter((t: any) => {
+              const d = new Date(t.deadline);
+              d.setHours(0, 0, 0, 0);
+              return d >= today && d < tomorrow && t.status !== 'done';
+            });
+            
+            let report = `📊 DIAGNOSTIC DES TÂCHES\n\n`;
+            report += `Total tâches: ${ctx.tasks.length}\n`;
+            report += `Tâches du jour: ${dueToday.length}\n`;
+            report += `Tâches en retard: ${overdue.length}\n\n`;
+            
+            if (dueToday.length > 0) {
+              report += `✅ TÂCHES DU JOUR:\n`;
+              dueToday.forEach((t: any) => {
+                report += `• ${t.title}\n`;
+              });
+            } else {
+              report += `❌ AUCUNE tâche du jour\n`;
+            }
+            
+            if (overdue.length > 0) {
+              report += `\n⚠️ TÂCHES EN RETARD:\n`;
+              overdue.forEach((t: any) => {
+                report += `• ${t.title}\n`;
+              });
+            }
+            
+            report += `\n💡 Si 0 tâches du jour, la notif 7h30 affiche les tâches en retard (normal).`;
+            
+            setStatus(report);
+          })}
+        >
+          <Feather name="list" size={18} color="#fff" />
+          <Text style={styles.buttonText}>1. Diagnostic des tâches</Text>
+        </TouchableOpacity>
+        
+        {/* Test 2: Test overdue notification with action buttons */}
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: '#DC2626' }]}
+          onPress={() => runAction(async () => {
+            const ctx = await loadContext();
+            const now = new Date();
+            const today = new Date(now);
+            today.setHours(0, 0, 0, 0);
+            
+            const overdueTasks = ctx.tasks.filter((task: any) => {
+              const deadline = new Date(task.deadline);
+              deadline.setHours(0, 0, 0, 0);
+              return deadline < today && task.status !== 'done';
+            });
+            
+            if (overdueTasks.length === 0) {
+              throw new Error('Aucune tâche en retard. Créez une tâche avec deadline passée pour tester.');
+            }
+            
+            const task = overdueTasks[0];
+            const deadlineDate = new Date(task.deadline);
+            const daysOverdue = Math.floor((today.getTime() - deadlineDate.getTime()) / (1000 * 60 * 60 * 24));
+            const overdueText = daysOverdue === 1 ? '1 jour de retard' : `${daysOverdue} jours de retard`;
+            
+            // Schedule with action buttons category
+            await Notifications.scheduleNotificationAsync({
+              content: {
+                title: '🔴 TEST ACTION BUTTONS',
+                body: `« ${task.title} » - ${overdueText}\n\n👆 Long-press pour voir les boutons!`,
+                data: { type: 'overdue', taskId: task.id, deepLink: { route: 'taskDetail', params: { taskId: task.id } } },
+                sound: true,
+                categoryIdentifier: 'OVERDUE_TASK',
+              },
+              trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 3, repeats: false },
+            });
+            
+            setStatus(`✅ NOTIFICATION ENVOYÉE (3s)\n\nTâche: ${task.title}\nID: ${task.id}\n\n📱 INSTRUCTIONS:\n1. Quittez l'app\n2. Long-press la notification\n3. Testez "+1 jour", "+3 jours", "Supprimer"\n4. Rouvrez l'app pour vérifier\n\n⚠️ Si les boutons n'apparaissent pas, le bug de catégorie persiste!`);
+          })}
+        >
+          <Feather name="trash-2" size={18} color="#fff" />
+          <Text style={styles.buttonText}>2. Test boutons Supprimer/Décaler</Text>
+        </TouchableOpacity>
+        
+        {/* Test 3: Manually delete a task via API to verify API works */}
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: '#059669' }]}
+          onPress={() => runAction(async () => {
+            const ctx = await loadContext();
+            const now = new Date();
+            const today = new Date(now);
+            today.setHours(0, 0, 0, 0);
+            
+            const overdueTasks = ctx.tasks.filter((task: any) => {
+              const deadline = new Date(task.deadline);
+              deadline.setHours(0, 0, 0, 0);
+              return deadline < today && task.status !== 'done';
+            });
+            
+            if (overdueTasks.length === 0) {
+              throw new Error('Aucune tâche en retard à supprimer.');
+            }
+            
+            const task = overdueTasks[0];
+            
+            // Test the deleteTask API directly
+            await deleteTask(task.id);
+            
+            setStatus(`✅ API DELETE FONCTIONNE!\n\nTâche supprimée: "${task.title}"\nID: ${task.id}\n\n👉 Si ce bouton fonctionne mais pas les boutons de notification, le problème est dans le handling des actions.`);
+          })}
+        >
+          <Feather name="check-circle" size={18} color="#fff" />
+          <Text style={styles.buttonText}>3. Test API Delete (direct)</Text>
+        </TouchableOpacity>
+        
+        {/* Test 4: Manually delay a task via API to verify API works */}
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: '#0891B2' }]}
+          onPress={() => runAction(async () => {
+            const ctx = await loadContext();
+            const now = new Date();
+            const today = new Date(now);
+            today.setHours(0, 0, 0, 0);
+            
+            const overdueTasks = ctx.tasks.filter((task: any) => {
+              const deadline = new Date(task.deadline);
+              deadline.setHours(0, 0, 0, 0);
+              return deadline < today && task.status !== 'done';
+            });
+            
+            if (overdueTasks.length === 0) {
+              throw new Error('Aucune tâche en retard à décaler.');
+            }
+            
+            const task = overdueTasks[0];
+            const oldDeadline = task.deadline;
+            
+            // Test the updateTask API directly (delay by 1 day from today)
+            const newDeadline = new Date(today);
+            newDeadline.setDate(newDeadline.getDate() + 1);
+            
+            await updateTask(task.id, { deadline: newDeadline.toISOString() });
+            
+            setStatus(`✅ API UPDATE FONCTIONNE!\n\nTâche: "${task.title}"\nAncienne deadline: ${oldDeadline}\nNouvelle deadline: ${newDeadline.toISOString()}\n\n👉 Si ce bouton fonctionne mais pas "+1 jour" de la notification, le problème est dans le handling des actions.`);
+          })}
+        >
+          <Feather name="calendar" size={18} color="#fff" />
+          <Text style={styles.buttonText}>4. Test API Décaler +1j (direct)</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* ===================== AUTRES TESTS ===================== */}
+      <Text style={styles.sectionTitle}>Autres tests</Text>
+
       {/* Cancel all pending notifications */}
       <TouchableOpacity
         style={[styles.button, { backgroundColor: '#6B7280' }]}
@@ -328,5 +498,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0FDF4',
     padding: 12,
     borderRadius: 8,
+  },
+  criticalSection: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 2,
+    borderColor: '#DC2626',
+  },
+  criticalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#DC2626',
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginTop: 8,
+    marginBottom: 12,
   },
 });
