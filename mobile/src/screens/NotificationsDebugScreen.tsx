@@ -163,22 +163,46 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
             const today = new Date(now);
             today.setHours(0, 0, 0, 0);
             
+            console.log('[Debug] Total tasks:', ctx.tasks.length);
+            
+            if (ctx.tasks.length === 0) {
+              throw new Error('❌ AUCUNE TÂCHE dans l\'app!\n\n👉 Créez au moins 1 tâche avec une deadline PASSÉE pour tester.');
+            }
+            
             const overdueTasks = ctx.tasks.filter((task: any) => {
               const deadline = new Date(task.deadline);
               deadline.setHours(0, 0, 0, 0);
               return deadline < today && task.status !== 'done';
             });
             
+            console.log('[Debug] Overdue tasks:', overdueTasks.length);
+            
             if (overdueTasks.length === 0) {
-              throw new Error('Aucune tâche en retard à supprimer.');
+              const allTasksList = ctx.tasks.map((t: any) => `• ${t.title} (${new Date(t.deadline).toLocaleDateString('fr-FR')})`).join('\n');
+              throw new Error(`❌ AUCUNE tâche EN RETARD!\n\nVos ${ctx.tasks.length} tâches:\n${allTasksList}\n\n👉 Créez une tâche avec deadline PASSÉE.`);
             }
             
             const task = overdueTasks[0];
+            console.log('[Debug] Attempting to delete task:', task.id, task.title);
             
             // Test the deleteTask API directly
-            await deleteTask(task.id);
-            
-            setStatus(`✅ API DELETE FONCTIONNE!\n\nTâche supprimée: "${task.title}"\nID: ${task.id}\n\n👉 Si ce bouton fonctionne mais pas les boutons de notification, le problème est dans le handling des actions.`);
+            try {
+              await deleteTask(task.id);
+              console.log('[Debug] Delete successful');
+              
+              // Verify it's gone
+              const updatedTasks = await getAllTasks();
+              const stillExists = updatedTasks.tasks.find((t: any) => t.id === task.id);
+              
+              if (stillExists) {
+                throw new Error(`❌ ÉCHEC! Tâche toujours présente après delete!\n\nTâche: "${task.title}"\nID: ${task.id}`);
+              }
+              
+              setStatus(`✅ API DELETE FONCTIONNE!\n\nTâche supprimée: "${task.title}"\nID: ${task.id}\n\n✅ VÉRIFICATION: Tâche absente de la liste\n\n👉 Si ce bouton fonctionne mais pas les boutons de notification, le problème est dans le handling des actions.`);
+            } catch (error: any) {
+              console.error('[Debug] Delete failed:', error);
+              throw new Error(`❌ API DELETE A ÉCHOUÉ!\n\nTâche: "${task.title}"\nID: ${task.id}\n\nErreur: ${error.message}\n\n👉 Vérifiez que le backend est démarré!`);
+            }
           })}
         >
           <Feather name="check-circle" size={18} color="#fff" />
@@ -194,26 +218,57 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
             const today = new Date(now);
             today.setHours(0, 0, 0, 0);
             
+            console.log('[Debug] Total tasks:', ctx.tasks.length);
+            
+            if (ctx.tasks.length === 0) {
+              throw new Error('❌ AUCUNE TÂCHE dans l\'app!\n\n👉 Créez au moins 1 tâche avec une deadline PASSÉE pour tester.');
+            }
+            
             const overdueTasks = ctx.tasks.filter((task: any) => {
               const deadline = new Date(task.deadline);
               deadline.setHours(0, 0, 0, 0);
               return deadline < today && task.status !== 'done';
             });
             
+            console.log('[Debug] Overdue tasks:', overdueTasks.length);
+            
             if (overdueTasks.length === 0) {
-              throw new Error('Aucune tâche en retard à décaler.');
+              const allTasksList = ctx.tasks.map((t: any) => `• ${t.title} (${new Date(t.deadline).toLocaleDateString('fr-FR')})`).join('\n');
+              throw new Error(`❌ AUCUNE tâche EN RETARD!\n\nVos ${ctx.tasks.length} tâches:\n${allTasksList}\n\n👉 Créez une tâche avec deadline PASSÉE.`);
             }
             
             const task = overdueTasks[0];
-            const oldDeadline = task.deadline;
+            const oldDeadline = new Date(task.deadline);
+            console.log('[Debug] Attempting to delay task:', task.id, task.title);
             
             // Test the updateTask API directly (delay by 1 day from today)
             const newDeadline = new Date(today);
             newDeadline.setDate(newDeadline.getDate() + 1);
             
-            await updateTask(task.id, { deadline: newDeadline.toISOString() });
-            
-            setStatus(`✅ API UPDATE FONCTIONNE!\n\nTâche: "${task.title}"\nAncienne deadline: ${oldDeadline}\nNouvelle deadline: ${newDeadline.toISOString()}\n\n👉 Si ce bouton fonctionne mais pas "+1 jour" de la notification, le problème est dans le handling des actions.`);
+            try {
+              await updateTask(task.id, { deadline: newDeadline.toISOString() });
+              console.log('[Debug] Update successful');
+              
+              // Verify it changed
+              const updatedTasks = await getAllTasks();
+              const updatedTask = updatedTasks.tasks.find((t: any) => t.id === task.id);
+              
+              if (!updatedTask) {
+                throw new Error('❌ Tâche introuvable après update!');
+              }
+              
+              const actualNewDeadline = new Date(updatedTask.deadline);
+              actualNewDeadline.setHours(0, 0, 0, 0);
+              
+              if (actualNewDeadline.getTime() !== newDeadline.getTime()) {
+                throw new Error(`❌ Deadline n'a pas changé!\nAttendu: ${newDeadline.toISOString()}\nActuel: ${updatedTask.deadline}`);
+              }
+              
+              setStatus(`✅ API UPDATE FONCTIONNE!\n\nTâche: "${task.title}"\nAncienne deadline: ${oldDeadline.toLocaleDateString('fr-FR')}\nNouvelle deadline: ${newDeadline.toLocaleDateString('fr-FR')}\n\n✅ VÉRIFICATION: Deadline mise à jour\n\n👉 Si ce bouton fonctionne mais pas "+1 jour" de la notification, le problème est dans le handling des actions.`);
+            } catch (error: any) {
+              console.error('[Debug] Update failed:', error);
+              throw new Error(`❌ API UPDATE A ÉCHOUÉ!\n\nTâche: "${task.title}"\nID: ${task.id}\n\nErreur: ${error.message}\n\n👉 Vérifiez que le backend est démarré!`);
+            }
           })}
         >
           <Feather name="calendar" size={18} color="#fff" />
