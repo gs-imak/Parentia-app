@@ -1,0 +1,118 @@
+# Mobile App Rules (React Native + Expo)
+
+## iOS Notification Categories - CRITICAL RULE
+
+**ALWAYS register notification categories on EVERY app foreground, not just on cold start.**
+
+### The Problem:
+iOS requires notification categories to be registered BEFORE scheduling notifications with action buttons. If categories are not registered, action buttons will not work.
+
+### Common Mistake:
+```typescript
+// ❌ WRONG - Categories only registered on mount
+useEffect(() => {
+  setupNotificationCategories();
+  refreshAndSchedule();
+}, []);
+
+// ❌ WRONG - Categories not re-registered on warm start
+useEffect(() => {
+  const handleAppStateChange = (nextAppState) => {
+    if (nextAppState === 'active') {
+      refreshAndSchedule(); // Categories NOT re-registered!
+    }
+  };
+  AppState.addEventListener('change', handleAppStateChange);
+}, []);
+```
+
+### Correct Pattern:
+```typescript
+// ✅ CORRECT - Categories registered on mount AND on every foreground
+useEffect(() => {
+  const initializeNotifications = async () => {
+    await setupNotificationCategories(); // Step 1: Register categories
+    await refreshAndSchedule();          // Step 2: Schedule notifications
+  };
+  initializeNotifications();
+}, []);
+
+// ✅ CORRECT - Categories re-registered on warm start
+useEffect(() => {
+  const handleAppStateChange = async (nextAppState) => {
+    if (nextAppState === 'active') {
+      await setupNotificationCategories(); // ALWAYS re-register first
+      refreshAndSchedule();                 // THEN schedule
+    }
+  };
+  const subscription = AppState.addEventListener('change', handleAppStateChange);
+  return () => subscription.remove();
+}, []);
+```
+
+### Why This Is Subtle:
+- **Cold start testing works** (categories registered on app mount)
+- **Warm start testing fails** (categories not re-registered when app returns from background)
+- Bug only manifests when user opens app AFTER it was backgrounded
+- Action buttons appear but don't work, or don't appear at all
+
+### Testing Strategy:
+1. Kill app completely
+2. Open app (cold start) → test action buttons ✓
+3. Background app
+4. Wait 10 seconds
+5. Reopen app (warm start)
+6. Trigger notification with action buttons
+7. Verify buttons work ✓
+
+### Rule:
+Before ANY call to `rescheduleAllNotifications()` or any function that schedules notifications with `categoryIdentifier`, ALWAYS call `await setupNotificationCategories()` first.
+
+---
+
+## Platform-Specific Code
+
+Always verify Platform is imported when using Platform.OS, Platform.select(), or any Platform.* API. Missing import causes immediate crash on all platforms with "ReferenceError: Platform is not defined".
+
+```typescript
+import { Platform } from 'react-native';
+
+// Then use:
+if (Platform.OS === 'ios') { ... }
+Platform.select({ ios: ..., android: ... })
+```
+
+---
+
+## App Lifecycle States
+
+When working with AppState, remember:
+- **active**: App is in foreground and running
+- **background**: App is in background (iOS: minimized, Android: home button pressed)
+- **inactive**: App is transitioning (iOS only, brief state during transitions)
+
+Always handle state changes asynchronously if they trigger API calls or async operations.
+
+---
+
+## State Management in Effects
+
+When reading state variables inside useEffect:
+1. Include them in dependency array, OR
+2. Use refs if you need the value without triggering re-runs
+
+Never read state inside useEffect without declaring it as a dependency (violates Rules of Hooks).
+
+---
+
+## Form Reset Best Practices
+
+When resetting a form after submission, reset ALL form-related state:
+- Input values
+- UI toggles (collapsible sections, dropdowns)
+- Visibility flags
+- Error states
+- Loading states
+
+Incomplete resets create confusing UX where users see partially reset forms.
+
