@@ -35,7 +35,7 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
     setStatus(null);
     try {
       await action();
-      setStatus('Action exécutée.');
+      // Don't set generic "Action exécutée" - let the action itself set status
     } catch (e: any) {
       console.error('[Debug] Notification error:', e);
       setStatus(`Erreur: ${e?.message || String(e)}`);
