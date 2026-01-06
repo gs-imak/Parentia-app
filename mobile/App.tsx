@@ -16,7 +16,18 @@ import { rescheduleAllNotifications, handleNotificationResponse, setupNotificati
 import { AppEvents, EVENTS } from './src/utils/events';
 import { getStoredCity, getStoredCoordinates } from './src/utils/storage';
 
+// VERSION MARKER - Use this to verify correct build is running
+const BUILD_VERSION = '2026-01-06-v3';
+
 export default function App() {
+  // Log version on mount to verify correct build
+  useEffect(() => {
+    console.log('=================================================');
+    console.log('[App] HC Family Build Version:', BUILD_VERSION);
+    console.log('[App] Build includes: notification action fixes, morning priority fix');
+    console.log('=================================================');
+  }, []);
+  
   const [activeTab, setActiveTab] = useState('Home');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -163,17 +174,31 @@ export default function App() {
 
   // Handle notification taps (navigation to task/tasks)
   const handleNotificationNavigation = useCallback(async (response: Notifications.NotificationResponse) => {
-    // CRITICAL FIX: handleNotificationResponse no longer needs tasks parameter
-    // It uses taskId directly from notification meta, fixing the race condition
-    // where actions failed on cold start because tasks weren't loaded yet
-    const { actionTaken } = await handleNotificationResponse(response);
+    console.log('[App] handleNotificationNavigation called');
+    console.log('[App] Notification actionIdentifier:', response.actionIdentifier);
+    console.log('[App] Notification data:', JSON.stringify(response.notification.request.content.data));
     
-    // Refresh app state after action (delete/delay)
-    await refreshAndSchedule();
-    setRefreshTrigger(prev => prev + 1);
-    
-    // If an action was taken (delete/delay), don't navigate - task was handled
-    if (actionTaken) return;
+    try {
+      // CRITICAL FIX: handleNotificationResponse no longer needs tasks parameter
+      // It uses taskId directly from notification meta, fixing the race condition
+      // where actions failed on cold start because tasks weren't loaded yet
+      const { actionTaken } = await handleNotificationResponse(response);
+      console.log('[App] actionTaken:', actionTaken);
+      
+      // Refresh app state after action (delete/delay)
+      console.log('[App] Refreshing app state...');
+      await refreshAndSchedule();
+      setRefreshTrigger(prev => prev + 1);
+      console.log('[App] App state refreshed');
+      
+      // If an action was taken (delete/delay), don't navigate - task was handled
+      if (actionTaken) {
+        console.log('[App] Action was taken, not navigating');
+        return;
+      }
+    } catch (error) {
+      console.error('[App] ERROR in handleNotificationNavigation:', error);
+    }
     
     const meta = response.notification.request.content.data as any;
     const deepLink = meta?.deepLink as { route?: string; params?: any } | undefined;
@@ -206,13 +231,24 @@ export default function App() {
 
     // Handle notification tap when app was CLOSED (cold start)
     Notifications.getLastNotificationResponseAsync().then((response) => {
+      console.log('[App] Cold start notification check - response:', response ? 'exists' : 'null');
       if (response) {
-        handleNotificationNavigation(response);
+        console.log('[App] Cold start - processing notification response');
+        handleNotificationNavigation(response).catch(err => {
+          console.error('[App] Cold start notification handling failed:', err);
+        });
       }
+    }).catch(err => {
+      console.error('[App] getLastNotificationResponseAsync failed:', err);
     });
 
     // Handle notification tap when app is running (warm/hot start)
-    const subResponse = Notifications.addNotificationResponseReceivedListener(handleNotificationNavigation);
+    const subResponse = Notifications.addNotificationResponseReceivedListener((response) => {
+      console.log('[App] Warm start notification received');
+      handleNotificationNavigation(response).catch(err => {
+        console.error('[App] Warm start notification handling failed:', err);
+      });
+    });
 
     const onEvents = async () => {
       await refreshAndSchedule();

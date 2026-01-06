@@ -155,8 +155,17 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
   // the app reschedules notifications (on foreground, task update, etc.)
   // CRITICAL: Weather is now OPTIONAL - don't skip the entire notification if weather fails!
   if (morningEnabled) {
+    console.log('[Notification] Morning notification - enabled');
+    console.log('[Notification] Total tasks in context:', ctx.tasks.length);
+    
     const dueToday = getTasksDueToday(ctx.tasks, now);
     const overdue = getOverdueTasks(ctx.tasks, now);
+    
+    console.log('[Notification] Due today count:', dueToday.length);
+    console.log('[Notification] Due today tasks:', dueToday.map(t => t.title));
+    console.log('[Notification] Overdue count:', overdue.length);
+    console.log('[Notification] Overdue tasks:', overdue.map(t => t.title));
+    
     const greeting = ctx.profile.firstName ? `Bonjour ${ctx.profile.firstName},` : 'Bonjour,';
     
     // Build task section - prioritize TODAY's tasks, then mention overdue separately
@@ -357,27 +366,42 @@ export async function triggerNearDeadlineTask(task: Task) {
 export async function handleNotificationResponse(
   response: Notifications.NotificationResponse,
 ): Promise<{ actionTaken: boolean }> {
+  console.log('[Notification] handleNotificationResponse called');
+  console.log('[Notification] Response actionIdentifier:', response.actionIdentifier);
+  console.log('[Notification] Response notification data:', JSON.stringify(response.notification.request.content.data));
+  
   const meta = response.notification.request.content.data as NotificationMeta | undefined;
-  if (!meta) return { actionTaken: false };
+  if (!meta) {
+    console.log('[Notification] No meta found in notification data');
+    return { actionTaken: false };
+  }
   
   const actionId = response.actionIdentifier;
   const taskId = meta.taskId;
+  
+  console.log('[Notification] Parsed actionId:', actionId);
+  console.log('[Notification] Parsed taskId:', taskId);
+  console.log('[Notification] DEFAULT_ACTION_IDENTIFIER:', Notifications.DEFAULT_ACTION_IDENTIFIER);
+  console.log('[Notification] ACTION_DELETE:', ACTION_DELETE);
+  console.log('[Notification] ACTION_DELAY_1_DAY:', ACTION_DELAY_1_DAY);
+  console.log('[Notification] ACTION_DELAY_3_DAYS:', ACTION_DELAY_3_DAYS);
   
   // Handle notification action buttons
   // CRITICAL FIX: Don't rely on local tasks cache - use taskId directly from notification meta
   // This fixes the race condition where actions fail on cold start because tasks aren't loaded yet
   if (taskId && actionId !== Notifications.DEFAULT_ACTION_IDENTIFIER) {
+    console.log('[Notification] Processing action button press');
     try {
       if (actionId === ACTION_DELETE) {
-        console.log('[Notification] Deleting task:', taskId);
+        console.log('[Notification] DELETE action - calling deleteTask:', taskId);
         await deleteTask(taskId);
-        console.log('[Notification] Task deleted successfully');
+        console.log('[Notification] DELETE SUCCESS');
         return { actionTaken: true };
       }
       
       if (actionId === ACTION_DELAY_1_DAY || actionId === ACTION_DELAY_3_DAYS) {
         const daysToAdd = actionId === ACTION_DELAY_1_DAY ? 1 : 3;
-        console.log(`[Notification] Delaying task ${taskId} by ${daysToAdd} days`);
+        console.log(`[Notification] DELAY action - ${daysToAdd} days for task: ${taskId}`);
         // For overdue tasks: add days from TODAY, not from the old deadline
         // This ensures the task is no longer overdue after the action
         const today = new Date();
@@ -385,13 +409,18 @@ export async function handleNotificationResponse(
         const newDeadline = new Date(today);
         newDeadline.setDate(newDeadline.getDate() + daysToAdd);
         
+        console.log('[Notification] New deadline:', newDeadline.toISOString());
         await updateTask(taskId, { deadline: newDeadline.toISOString() });
-        console.log('[Notification] Task delayed successfully to:', newDeadline.toISOString());
+        console.log('[Notification] DELAY SUCCESS');
         return { actionTaken: true };
       }
+      
+      console.log('[Notification] Unknown action:', actionId);
     } catch (error) {
-      console.error('[Notification] Failed to process notification action:', error);
+      console.error('[Notification] ACTION FAILED with error:', error);
     }
+  } else {
+    console.log('[Notification] Skipping action - taskId:', taskId, 'actionId:', actionId);
   }
   
   // DeepLink navigation is handled by App.tsx based on meta.deepLink
