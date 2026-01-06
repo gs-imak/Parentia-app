@@ -152,23 +152,23 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
             const daysOverdue = Math.floor((today.getTime() - deadlineDate.getTime()) / (1000 * 60 * 60 * 24));
             const overdueText = daysOverdue === 1 ? '1 jour de retard' : `${daysOverdue} jours de retard`;
             
-            // Schedule with action buttons category for 30 SECONDS (not 3 - time to close app)
+            // Schedule with action buttons category
             await Notifications.scheduleNotificationAsync({
               content: {
                 title: '🔴 TEST ACTION BUTTONS',
-                body: `« ${task.title} » - ${overdueText}\n\n⚠️ FERMEZ L'APP MAINTENANT!\nNotif arrive dans 30s`,
+                body: `« ${task.title} » - ${overdueText}`,
                 data: { type: 'overdue', taskId: task.id, deepLink: { route: 'taskDetail', params: { taskId: task.id } } },
                 sound: true,
                 categoryIdentifier: 'OVERDUE_TASK',
               },
-              trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 30, repeats: false },
+              trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 5, repeats: false },
             });
             
-            setStatus(`✅ NOTIFICATION PROGRAMMÉE (30s)\n\n🚨 INSTRUCTIONS:\n1. FERMEZ L'APP MAINTENANT (swipe up)\n2. Attendez 30 secondes\n3. Notification arrive\n4. Long-press la notification\n5. Testez les boutons\n6. Rouvrez l'app pour vérifier\n\nTâche: ${task.title}\nID: ${task.id}\n\n⚠️ Si les boutons n'apparaissent pas = bug catégorie\n⚠️ Si boutons apparaissent mais action ne marche pas = bug handling`);
+            setStatus(`✅ NOTIFICATION DANS 5 SECONDES\n\n📱 ÉTAPES À SUIVRE:\n\n1️⃣ Attendez la notification (5s)\n\n2️⃣ TIREZ VERS LE BAS sur la notification (ou LONG-PRESS)\n   → Les 3 boutons doivent apparaître:\n   • +1 jour\n   • +3 jours  \n   • Supprimer\n\n3️⃣ Appuyez sur "+1 jour"\n\n4️⃣ Allez dans l'onglet "Tâches"\n   → Vérifiez que "${task.title}" a une nouvelle deadline\n\n⚠️ SI LES BOUTONS N'APPARAISSENT PAS:\n   → Bug de catégorie (pas enregistrée)\n\n⚠️ SI LES BOUTONS APPARAISSENT MAIS L'ACTION NE MARCHE PAS:\n   → Bug dans handleNotificationResponse`);
           })}
         >
           <Feather name="trash-2" size={18} color="#fff" />
-          <Text style={styles.buttonText}>2. Test boutons (30s - fermer app)</Text>
+          <Text style={styles.buttonText}>2. Test boutons (tirez notification vers bas)</Text>
         </TouchableOpacity>
         
         {/* Test 3: Manually delete a task via API to verify API works */}
