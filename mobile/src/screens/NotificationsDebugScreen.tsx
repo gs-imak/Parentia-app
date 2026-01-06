@@ -219,6 +219,98 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
           <Feather name="calendar" size={18} color="#fff" />
           <Text style={styles.buttonText}>4. Test API Décaler +1j (direct)</Text>
         </TouchableOpacity>
+        
+        {/* Test 5: EXACT morning 7h30 notification */}
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: '#F59E0B' }]}
+          onPress={() => runAction(async () => {
+            const ctx = await loadContext();
+            const now = new Date();
+            const today = new Date(now);
+            today.setHours(0, 0, 0, 0);
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            
+            // EXACT same logic as NotificationScheduler.ts
+            const overdue = ctx.tasks.filter((t: any) => {
+              const d = new Date(t.deadline);
+              d.setHours(0, 0, 0, 0);
+              return d < today && t.status !== 'done';
+            });
+            
+            const dueToday = ctx.tasks.filter((t: any) => {
+              const d = new Date(t.deadline);
+              d.setHours(0, 0, 0, 0);
+              return d >= today && d < tomorrow && t.status !== 'done';
+            });
+            
+            const overdueCount = overdue.length;
+            const todayCount = dueToday.length;
+            
+            // Build task section - EXACT same logic as scheduler
+            let taskSection: string;
+            if (todayCount > 0) {
+              // Show today's tasks first (max 3)
+              const todayLines = dueToday.slice(0, 3).map((t: any) => `• ${t.title}`).join('\n');
+              taskSection = `Vos démarches du jour :\n${todayLines}`;
+              
+              // Add overdue mention if any
+              if (overdueCount > 0) {
+                taskSection += `\n\n⚠️ ${overdueCount} tâche(s) en retard`;
+              }
+            } else if (overdueCount > 0) {
+              // No today tasks, show overdue
+              const overdueLines = overdue.slice(0, 3).map((t: any) => `• ${t.title}`).join('\n');
+              taskSection = `⚠️ Vous avez ${overdueCount} tâche(s) en retard :\n${overdueLines}`;
+            } else {
+              taskSection = "Vous n'avez aucune démarche prévue aujourd'hui.";
+            }
+            
+            const greeting = ctx.profile.firstName ? `Bonjour ${ctx.profile.firstName},` : 'Bonjour,';
+            const bodyParts = [greeting];
+            
+            if (ctx.weather) {
+              bodyParts.push(`Météo: ${Math.round(ctx.weather.temperatureC)}°C · ${ctx.weather.outfit || ''}`.trim());
+            }
+            
+            bodyParts.push(taskSection);
+            bodyParts.push('Bonne journée.');
+            
+            const notificationBody = bodyParts.join('\n');
+            
+            // Send the exact notification
+            await Notifications.scheduleNotificationAsync({
+              content: {
+                title: '☀️ TEST NOTIF 7h30',
+                body: notificationBody,
+                data: { type: 'morning', deepLink: { route: 'tasks', params: { filter: 'today' } } },
+                sound: true,
+              },
+              trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 3, repeats: false },
+            });
+            
+            // Build diagnostic
+            let diagnostic = `✅ NOTIFICATION 7H30 ENVOYÉE (3s)\n\n`;
+            diagnostic += `📊 RÉSUMÉ:\n`;
+            diagnostic += `• Tâches du jour: ${todayCount}\n`;
+            diagnostic += `• Tâches en retard: ${overdueCount}\n\n`;
+            
+            if (todayCount > 0) {
+              diagnostic += `✅ ATTENDU: "Vos démarches du jour" avec ${todayCount} tâche(s)\n`;
+            } else if (overdueCount > 0) {
+              diagnostic += `⚠️ ATTENDU: "Vous avez ${overdueCount} tâche(s) en retard" (NORMAL car 0 tâches du jour)\n`;
+            } else {
+              diagnostic += `ℹ️ ATTENDU: "Aucune démarche prévue"\n`;
+            }
+            
+            diagnostic += `\n📱 CONTENU EXACT:\n${notificationBody}`;
+            
+            setStatus(diagnostic);
+          })}
+        >
+          <Feather name="sun" size={18} color="#fff" />
+          <Text style={styles.buttonText}>5. Test Notif 7h30 EXACT (3s)</Text>
+        </TouchableOpacity>
       </View>
 
       {/* ===================== AUTRES TESTS ===================== */}
