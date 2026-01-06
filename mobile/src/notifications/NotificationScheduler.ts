@@ -155,11 +155,28 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
   // the app reschedules notifications (on foreground, task update, etc.)
   // CRITICAL: Weather is now OPTIONAL - don't skip the entire notification if weather fails!
   if (morningEnabled) {
+    // CRITICAL FIX: Determine the ACTUAL delivery date of the notification
+    // If it's past 7:30 AM, the notification will be delivered TOMORROW
+    // So we must compute tasks for tomorrow, not today!
+    const morningTriggerTime = new Date(now);
+    morningTriggerTime.setHours(MORNING_TIME.hour, MORNING_TIME.minute, 0, 0);
+    const isScheduledForTomorrow = now > morningTriggerTime;
+    
+    // Compute the effective date for task filtering (today or tomorrow)
+    const effectiveDate = new Date(now);
+    if (isScheduledForTomorrow) {
+      effectiveDate.setDate(effectiveDate.getDate() + 1);
+    }
+    effectiveDate.setHours(0, 0, 0, 0);
+    
     console.log('[Notification] Morning notification - enabled');
+    console.log('[Notification] Current time:', now.toISOString());
+    console.log('[Notification] Scheduled for tomorrow:', isScheduledForTomorrow);
+    console.log('[Notification] Effective date for tasks:', effectiveDate.toISOString());
     console.log('[Notification] Total tasks in context:', ctx.tasks.length);
     
-    const dueToday = getTasksDueToday(ctx.tasks, now);
-    const overdue = getOverdueTasks(ctx.tasks, now);
+    const dueToday = getTasksDueToday(ctx.tasks, effectiveDate);
+    const overdue = getOverdueTasks(ctx.tasks, effectiveDate);
     
     console.log('[Notification] Due today count:', dueToday.length);
     console.log('[Notification] Due today tasks:', dueToday.map(t => t.title));
@@ -203,19 +220,36 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
     bodyParts.push(taskSection);
     bodyParts.push('Bonne journée.');
     
+    // Use effective date for identifier to avoid duplicates
+    const morningKey = dateKey(effectiveDate);
     await scheduleLocal(
       'Matin',
       bodyParts.join('\n'),
       makeTrigger(MORNING_TIME, 0, false), // NON-REPEATING: fresh data each schedule
       { type: 'morning', deepLink: { route: 'tasks', params: { filter: 'today' } } },
-      buildIdentifier('morning', todayKey),
+      buildIdentifier('morning', morningKey),
     );
   }
 
   // J-1 18:00
   // NON-REPEATING: task list must be fresh
   if (j1Enabled) {
-    const dueTomorrow = getTasksDueTomorrow(ctx.tasks, now);
+    // CRITICAL FIX: Determine the ACTUAL delivery date of the notification
+    // If it's past 6:00 PM, the notification will be delivered TOMORROW
+    // and "tomorrow" from that perspective is the day after tomorrow from now
+    const j1TriggerTime = new Date(now);
+    j1TriggerTime.setHours(J1_TIME.hour, J1_TIME.minute, 0, 0);
+    const j1ScheduledForTomorrow = now > j1TriggerTime;
+    
+    const j1EffectiveDate = new Date(now);
+    if (j1ScheduledForTomorrow) {
+      j1EffectiveDate.setDate(j1EffectiveDate.getDate() + 1);
+    }
+    j1EffectiveDate.setHours(0, 0, 0, 0);
+    
+    console.log('[Notification] J-1 notification - scheduled for tomorrow:', j1ScheduledForTomorrow);
+    
+    const dueTomorrow = getTasksDueTomorrow(ctx.tasks, j1EffectiveDate);
     if (dueTomorrow.length > 0) {
       // Build rich message with task titles
       let bodyMessage: string;
@@ -228,12 +262,14 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
         bodyMessage = `${dueTomorrow.length} tâches arrivent à échéance demain, dont « ${dueTomorrow[0].title} ».`;
       }
       
+      // Use effective date for identifier
+      const j1Key = dateKey(j1EffectiveDate);
       await scheduleLocal(
         'Pour demain',
         bodyMessage,
         makeTrigger(J1_TIME, 0, false), // NON-REPEATING: fresh data each schedule
         { type: 'j1', deepLink: { route: 'tasks', params: { filter: 'tomorrow' } } },
-        buildIdentifier('j1', todayKey),
+        buildIdentifier('j1', j1Key),
       );
     }
   }
@@ -254,7 +290,23 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
   // Overdue 09:00 - Individual notifications per task with action buttons
   // NON-REPEATING: overdue task list must be computed fresh each day
   if (overdueEnabled) {
-    const overdue = getOverdueTasks(ctx.tasks, now);
+    // CRITICAL FIX: Determine the ACTUAL delivery date of the notification
+    // If it's past 9:00 AM, the notification will be delivered TOMORROW
+    const overdueTriggerTime = new Date(now);
+    overdueTriggerTime.setHours(OVERDUE_TIME.hour, OVERDUE_TIME.minute, 0, 0);
+    const overdueScheduledForTomorrow = now > overdueTriggerTime;
+    
+    // Compute the effective date for task filtering
+    const overdueEffectiveDate = new Date(now);
+    if (overdueScheduledForTomorrow) {
+      overdueEffectiveDate.setDate(overdueEffectiveDate.getDate() + 1);
+    }
+    overdueEffectiveDate.setHours(0, 0, 0, 0);
+    
+    console.log('[Notification] Overdue notification - scheduled for tomorrow:', overdueScheduledForTomorrow);
+    console.log('[Notification] Overdue effective date:', overdueEffectiveDate.toISOString());
+    
+    const overdue = getOverdueTasks(ctx.tasks, overdueEffectiveDate);
     if (overdue.length > 0) {
       // Schedule individual notification for each overdue task (max 5 to avoid spam)
       const tasksToNotify = overdue.slice(0, 5);
@@ -264,29 +316,30 @@ export async function rescheduleAllNotifications(ctx: SchedulerContext) {
         // Calculate days overdue using start-of-day for consistency
         const deadlineStart = new Date(task.deadline);
         deadlineStart.setHours(0, 0, 0, 0);
-        const todayStart = new Date(now);
-        todayStart.setHours(0, 0, 0, 0);
-        const daysOverdue = Math.round((todayStart.getTime() - deadlineStart.getTime()) / (1000 * 60 * 60 * 24));
+        const daysOverdue = Math.round((overdueEffectiveDate.getTime() - deadlineStart.getTime()) / (1000 * 60 * 60 * 24));
         const overdueText = daysOverdue === 1 ? '1 jour de retard' : `${daysOverdue} jours de retard`;
         
+        // Use effective date for identifier
+        const overdueKey = dateKey(overdueEffectiveDate);
         await scheduleLocal(
           'Tâche en retard',
           `« ${task.title} » - ${overdueText}`,
           makeTrigger(OVERDUE_TIME, 0, false), // NON-REPEATING: fresh data each schedule
           { type: 'overdue', taskId: task.id, deepLink: { route: 'taskDetail', params: { taskId: task.id } } },
-          buildIdentifier('overdue-task', `${todayKey}-${task.id}`),
+          buildIdentifier('overdue-task', `${overdueKey}-${task.id}`),
           CATEGORY_OVERDUE_TASK,
         );
       }
       
       // If more than 5 overdue tasks, add a summary notification
       if (overdue.length > 5) {
+        const overdueKey = dateKey(overdueEffectiveDate);
         await scheduleLocal(
           'Tâches en retard',
           `${overdue.length - 5} autres tâches en retard. Appuyez pour voir tout.`,
           makeTrigger(OVERDUE_TIME, 0, false), // NON-REPEATING: fresh data each schedule
           { type: 'overdue', deepLink: { route: 'tasks', params: { filter: 'overdue' } } },
-          buildIdentifier('overdue-summary', todayKey),
+          buildIdentifier('overdue-summary', overdueKey),
         );
       }
     }

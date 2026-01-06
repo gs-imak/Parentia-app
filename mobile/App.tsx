@@ -219,7 +219,12 @@ export default function App() {
 
   useEffect(() => {
     // Set up notification categories with action buttons (must be done before scheduling)
-    setupNotificationCategories();
+    // CRITICAL: Must await this before scheduling any notifications
+    setupNotificationCategories().then(() => {
+      console.log('[App] Notification categories registered');
+    }).catch(err => {
+      console.error('[App] Failed to register notification categories:', err);
+    });
     
     Notifications.setNotificationHandler({
       handleNotification: async () => ({

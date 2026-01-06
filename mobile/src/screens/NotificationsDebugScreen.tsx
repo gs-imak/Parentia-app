@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { getProfile, getAllTasks, fetchWeather, fetchQuote } from '../api/client';
+import { getProfile, getAllTasks, fetchWeather, fetchQuote, updateTask, deleteTask } from '../api/client';
 import { rescheduleAllNotifications, triggerUrgentTask, triggerNearDeadlineTask } from '../notifications/NotificationScheduler';
 import { getStoredCity, getStoredCoordinates } from '../utils/storage';
 import * as Notifications from 'expo-notifications';
+
+// BUILD VERSION - used to verify correct build is running
+const DEBUG_BUILD_VERSION = '2026-01-06-v3';
 
 interface Props {
   onClose: () => void;
@@ -44,6 +47,7 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
   return (
     <ScrollView style={styles.container}>
       <Text style={styles.title}>Debug Notifications</Text>
+      <Text style={styles.version}>Build: {DEBUG_BUILD_VERSION}</Text>
       <TouchableOpacity style={styles.closeButton} onPress={onClose}>
         <Feather name="x" size={18} color="#3A82F7" />
         <Text style={styles.closeText}>Fermer</Text>
