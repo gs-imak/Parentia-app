@@ -147,28 +147,33 @@ export default function NotificationsDebugScreen({ onClose }: Props) {
               throw new Error('Aucune tâche en retard. Créez une tâche avec deadline passée pour tester.');
             }
             
-            const task = overdueTasks[0];
-            const deadlineDate = new Date(task.deadline);
-            const daysOverdue = Math.floor((today.getTime() - deadlineDate.getTime()) / (1000 * 60 * 60 * 24));
-            const overdueText = daysOverdue === 1 ? '1 jour de retard' : `${daysOverdue} jours de retard`;
+            // Send notification for ALL overdue tasks (max 5, like the real scheduler)
+            const tasksToNotify = overdueTasks.slice(0, 5);
             
-            // Schedule with action buttons category
-            await Notifications.scheduleNotificationAsync({
-              content: {
-                title: '🔴 TEST ACTION BUTTONS',
-                body: `« ${task.title} » - ${overdueText}`,
-                data: { type: 'overdue', taskId: task.id, deepLink: { route: 'taskDetail', params: { taskId: task.id } } },
-                sound: true,
-                categoryIdentifier: 'OVERDUE_TASK',
-              },
-              trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 5, repeats: false },
-            });
+            for (let i = 0; i < tasksToNotify.length; i++) {
+              const task = tasksToNotify[i];
+              const deadlineDate = new Date(task.deadline);
+              const daysOverdue = Math.floor((today.getTime() - deadlineDate.getTime()) / (1000 * 60 * 60 * 24));
+              const overdueText = daysOverdue === 1 ? '1 jour de retard' : `${daysOverdue} jours de retard`;
+              
+              // Schedule each task with a slight delay between them
+              await Notifications.scheduleNotificationAsync({
+                content: {
+                  title: '🔴 TEST ACTION BUTTONS',
+                  body: `« ${task.title} » - ${overdueText}`,
+                  data: { type: 'overdue', taskId: task.id, deepLink: { route: 'taskDetail', params: { taskId: task.id } } },
+                  sound: true,
+                  categoryIdentifier: 'OVERDUE_TASK',
+                },
+                trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 5 + i, repeats: false },
+              });
+            }
             
-            setStatus(`✅ NOTIFICATION DANS 5 SECONDES\n\n📱 ÉTAPES À SUIVRE:\n\n1️⃣ Attendez la notification (5s)\n\n2️⃣ TIREZ VERS LE BAS sur la notification (ou LONG-PRESS)\n   → Les 3 boutons doivent apparaître:\n   • +1 jour\n   • +3 jours  \n   • Supprimer\n\n3️⃣ Appuyez sur "+1 jour"\n\n4️⃣ Allez dans l'onglet "Tâches"\n   → Vérifiez que "${task.title}" a une nouvelle deadline\n\n⚠️ SI LES BOUTONS N'APPARAISSENT PAS:\n   → Bug de catégorie (pas enregistrée)\n\n⚠️ SI LES BOUTONS APPARAISSENT MAIS L'ACTION NE MARCHE PAS:\n   → Bug dans handleNotificationResponse`);
+            setStatus(`✅ ${tasksToNotify.length} NOTIFICATIONS PROGRAMMÉES\n\n📱 ÉTAPES À SUIVRE:\n\n1️⃣ Attendez les notifications (5s, 6s, 7s...)\n   → 1 notification par tâche\n\n2️⃣ TIREZ VERS LE BAS sur chaque notification\n   → Les 3 boutons doivent apparaître:\n   • +1 jour\n   • +3 jours  \n   • Supprimer\n\n3️⃣ Testez un bouton sur UNE notification\n\n4️⃣ Allez dans "Tâches" pour vérifier\n\nTâches:\n${tasksToNotify.map(t => `• ${t.title}`).join('\n')}\n\n⚠️ SI LES BOUTONS N'APPARAISSENT PAS:\n   → Bug de catégorie\n\n⚠️ SI BOUTONS VISIBLES MAIS ACTION NE MARCHE PAS:\n   → Bug dans handleNotificationResponse`);
           })}
         >
           <Feather name="trash-2" size={18} color="#fff" />
-          <Text style={styles.buttonText}>2. Test boutons (tirez notification vers bas)</Text>
+          <Text style={styles.buttonText}>2. Test boutons (toutes tâches)</Text>
         </TouchableOpacity>
         
         {/* Test 3: Manually delete a task via API to verify API works */}
