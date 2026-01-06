@@ -7,7 +7,7 @@ import { getStoredCity, getStoredCoordinates } from '../utils/storage';
 import * as Notifications from 'expo-notifications';
 
 // BUILD VERSION - used to verify correct build is running
-const DEBUG_BUILD_VERSION = '2026-01-06-v3';
+const DEBUG_BUILD_VERSION = '2026-01-06-v4';
 
 interface Props {
   onClose: () => void;
@@ -272,8 +272,19 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: '700',
-    marginBottom: 8,
+    marginBottom: 4,
     color: '#2C3E50',
+  },
+  version: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginBottom: 8,
+    color: '#10B981',
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
   },
   hint: {
     fontSize: 13,

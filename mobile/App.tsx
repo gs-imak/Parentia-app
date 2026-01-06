@@ -17,7 +17,7 @@ import { AppEvents, EVENTS } from './src/utils/events';
 import { getStoredCity, getStoredCoordinates } from './src/utils/storage';
 
 // VERSION MARKER - Use this to verify correct build is running
-const BUILD_VERSION = '2026-01-06-v3';
+const BUILD_VERSION = '2026-01-06-v4';
 
 export default function App() {
   // Log version on mount to verify correct build
@@ -218,13 +218,21 @@ export default function App() {
   }, [refreshAndSchedule]);
 
   useEffect(() => {
-    // Set up notification categories with action buttons (must be done before scheduling)
-    // CRITICAL: Must await this before scheduling any notifications
-    setupNotificationCategories().then(() => {
-      console.log('[App] Notification categories registered');
-    }).catch(err => {
-      console.error('[App] Failed to register notification categories:', err);
-    });
+    // CRITICAL: Set up notification categories FIRST, then schedule notifications
+    // On iOS, notifications with unregistered categories won't have working action buttons!
+    const initializeNotifications = async () => {
+      try {
+        // Step 1: Register notification categories with action buttons
+        await setupNotificationCategories();
+        console.log('[App] Notification categories registered');
+        
+        // Step 2: Now schedule notifications (categories are ready)
+        await refreshAndSchedule();
+        console.log('[App] Initial notifications scheduled');
+      } catch (err) {
+        console.error('[App] Notification initialization failed:', err);
+      }
+    };
     
     Notifications.setNotificationHandler({
       handleNotification: async () => ({
@@ -265,7 +273,8 @@ export default function App() {
     // @ts-ignore
     AppEvents.addEventListener(EVENTS.NOTIFICATION_TOGGLES_UPDATED, onEvents);
 
-    refreshAndSchedule();
+    // Initialize notifications (categories first, then scheduling)
+    initializeNotifications();
 
     return () => {
       subResponse.remove();
