@@ -17,14 +17,18 @@ import { AppEvents, EVENTS } from './src/utils/events';
 import { getStoredCity, getStoredCoordinates } from './src/utils/storage';
 
 // VERSION MARKER - Use this to verify correct build is running
-const BUILD_VERSION = '2026-01-06-v5-CRITICAL';
+const BUILD_VERSION = '2026-01-10-v6-BACKGROUND-ACTION-FIX';
 
 export default function App() {
   // Log version on mount to verify correct build
   useEffect(() => {
     console.log('=================================================');
     console.log('[App] HC Family Build Version:', BUILD_VERSION);
-    console.log('[App] Build includes: notification action fixes, morning priority fix, category re-registration fix');
+    console.log('[App] Build includes:');
+    console.log('[App]  - Notification action fixes');
+    console.log('[App]  - Morning priority fix (today before overdue)');
+    console.log('[App]  - Category re-registration on foreground');
+    console.log('[App]  - Background action button handling (NEW)');
     console.log('=================================================');
   }, []);
   
@@ -165,7 +169,32 @@ export default function App() {
       if (nextAppState === 'active') {
         // Increment profileKey to reset Profile sections to collapsed state
         setProfileKey(prev => prev + 1);
-        // CRITICAL FIX: Always re-register categories BEFORE scheduling
+        
+        // CRITICAL FIX #1: Check for pending notification actions (action buttons pressed while app was backgrounded)
+        // On iOS, when user presses action button while app is in background, the action is NOT
+        // handled by addNotificationResponseReceivedListener. We must check on foreground.
+        try {
+          console.log('[App] Checking for pending notification actions...');
+          const response = await Notifications.getLastNotificationResponseAsync();
+          if (response) {
+            const notificationId = response.notification.request.identifier + '-' + response.actionIdentifier;
+            // Only process if we haven't already processed this action
+            if (lastProcessedNotificationRef.current !== notificationId) {
+              console.log('[App] Found pending notification action, processing...');
+              await handleNotificationNavigation(response);
+              lastProcessedNotificationRef.current = notificationId;
+              console.log('[App] Pending action processed');
+            } else {
+              console.log('[App] No new pending actions');
+            }
+          } else {
+            console.log('[App] No pending notification response');
+          }
+        } catch (err) {
+          console.error('[App] Failed to check pending notification actions:', err);
+        }
+        
+        // CRITICAL FIX #2: Always re-register categories BEFORE scheduling
         // This ensures action buttons work even after app returns from background
         try {
           await setupNotificationCategories();
@@ -173,7 +202,8 @@ export default function App() {
         } catch (err) {
           console.error('[App] Failed to re-register categories:', err);
         }
-        // CRITICAL FIX: Refresh notifications with fresh weather/tasks data
+        
+        // CRITICAL FIX #3: Refresh notifications with fresh weather/tasks data
         // This ensures 07:30 notification always uses TODAY's data
         refreshAndSchedule();
       }
@@ -181,7 +211,7 @@ export default function App() {
     
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     return () => subscription.remove();
-  }, [refreshAndSchedule]);
+  }, [refreshAndSchedule, handleNotificationNavigation]);
 
   // Handle notification taps (navigation to task/tasks)
   const handleNotificationNavigation = useCallback(async (response: Notifications.NotificationResponse) => {

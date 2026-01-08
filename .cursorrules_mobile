@@ -37,10 +37,19 @@ useEffect(() => {
   initializeNotifications();
 }, []);
 
-// ✅ CORRECT - Categories re-registered on warm start
+// ✅ CORRECT - Categories re-registered AND pending actions checked on warm start
 useEffect(() => {
   const handleAppStateChange = async (nextAppState) => {
     if (nextAppState === 'active') {
+      // CRITICAL: Check for pending notification actions FIRST
+      // Action buttons pressed while app was backgrounded won't trigger addNotificationResponseReceivedListener
+      const response = await Notifications.getLastNotificationResponseAsync();
+      if (response) {
+        // Process the action (e.g., delete task, delay task)
+        await handleNotificationAction(response);
+      }
+      
+      // THEN re-register categories and schedule
       await setupNotificationCategories(); // ALWAYS re-register first
       refreshAndSchedule();                 // THEN schedule
     }
@@ -53,20 +62,36 @@ useEffect(() => {
 ### Why This Is Subtle:
 - **Cold start testing works** (categories registered on app mount)
 - **Warm start testing fails** (categories not re-registered when app returns from background)
-- Bug only manifests when user opens app AFTER it was backgrounded
+- **Action button testing with app backgrounded fails** (pending actions not checked on foreground)
+- Bug only manifests when user:
+  1. Backgrounds the app (home button)
+  2. Presses action button on notification (e.g., "Delete", "+1 day")
+  3. Reopens the app → action was NOT processed
 - Action buttons appear but don't work, or don't appear at all
+
+### iOS Notification Action Flow:
+1. **App KILLED** → User presses action button → App opens → `getLastNotificationResponseAsync()` captures it ✅
+2. **App FOREGROUND** → User taps notification → `addNotificationResponseReceivedListener` fires ✅
+3. **App BACKGROUNDED** → User presses action button → **NO LISTENER FIRES** ❌
+   - Solution: Check `getLastNotificationResponseAsync()` when app returns to foreground
 
 ### Testing Strategy:
 1. Kill app completely
 2. Open app (cold start) → test action buttons ✓
-3. Background app
+3. Background app (home button)
 4. Wait 10 seconds
 5. Reopen app (warm start)
 6. Trigger notification with action buttons
 7. Verify buttons work ✓
+8. **CRITICAL TEST**: Background app again
+9. Receive notification with action buttons
+10. Press action button WITHOUT opening app
+11. Wait 5 seconds
+12. Open app → verify action was processed ✓
 
 ### Rule:
-Before ANY call to `rescheduleAllNotifications()` or any function that schedules notifications with `categoryIdentifier`, ALWAYS call `await setupNotificationCategories()` first.
+1. Before ANY call to `rescheduleAllNotifications()` or any function that schedules notifications with `categoryIdentifier`, ALWAYS call `await setupNotificationCategories()` first.
+2. When app comes to foreground, ALWAYS check `getLastNotificationResponseAsync()` for pending actions BEFORE refreshing.
 
 ---
 
