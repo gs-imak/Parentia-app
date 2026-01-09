@@ -1,5 +1,5 @@
 import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
+import { Platform, Alert } from 'react-native';
 import { Task, updateTask, deleteTask } from '../api/client';
 import {
   getTasksDueToday,
@@ -48,7 +48,9 @@ export async function setupNotificationCategories() {
     {
       identifier: ACTION_DELETE,
       buttonTitle: 'Supprimer',
-      options: { isDestructive: true, isAuthenticationRequired: false },
+      // CRITICAL: isDestructive: true was causing iOS to handle this action differently
+      // Changed to false to match delay buttons behavior
+      options: { isDestructive: false, isAuthenticationRequired: false },
     },
   ]);
 }
@@ -445,15 +447,20 @@ export async function handleNotificationResponse(
   if (taskId && actionId !== Notifications.DEFAULT_ACTION_IDENTIFIER) {
     console.log('[Notification] Processing action button press');
     try {
-      if (actionId === ACTION_DELETE) {
+      // Use includes() as fallback in case iOS modifies identifier
+      const isDeleteAction = actionId === ACTION_DELETE || actionId.includes('DELETE');
+      const isDelay1Action = actionId === ACTION_DELAY_1_DAY || actionId.includes('DELAY_1');
+      const isDelay3Action = actionId === ACTION_DELAY_3_DAYS || actionId.includes('DELAY_3');
+      
+      if (isDeleteAction) {
         console.log('[Notification] DELETE action - calling deleteTask:', taskId);
         await deleteTask(taskId);
         console.log('[Notification] DELETE SUCCESS');
         return { actionTaken: true };
       }
       
-      if (actionId === ACTION_DELAY_1_DAY || actionId === ACTION_DELAY_3_DAYS) {
-        const daysToAdd = actionId === ACTION_DELAY_1_DAY ? 1 : 3;
+      if (isDelay1Action || isDelay3Action) {
+        const daysToAdd = isDelay1Action ? 1 : 3;
         console.log(`[Notification] DELAY action - ${daysToAdd} days for task: ${taskId}`);
         // For overdue tasks: add days from TODAY, not from the old deadline
         // This ensures the task is no longer overdue after the action
@@ -468,9 +475,14 @@ export async function handleNotificationResponse(
         return { actionTaken: true };
       }
       
+      // If we get here, the action wasn't recognized - show alert for debugging
       console.log('[Notification] Unknown action:', actionId);
+      Alert.alert('Debug: Action non reconnue', `actionId: ${actionId}\ntaskId: ${taskId}`);
     } catch (error) {
+      // CRITICAL: Show error visually instead of silently swallowing
+      const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('[Notification] ACTION FAILED with error:', error);
+      Alert.alert('Erreur action notification', `L'action a échoué: ${errorMessage}\n\nactionId: ${actionId}\ntaskId: ${taskId}`);
     }
   } else {
     console.log('[Notification] Skipping action - taskId:', taskId, 'actionId:', actionId);

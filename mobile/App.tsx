@@ -17,7 +17,7 @@ import { AppEvents, EVENTS } from './src/utils/events';
 import { getStoredCity, getStoredCoordinates } from './src/utils/storage';
 
 // VERSION MARKER - Use this to verify correct build is running
-const BUILD_VERSION = '2026-01-10-v8-FETCHAPI-CONSISTENCY';
+const BUILD_VERSION = '2026-01-10-v9-DELETE-BUTTON-FIX';
 
 export default function App() {
   // Log version on mount to verify correct build
