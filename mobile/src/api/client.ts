@@ -64,7 +64,19 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   if (!response.ok) {
     throw new Error(`API error: ${response.status}`);
   }
-  const json: ApiResponse<T> = await response.json();
+  
+  // Try to parse JSON, handle empty responses gracefully
+  let json: ApiResponse<T>;
+  try {
+    json = await response.json();
+  } catch (error) {
+    // If JSON parsing fails, but response was ok, assume success for DELETE operations
+    if (options?.method === 'DELETE') {
+      return undefined as T;
+    }
+    throw new Error('Failed to parse response: ' + (error instanceof Error ? error.message : 'Invalid JSON'));
+  }
+  
   if (!json.success) {
     throw new Error(json.error || 'Unknown API error');
   }
