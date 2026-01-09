@@ -135,10 +135,7 @@ export async function updateTask(id: string, updates: Partial<Omit<Task, 'id' | 
 }
 
 export async function deleteTask(id: string): Promise<void> {
-  const response = await fetch(`${BACKEND_URL}/tasks/${id}`, { method: 'DELETE' });
-  if (!response.ok) {
-    throw new Error(`Failed to delete task: ${response.status}`);
-  }
+  await fetchApi<void>(`/tasks/${id}`, { method: 'DELETE' });
 }
 
 // Profile types
