@@ -7,7 +7,7 @@ import { getStoredCity, getStoredCoordinates } from '../utils/storage';
 import * as Notifications from 'expo-notifications';
 
 // BUILD VERSION - used to verify correct build is running
-const DEBUG_BUILD_VERSION = '2026-01-10-v7-DELETE-AUTH-FIX';
+const DEBUG_BUILD_VERSION = '2026-01-10-v8-FETCHAPI-CONSISTENCY';
 
 interface Props {
   onClose: () => void;

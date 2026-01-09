@@ -65,10 +65,11 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
     throw new Error(`API error: ${response.status}`);
   }
   const json: ApiResponse<T> = await response.json();
-  if (!json.success || !json.data) {
+  if (!json.success) {
     throw new Error(json.error || 'Unknown API error');
   }
-  return json.data;
+  // Return data if it exists (most endpoints), undefined for DELETE operations without data
+  return json.data as T;
 }
 
 export async function fetchQuote(): Promise<Quote> {
@@ -187,7 +188,7 @@ export async function updateChild(id: string, updates: Partial<Omit<Child, 'id'>
 }
 
 export async function deleteChild(id: string): Promise<void> {
-  await fetch(`${BACKEND_URL}/profile/children/${id}`, { method: 'DELETE' });
+  await fetchApi<void>(`/profile/children/${id}`, { method: 'DELETE' });
 }
 
 export async function updateSpouse(data: { firstName: string; birthDate?: string }): Promise<Profile> {
@@ -268,10 +269,8 @@ export async function fetchInboxEntry(id: string): Promise<InboxEntry> {
 }
 
 export async function deleteInboxEntry(id: string, deleteTask: boolean = false): Promise<void> {
-  const url = deleteTask 
-    ? `${BACKEND_URL}/inbox/${id}?deleteTask=true`
-    : `${BACKEND_URL}/inbox/${id}`;
-  await fetch(url, { method: 'DELETE' });
+  const path = deleteTask ? `/inbox/${id}?deleteTask=true` : `/inbox/${id}`;
+  await fetchApi<void>(path, { method: 'DELETE' });
 }
 
 // Notifications API

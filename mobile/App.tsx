@@ -17,7 +17,7 @@ import { AppEvents, EVENTS } from './src/utils/events';
 import { getStoredCity, getStoredCoordinates } from './src/utils/storage';
 
 // VERSION MARKER - Use this to verify correct build is running
-const BUILD_VERSION = '2026-01-10-v7-DELETE-AUTH-FIX';
+const BUILD_VERSION = '2026-01-10-v8-FETCHAPI-CONSISTENCY';
 
 export default function App() {
   // Log version on mount to verify correct build
@@ -25,11 +25,9 @@ export default function App() {
     console.log('=================================================');
     console.log('[App] HC Family Build Version:', BUILD_VERSION);
     console.log('[App] Build includes:');
-    console.log('[App]  - Notification action fixes');
-    console.log('[App]  - Morning priority fix (today before overdue)');
-    console.log('[App]  - Category re-registration on foreground');
-    console.log('[App]  - Background action button handling');
-    console.log('[App]  - DELETE button auth fix (CRITICAL)');
+    console.log('[App]  - fetchApi consistency (deleteChild, deleteInboxEntry)');
+    console.log('[App]  - fetchApi fixed to handle DELETE responses without data');
+    console.log('[App]  - All DELETE operations now use centralized helper');
     console.log('=================================================');
   }, []);
   
