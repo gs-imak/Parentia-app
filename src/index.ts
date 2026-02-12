@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import crypto from 'node:crypto';
 import multer from 'multer';
 import { processPipeline } from './pipeline.js';
 import { getRandomQuote } from './quotes.js';
@@ -9,7 +10,7 @@ import { getWeatherForCity } from './weather.js';
 import { getTopNews } from './news.js';
 import { getTasksForToday, createTask, getTasks, updateTask, deleteTask, sanitizeAllTasks } from './tasks.js';
 import { getProfile, addChild, updateChild, deleteChild, updateSpouse, deleteSpouse, updateMarriageDate, deleteMarriageDate, updateProfileAddress } from './profile.js';
-import { getInboxEntries, getInboxEntryById } from './inbox.js';
+import { getInboxEntries, getInboxEntryById, deleteInboxEntry } from './inbox.js';
 import { getNotifications, markNotificationRead, getUnreadCount, createNotification } from './notifications.js';
 import { startEmailPoller, checkEmailsNow, getPollerStatus } from './emailPoller.js';
 import { processSendGridInbound, extractEmailFromMultipart } from './sendgridInbound.js';
@@ -18,13 +19,23 @@ import { uploadAttachment, isSupabaseConfigured } from './supabase.js';
 import { generatePDF, previewFilledTemplate } from './pdfGenerator.js';
 import { getAllTemplates, getTemplateById, getTemplatesForTaskCategory } from './pdfTemplates.js';
 import { getTaskById } from './tasks.js';
-import { registerPushToken, removePushToken, sendTaskCreatedPushNotification } from './pushNotifications.js';
+import { registerPushTokenForUser, removePushTokenForUser, sendTaskCreatedPushNotificationForUser } from './pushNotifications.js';
+import { normalizeUserId } from './userData.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+function getUserIdFromReq(req: express.Request): string | null {
+  const header = req.header('x-user-id');
+  return normalizeUserId(header);
+}
+
+// In-memory de-duplication for image uploads (prevents double submits / retries)
+const IMAGE_DEDUP_TTL_MS = 2 * 60 * 1000;
+const imageDedup = new Map<string, { at: number; promise?: Promise<any>; result?: any }>();
 
 // Enable CORS for all routes (allows Expo dev server and mobile app to access APIs)
 app.use(cors());
@@ -165,7 +176,8 @@ app.get('/news', async (req, res) => {
 
 app.get('/tasks/today', async (req, res) => {
   try {
-    const tasks = await getTasksForToday();
+    const userId = getUserIdFromReq(req);
+    const tasks = await getTasksForToday(userId);
     return res.json({ success: true, data: { tasks } });
   } catch (error) {
     return res.status(500).json({
@@ -177,6 +189,7 @@ app.get('/tasks/today', async (req, res) => {
 
 app.post('/tasks', async (req, res) => {
   try {
+    const userId = getUserIdFromReq(req);
     const { title, category, deadline, description } = req.body;
     if (!title || !category || !deadline) {
       return res.status(400).json({
@@ -184,7 +197,7 @@ app.post('/tasks', async (req, res) => {
         error: 'Les champs title, category et deadline sont requis.',
       });
     }
-    const task = await createTask({ title, category, deadline, description });
+    const task = await createTask({ title, category, deadline, description }, userId);
     return res.status(201).json({ success: true, data: task });
   } catch (error) {
     return res.status(500).json({
@@ -201,6 +214,7 @@ app.post('/tasks/from-image', imageUpload.single('image'), async (req, res) => {
   console.log('[Image] POST /tasks/from-image received');
   
   try {
+    const userId = getUserIdFromReq(req);
     // Check if file was uploaded
     if (!req.file) {
       return res.status(400).json({
@@ -211,6 +225,27 @@ app.post('/tasks/from-image', imageUpload.single('image'), async (req, res) => {
     
     const { buffer, mimetype, originalname } = req.file;
     console.log(`[Image] File received: ${mimetype}, ${buffer.length} bytes`);
+
+    // Dedupe: prevent accidental double submits / retries
+    const now = Date.now();
+    for (const [k, v] of imageDedup) {
+      if (now - v.at > IMAGE_DEDUP_TTL_MS) imageDedup.delete(k);
+    }
+    const uidKey = userId || 'uid_default';
+    const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+    const dedupKey = `${uidKey}:${hash}`;
+    const existing = imageDedup.get(dedupKey);
+    if (existing && now - existing.at <= IMAGE_DEDUP_TTL_MS) {
+      if (existing.result) {
+        return res.status(200).json({ success: true, data: existing.result });
+      }
+      if (existing.promise) {
+        const data = await existing.promise;
+        return res.status(200).json({ success: true, data });
+      }
+    }
+
+    const processingPromise = (async () => {
     
     // Convert buffer to base64
     const imageBase64 = buffer.toString('base64');
@@ -237,21 +272,43 @@ app.post('/tasks/from-image', imageUpload.single('image'), async (req, res) => {
       filename: originalname,
     });
     
-    if (!aiResult) {
-      console.error('[Image] AI analysis failed completely');
-      return res.status(500).json({
-        success: false,
-        error: "Impossible d'analyser l'image. Veuillez réessayer.",
-      });
-    }
-    
-    // Check if AI couldn't process the image
-    if (!aiResult.canProcess) {
-      console.log(`[Image] AI cannot process: ${aiResult.errorReason}`);
-      return res.status(422).json({
-        success: false,
-        error: aiResult.errorReason || "Image illisible ou non exploitable.",
-      });
+    // Milestone 7: if AI fails or can't interpret, create a manual-review task instead of erroring.
+    if (!aiResult || !aiResult.canProcess) {
+      const reason = !aiResult
+        ? "Erreur IA: analyse impossible"
+        : (aiResult.errorReason || 'Image illisible ou non exploitable');
+
+      const d = new Date();
+      d.setDate(d.getDate() + 1);
+      d.setHours(12, 0, 0, 0);
+
+      const fallbackTask = await createTask({
+        title: `À vérifier manuellement`,
+        category: 'administratif',
+        deadline: d.toISOString(),
+        description: `Document reçu mais non interprétable automatiquement.\n\nRaison: ${reason}`,
+        source: 'photo',
+        imageUrl: imageUrl || undefined,
+      }, userId);
+
+      try {
+        await createNotification({
+          type: 'email_error',
+          message: `Photo à vérifier manuellement : ${fallbackTask.title}`,
+          metadata: { taskId: fallbackTask.id },
+        }, userId);
+      } catch {}
+
+      try {
+        await sendTaskCreatedPushNotificationForUser(userId, fallbackTask.id, fallbackTask.title, 'photo');
+      } catch {}
+
+      return {
+        task: fallbackTask,
+        imageUrl,
+        imageType: 'photo' as const,
+        confidence: 0,
+      };
     }
     
     // Create task
@@ -268,7 +325,7 @@ app.post('/tasks/from-image', imageUpload.single('image'), async (req, res) => {
       contactPhone: aiResult.contactPhone,
       contactName: aiResult.contactName,
       suggestedTemplates: aiResult.suggestedTemplates,
-    });
+    }, userId);
     
     console.log(`[Image] Task created: ${task.id}`);
     
@@ -278,24 +335,45 @@ app.post('/tasks/from-image', imageUpload.single('image'), async (req, res) => {
         type: 'email_task_created', // Reuse existing type
         message: `Nouvelle tâche créée depuis une photo : ${task.title}`,
         metadata: { taskId: task.id },
-      });
+      }, userId);
     } catch (notifErr) {
       console.error('[Image] Notification creation failed:', notifErr);
       // Non-blocking
     }
+
+    // Push notification for this user only (non-blocking)
+    try {
+      await sendTaskCreatedPushNotificationForUser(userId, task.id, task.title, 'photo');
+    } catch (pushErr) {
+      console.error('[Image] Push notification failed:', pushErr);
+    }
     
-    return res.status(201).json({
-      success: true,
-      data: {
-        task,
-        imageUrl,
-        imageType: aiResult.imageType,
-        confidence: aiResult.confidence,
-      },
-    });
+    return {
+      task,
+      imageUrl,
+      imageType: aiResult.imageType,
+      confidence: aiResult.confidence,
+    };
+    })();
+
+    imageDedup.set(dedupKey, { at: now, promise: processingPromise });
+    const data = await processingPromise;
+    imageDedup.set(dedupKey, { at: now, result: data });
+
+    return res.status(201).json({ success: true, data });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('[Image] Error:', message);
+
+    // Ensure dedupe entry doesn't get stuck on errors
+    try {
+      // best effort; key might not exist if we failed very early
+      // (keep logic simple: remove any inflight entries older than TTL)
+      const now = Date.now();
+      for (const [k, v] of imageDedup) {
+        if (now - v.at > IMAGE_DEDUP_TTL_MS) imageDedup.delete(k);
+      }
+    } catch {}
     
     // Handle multer errors
     if (message.includes('Format non supporté')) {
@@ -314,7 +392,8 @@ app.post('/tasks/from-image', imageUpload.single('image'), async (req, res) => {
 
 app.get('/tasks', async (req, res) => {
   try {
-    const tasks = await getTasks();
+    const userId = getUserIdFromReq(req);
+    const tasks = await getTasks(userId);
     return res.json({ success: true, data: { tasks } });
   } catch (error) {
     return res.status(500).json({
@@ -326,9 +405,9 @@ app.get('/tasks', async (req, res) => {
 
 app.get('/tasks/:id', async (req, res) => {
   try {
+    const userId = getUserIdFromReq(req);
     const { id } = req.params;
-    const { getTaskById } = await import('./tasks.js');
-    const task = await getTaskById(id);
+    const task = await getTaskById(id, userId);
     if (!task) {
       return res.status(404).json({
         success: false,
@@ -346,9 +425,10 @@ app.get('/tasks/:id', async (req, res) => {
 
 app.patch('/tasks/:id', async (req, res) => {
   try {
+    const userId = getUserIdFromReq(req);
     const { id } = req.params;
     const updates = req.body;
-    const task = await updateTask(id, updates);
+    const task = await updateTask(id, updates, userId);
     if (!task) {
       return res.status(404).json({
         success: false,
@@ -366,8 +446,9 @@ app.patch('/tasks/:id', async (req, res) => {
 
 app.delete('/tasks/:id', async (req, res) => {
   try {
+    const userId = getUserIdFromReq(req);
     const { id } = req.params;
-    const deleted = await deleteTask(id);
+    const deleted = await deleteTask(id, userId);
     if (!deleted) {
       return res.status(404).json({
         success: false,
@@ -386,7 +467,8 @@ app.delete('/tasks/:id', async (req, res) => {
 // Profile endpoints
 app.get('/profile', async (req, res) => {
   try {
-    const profile = await getProfile();
+    const userId = getUserIdFromReq(req);
+    const profile = await getProfile(userId);
     return res.json({ success: true, data: profile });
   } catch (error) {
     return res.status(500).json({
@@ -398,6 +480,7 @@ app.get('/profile', async (req, res) => {
 
 app.post('/profile/children', async (req, res) => {
   try {
+    const userId = getUserIdFromReq(req);
     const { firstName, birthDate, height, weight, notes } = req.body;
     if (!firstName || !birthDate) {
       return res.status(400).json({
@@ -405,7 +488,7 @@ app.post('/profile/children', async (req, res) => {
         error: 'Les champs firstName et birthDate sont requis.',
       });
     }
-    const child = await addChild({ firstName, birthDate, height, weight, notes });
+    const child = await addChild({ firstName, birthDate, height, weight, notes }, userId);
     return res.status(201).json({ success: true, data: child });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Impossible d\'ajouter l\'enfant.';
@@ -419,9 +502,10 @@ app.post('/profile/children', async (req, res) => {
 
 app.patch('/profile/children/:id', async (req, res) => {
   try {
+    const userId = getUserIdFromReq(req);
     const { id } = req.params;
     const updates = req.body;
-    const child = await updateChild(id, updates);
+    const child = await updateChild(id, updates, userId);
     if (!child) {
       return res.status(404).json({
         success: false,
@@ -439,8 +523,9 @@ app.patch('/profile/children/:id', async (req, res) => {
 
 app.delete('/profile/children/:id', async (req, res) => {
   try {
+    const userId = getUserIdFromReq(req);
     const { id } = req.params;
-    const deleted = await deleteChild(id);
+    const deleted = await deleteChild(id, userId);
     if (!deleted) {
       return res.status(404).json({
         success: false,
@@ -458,6 +543,7 @@ app.delete('/profile/children/:id', async (req, res) => {
 
 app.put('/profile/spouse', async (req, res) => {
   try {
+    const userId = getUserIdFromReq(req);
     const { firstName, birthDate } = req.body;
     if (!firstName) {
       return res.status(400).json({
@@ -465,7 +551,7 @@ app.put('/profile/spouse', async (req, res) => {
         error: 'Le champ firstName est requis.',
       });
     }
-    const profile = await updateSpouse({ firstName, birthDate });
+    const profile = await updateSpouse({ firstName, birthDate }, userId);
     return res.json({ success: true, data: profile });
   } catch (error) {
     return res.status(500).json({
@@ -477,7 +563,8 @@ app.put('/profile/spouse', async (req, res) => {
 
 app.delete('/profile/spouse', async (req, res) => {
   try {
-    const profile = await deleteSpouse();
+    const userId = getUserIdFromReq(req);
+    const profile = await deleteSpouse(userId);
     return res.json({ success: true, data: profile });
   } catch (error) {
     return res.status(500).json({
@@ -489,6 +576,7 @@ app.delete('/profile/spouse', async (req, res) => {
 
 app.put('/profile/marriage-date', async (req, res) => {
   try {
+    const userId = getUserIdFromReq(req);
     const { date } = req.body;
     if (!date) {
       return res.status(400).json({
@@ -496,7 +584,7 @@ app.put('/profile/marriage-date', async (req, res) => {
         error: 'Le champ date est requis.',
       });
     }
-    const profile = await updateMarriageDate(date);
+    const profile = await updateMarriageDate(date, userId);
     return res.json({ success: true, data: profile });
   } catch (error) {
     return res.status(500).json({
@@ -508,7 +596,8 @@ app.put('/profile/marriage-date', async (req, res) => {
 
 app.delete('/profile/marriage-date', async (req, res) => {
   try {
-    const profile = await deleteMarriageDate();
+    const userId = getUserIdFromReq(req);
+    const profile = await deleteMarriageDate(userId);
     return res.json({ success: true, data: profile });
   } catch (error) {
     return res.status(500).json({
@@ -675,7 +764,8 @@ app.post('/email/check', async (req, res) => {
 // Get all inbox entries
 app.get('/inbox', async (req, res) => {
   try {
-    const entries = await getInboxEntries();
+    const userId = getUserIdFromReq(req);
+    const entries = await getInboxEntries(userId);
     return res.json({ success: true, data: { entries } });
   } catch (error) {
     return res.status(500).json({
@@ -688,7 +778,8 @@ app.get('/inbox', async (req, res) => {
 // Get single inbox entry
 app.get('/inbox/:id', async (req, res) => {
   try {
-    const entry = await getInboxEntryById(req.params.id);
+    const userId = getUserIdFromReq(req);
+    const entry = await getInboxEntryById(req.params.id, userId);
     if (!entry) {
       return res.status(404).json({
         success: false,
@@ -707,22 +798,21 @@ app.get('/inbox/:id', async (req, res) => {
 // Delete inbox entry (with optional cascade delete of associated task)
 app.delete('/inbox/:id', async (req, res) => {
   try {
-    const { deleteInboxEntry, getInboxEntryById } = await import('./inbox.js');
-    const { deleteTask } = await import('./tasks.js');
+    const userId = getUserIdFromReq(req);
     
     const shouldDeleteTask = req.query.deleteTask === 'true';
     
     // If cascade delete requested, first get the entry to find taskId
     if (shouldDeleteTask) {
-      const entry = await getInboxEntryById(req.params.id);
+      const entry = await getInboxEntryById(req.params.id, userId);
       if (entry && entry.taskId) {
         // Delete the associated task first
-        await deleteTask(entry.taskId);
+        await deleteTask(entry.taskId, userId);
         console.log(`[Inbox] Cascade deleted task ${entry.taskId} for inbox entry ${req.params.id}`);
       }
     }
     
-    const deleted = await deleteInboxEntry(req.params.id);
+    const deleted = await deleteInboxEntry(req.params.id, userId);
     if (!deleted) {
       return res.status(404).json({
         success: false,
@@ -746,8 +836,9 @@ app.delete('/inbox/:id', async (req, res) => {
 // Get all notifications
 app.get('/notifications', async (req, res) => {
   try {
-    const notifications = await getNotifications();
-    const unreadCount = await getUnreadCount();
+    const userId = getUserIdFromReq(req);
+    const notifications = await getNotifications(userId);
+    const unreadCount = await getUnreadCount(userId);
     return res.json({ 
       success: true, 
       data: { notifications, unreadCount } 
@@ -763,7 +854,8 @@ app.get('/notifications', async (req, res) => {
 // Mark notification as read
 app.patch('/notifications/:id/read', async (req, res) => {
   try {
-    const notification = await markNotificationRead(req.params.id);
+    const userId = getUserIdFromReq(req);
+    const notification = await markNotificationRead(req.params.id, userId);
     if (!notification) {
       return res.status(404).json({
         success: false,
@@ -786,6 +878,7 @@ app.patch('/notifications/:id/read', async (req, res) => {
 // Register push token (called by mobile app on startup)
 app.post('/push-tokens', async (req, res) => {
   try {
+    const userId = getUserIdFromReq(req);
     const { token } = req.body;
     if (!token || typeof token !== 'string') {
       return res.status(400).json({
@@ -794,7 +887,7 @@ app.post('/push-tokens', async (req, res) => {
       });
     }
     
-    const success = await registerPushToken(token);
+    const success = await registerPushTokenForUser(token, userId);
     if (!success) {
       return res.status(400).json({
         success: false,
@@ -815,6 +908,7 @@ app.post('/push-tokens', async (req, res) => {
 // Remove push token (called on logout)
 app.delete('/push-tokens', async (req, res) => {
   try {
+    const userId = getUserIdFromReq(req);
     const { token } = req.body;
     if (!token) {
       return res.status(400).json({
@@ -823,7 +917,7 @@ app.delete('/push-tokens', async (req, res) => {
       });
     }
     
-    await removePushToken(token);
+    await removePushTokenForUser(token, userId);
     return res.json({ success: true });
   } catch (error) {
     return res.status(500).json({
@@ -838,8 +932,9 @@ app.delete('/push-tokens', async (req, res) => {
 // ============================================
 app.put('/profile/address', async (req, res) => {
   try {
+    const userId = getUserIdFromReq(req);
     const { firstName, lastName, address, postalCode, city } = req.body;
-    const profile = await updateProfileAddress({ firstName, lastName, address, postalCode, city });
+    const profile = await updateProfileAddress({ firstName, lastName, address, postalCode, city }, userId);
     return res.json({ success: true, data: profile });
   } catch (error) {
     return res.status(500).json({
@@ -902,6 +997,7 @@ app.get('/pdf/templates/:id', async (req, res) => {
 // Preview filled template (text only)
 app.post('/pdf/preview', async (req, res) => {
   try {
+    const userId = getUserIdFromReq(req);
     const { templateId, taskId, variables } = req.body;
     
     if (!templateId) {
@@ -911,7 +1007,7 @@ app.post('/pdf/preview', async (req, res) => {
       });
     }
     
-    const preview = await previewFilledTemplate(templateId, taskId, variables);
+    const preview = await previewFilledTemplate(templateId, taskId, variables, userId);
     return res.json({ success: true, data: preview });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Erreur inconnue';
@@ -925,6 +1021,7 @@ app.post('/pdf/preview', async (req, res) => {
 // Generate PDF document
 app.post('/pdf/generate', async (req, res) => {
   try {
+    const userId = getUserIdFromReq(req);
     const { templateId, taskId, variables } = req.body;
     
     if (!templateId) {
@@ -938,6 +1035,7 @@ app.post('/pdf/generate', async (req, res) => {
       templateId,
       taskId,
       variables: variables || {},
+      userId,
     });
     
     return res.json({
@@ -960,6 +1058,7 @@ app.post('/pdf/generate', async (req, res) => {
 // Download PDF (returns raw PDF buffer)
 app.post('/pdf/download', async (req, res) => {
   try {
+    const userId = getUserIdFromReq(req);
     const { templateId, taskId, variables } = req.body;
     
     if (!templateId) {
@@ -973,6 +1072,7 @@ app.post('/pdf/download', async (req, res) => {
       templateId,
       taskId,
       variables: variables || {},
+      userId,
     });
     
     res.setHeader('Content-Type', 'application/pdf');
@@ -995,6 +1095,7 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 app.post('/tasks/:id/message-draft', async (req, res) => {
   try {
+    const userId = getUserIdFromReq(req);
     const taskId = req.params.id;
     const { channel } = req.body; // 'email' | 'sms' | 'whatsapp'
     
@@ -1005,7 +1106,7 @@ app.post('/tasks/:id/message-draft', async (req, res) => {
       });
     }
     
-    const task = await getTaskById(taskId);
+    const task = await getTaskById(taskId, userId);
     if (!task) {
       return res.status(404).json({
         success: false,
@@ -1023,7 +1124,7 @@ app.post('/tasks/:id/message-draft', async (req, res) => {
     }
     
     // Generate message draft via AI
-    const profile = await getProfile();
+    const profile = await getProfile(userId);
     const fullName = [profile.firstName, profile.lastName].filter(Boolean).join(' ').trim();
     const senderName = fullName || profile.lastName || 'Le parent';
     
@@ -1043,9 +1144,12 @@ Expéditeur: ${senderName}
 
 Règles:
 - ${channel === 'email' ? 'Format email avec objet et corps' : 'Message court (max 160 caractères pour SMS)'}
-- Ton professionnel mais chaleureux
+- Ton professionnel et respectueux (vouvoiement)
 - En français
+- Ne pas ajouter d'emojis
+- Ne jamais inventer un fait, un motif ou une date non présents dans la tâche
 - Si c'est pour une école/crèche, utiliser les formules de politesse appropriées
+- Expressions interdites : "Désolé du dérangement", "Merci d'avance", toute familiarité
 
 Réponds UNIQUEMENT avec un JSON valide:
 {
@@ -1110,6 +1214,136 @@ Réponds UNIQUEMENT avec un JSON valide:
       success: false,
       error: 'Impossible de générer le brouillon.',
     });
+  }
+});
+
+// ============================================
+// Milestone 7: Guided writing ("points clés") + tone control
+// - MUST NOT change existing Milestone 5 defaults unless user explicitly generates
+// ============================================
+app.post('/tasks/:id/compose', async (req, res) => {
+  try {
+    const userId = getUserIdFromReq(req);
+    const taskId = req.params.id;
+    const { channel, points, lessFormal, recipient } = req.body as {
+      channel?: 'email' | 'sms' | 'whatsapp';
+      points?: string;
+      lessFormal?: boolean;
+      recipient?: string;
+    };
+
+    if (!channel || !['email', 'sms', 'whatsapp'].includes(channel)) {
+      return res.status(400).json({ success: false, error: 'channel doit être email, sms ou whatsapp.' });
+    }
+
+    const task = await getTaskById(taskId, userId);
+    if (!task) {
+      return res.status(404).json({ success: false, error: 'Tâche introuvable.' });
+    }
+
+    const rawPoints = typeof points === 'string' ? points.trim() : '';
+    const tone = lessFormal === true ? 'tutoiement' : 'vouvoiement';
+
+    const profile = await getProfile(userId);
+    const fullName = [profile.firstName, profile.lastName].filter(Boolean).join(' ').trim();
+    const senderName = fullName || profile.lastName || 'Le parent';
+
+    // If no AI key, deterministic fallback (no invention)
+    if (!OPENAI_API_KEY) {
+      const subject = channel === 'email' ? `À propos de : ${task.title}` : undefined;
+      const base = rawPoints
+        ? rawPoints
+        : `Je vous contacte concernant : ${task.title}.`;
+      const closing = tone === 'tutoiement' ? `\n\nBonne journée,\n${senderName}` : `\n\nCordialement,\n${senderName}`;
+      const body = `${tone === 'tutoiement' ? 'Bonjour,' : 'Bonjour,'}\n\n${base}${closing}`;
+      return res.json({ success: true, data: { subject, body, channel, recipient: recipient || '' } });
+    }
+
+    const prompt = `Tu es un assistant de rédaction.
+
+Objectif: produire un message final prêt à envoyer pour une tâche, en français correct, sans inventer.
+
+Contexte tâche (données factuelles, ne pas inventer au-delà) :
+- Titre: ${task.title}
+- Description: ${task.description || '—'}
+- Catégorie: ${task.category}
+- Échéance (ISO): ${task.deadline}
+- Contact (si connu): ${task.contactName || '—'}
+
+Points clés fournis par l'utilisateur (peuvent être vides) :
+${rawPoints ? rawPoints : '— (aucun)'}
+
+Règles STRICTES :
+- Utiliser uniquement les points fournis + les données de la tâche. Ne jamais inventer un fait, un motif, une émotion, un jugement.
+- Ne jamais modifier ni corriger une date de la tâche. Si tu mentionnes une date, elle doit être cohérente avec l'échéance de la tâche.
+- Corriger l'orthographe/syntaxe des points, sans changer le fond.
+- Ne pas ajouter d'emojis.
+
+Ton :
+- Par défaut (vouvoiement): institutionnel et respectueux, formules adaptées aux écoles/crèches/admin, structure formelle.
+- Option (tutoiement): courtois, professionnel, moins formel. Interdit: familiarité, "Désolé du dérangement", "Merci d’avance 🙂".
+
+Ton demandé: ${tone}
+
+Format attendu :
+- Réponds UNIQUEMENT en JSON valide.
+- Pour email: inclure "subject" + "body".
+- Pour sms/whatsapp: inclure "body" (pas d'objet).
+{
+  ${channel === 'email' ? '"subject": "…",' : ''}
+  "body": "…"
+}`;
+
+    let subject: string | undefined;
+    let body: string;
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: 'Tu génères des messages. Réponds uniquement en JSON valide.' },
+          { role: 'user', content: prompt },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.2,
+        max_tokens: 400,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`AI API error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    const parsed = JSON.parse(data.choices[0].message.content);
+    subject = typeof parsed.subject === 'string' ? parsed.subject : undefined;
+    body = typeof parsed.body === 'string' ? parsed.body : '';
+
+    // Guardrails: never return empty body
+    if (!body.trim()) {
+      body = `Bonjour,\n\nJe vous contacte concernant : ${task.title}.\n\nCordialement,\n${senderName}`;
+      subject = channel === 'email' ? `À propos de : ${task.title}` : undefined;
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        subject,
+        body,
+        channel,
+        recipient: recipient || '',
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Erreur inconnue';
+    console.error('[Compose] Error:', message);
+    return res.status(500).json({ success: false, error: 'Impossible de générer le message.' });
   }
 });
 

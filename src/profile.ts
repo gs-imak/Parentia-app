@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { createRecurringTask, deleteTasksByRecurringSource } from './tasks.js';
+import { ensureUserJsonFile, readJsonFile, requireUserId, writeJsonFile } from './userData.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -61,34 +62,47 @@ const ProfileSchema = z.object({
   city: z.string().optional(),
 });
 
-async function readProfile(): Promise<Profile> {
+async function readProfile(userId?: string | null): Promise<Profile> {
+  const uid = requireUserId(userId);
+  const pathToRead = await ensureUserJsonFile({
+    userId: uid,
+    perUserFilename: 'profile.json',
+    legacyAbsolutePath: PROFILE_FILE,
+    defaultJson: JSON.stringify({ children: [] }, null, 2),
+  });
+
+  const data = await readJsonFile<unknown>(pathToRead, { children: [] });
   try {
-    const content = await fs.readFile(PROFILE_FILE, 'utf-8');
-    const data = JSON.parse(content);
     return ProfileSchema.parse(data);
-  } catch (error) {
-    // If file doesn't exist or is invalid, return empty profile
+  } catch {
     return { children: [] };
   }
 }
 
-async function writeProfile(profile: Profile): Promise<void> {
-  await fs.writeFile(PROFILE_FILE, JSON.stringify(profile, null, 2), 'utf-8');
+async function writeProfile(profile: Profile, userId?: string | null): Promise<void> {
+  const uid = requireUserId(userId);
+  const pathToWrite = await ensureUserJsonFile({
+    userId: uid,
+    perUserFilename: 'profile.json',
+    legacyAbsolutePath: PROFILE_FILE,
+    defaultJson: JSON.stringify({ children: [] }, null, 2),
+  });
+  await writeJsonFile(pathToWrite, profile);
 }
 
-export async function getProfile(): Promise<Profile> {
-  return readProfile();
+export async function getProfile(userId?: string | null): Promise<Profile> {
+  return readProfile(userId);
 }
 
-export async function updateProfile(updates: Partial<Profile>): Promise<Profile> {
-  const profile = await readProfile();
+export async function updateProfile(updates: Partial<Profile>, userId?: string | null): Promise<Profile> {
+  const profile = await readProfile(userId);
   const updated = { ...profile, ...updates };
-  await writeProfile(updated);
+  await writeProfile(updated, userId);
   return updated;
 }
 
-export async function addChild(childData: Omit<Child, 'id'>): Promise<Child> {
-  const profile = await readProfile();
+export async function addChild(childData: Omit<Child, 'id'>, userId?: string | null): Promise<Child> {
+  const profile = await readProfile(userId);
   
   if (profile.children.length >= 5) {
     throw new Error('Maximum 5 children allowed');
@@ -100,7 +114,7 @@ export async function addChild(childData: Omit<Child, 'id'>): Promise<Child> {
   };
   
   profile.children.push(newChild);
-  await writeProfile(profile);
+  await writeProfile(profile, userId);
   
   // Auto-create birthday task
   await createRecurringTask({
@@ -109,30 +123,30 @@ export async function addChild(childData: Omit<Child, 'id'>): Promise<Child> {
     birthDate: newChild.birthDate,
     recurringSource: `child:${newChild.id}`,
     description: 'Penser au gâteau / cadeau / organisation.',
-  });
+  }, userId);
   
   return newChild;
 }
 
-export async function getChildById(id: string): Promise<Child | null> {
-  const profile = await readProfile();
+export async function getChildById(id: string, userId?: string | null): Promise<Child | null> {
+  const profile = await readProfile(userId);
   return profile.children.find(c => c.id === id) || null;
 }
 
-export async function updateChild(id: string, updates: Partial<Omit<Child, 'id'>>): Promise<Child | null> {
-  const profile = await readProfile();
+export async function updateChild(id: string, updates: Partial<Omit<Child, 'id'>>, userId?: string | null): Promise<Child | null> {
+  const profile = await readProfile(userId);
   const index = profile.children.findIndex(c => c.id === id);
   
   if (index === -1) return null;
   
   const oldChild = profile.children[index];
   profile.children[index] = { ...oldChild, ...updates };
-  await writeProfile(profile);
+  await writeProfile(profile, userId);
   
   // If birthDate changed, update the birthday task
   if (updates.birthDate && updates.birthDate !== oldChild.birthDate) {
     // Delete old birthday task
-    await deleteTasksByRecurringSource(`child:${id}`);
+    await deleteTasksByRecurringSource(`child:${id}`, userId);
     
     // Create new birthday task with updated date
     const firstName = updates.firstName || oldChild.firstName;
@@ -142,39 +156,39 @@ export async function updateChild(id: string, updates: Partial<Omit<Child, 'id'>
       birthDate: updates.birthDate,
       recurringSource: `child:${id}`,
       description: 'Penser au gâteau / cadeau / organisation.',
-    });
+    }, userId);
   }
   
   return profile.children[index];
 }
 
-export async function deleteChild(id: string): Promise<boolean> {
-  const profile = await readProfile();
+export async function deleteChild(id: string, userId?: string | null): Promise<boolean> {
+  const profile = await readProfile(userId);
   const filtered = profile.children.filter(c => c.id !== id);
   
   if (filtered.length === profile.children.length) return false; // Child not found
   
   profile.children = filtered;
-  await writeProfile(profile);
+  await writeProfile(profile, userId);
   
   // Delete associated birthday task
-  await deleteTasksByRecurringSource(`child:${id}`);
+  await deleteTasksByRecurringSource(`child:${id}`, userId);
   
   return true;
 }
 
-export async function updateSpouse(spouse: Spouse): Promise<Profile> {
-  const profile = await readProfile();
+export async function updateSpouse(spouse: Spouse, userId?: string | null): Promise<Profile> {
+  const profile = await readProfile(userId);
   const isNewSpouse = !profile.spouse;
   const hadBirthDate = profile.spouse?.birthDate;
   profile.spouse = spouse;
-  await writeProfile(profile);
+  await writeProfile(profile, userId);
   
   // Auto-create birthday task if spouse has birthDate and it's new or changed
   if (spouse.birthDate && (!hadBirthDate || hadBirthDate !== spouse.birthDate)) {
     // Delete old birthday task if it existed
     if (hadBirthDate) {
-      await deleteTasksByRecurringSource('spouse');
+      await deleteTasksByRecurringSource('spouse', userId);
     }
     
     await createRecurringTask({
@@ -183,32 +197,32 @@ export async function updateSpouse(spouse: Spouse): Promise<Profile> {
       birthDate: spouse.birthDate,
       recurringSource: 'spouse',
       description: 'Penser au gâteau / cadeau / organisation.',
-    });
+    }, userId);
   }
   
   return profile;
 }
 
-export async function deleteSpouse(): Promise<Profile> {
-  const profile = await readProfile();
+export async function deleteSpouse(userId?: string | null): Promise<Profile> {
+  const profile = await readProfile(userId);
   delete profile.spouse;
-  await writeProfile(profile);
+  await writeProfile(profile, userId);
   
   // Delete associated birthday task (if spouse had birthDate field)
-  await deleteTasksByRecurringSource('spouse');
+  await deleteTasksByRecurringSource('spouse', userId);
   
   return profile;
 }
 
-export async function updateMarriageDate(date: string): Promise<Profile> {
-  const profile = await readProfile();
+export async function updateMarriageDate(date: string, userId?: string | null): Promise<Profile> {
+  const profile = await readProfile(userId);
   const hadDate = profile.marriageDate;
   profile.marriageDate = date;
-  await writeProfile(profile);
+  await writeProfile(profile, userId);
   
   // Always delete old task if it existed
   if (hadDate) {
-    await deleteTasksByRecurringSource('marriage');
+    await deleteTasksByRecurringSource('marriage', userId);
   }
   
   // Create new anniversary task with updated date
@@ -218,18 +232,18 @@ export async function updateMarriageDate(date: string): Promise<Profile> {
     birthDate: date,
     recurringSource: 'marriage',
     description: 'Penser à fêter cet événement important.',
-  });
+  }, userId);
   
   return profile;
 }
 
-export async function deleteMarriageDate(): Promise<Profile> {
-  const profile = await readProfile();
+export async function deleteMarriageDate(userId?: string | null): Promise<Profile> {
+  const profile = await readProfile(userId);
   delete profile.marriageDate;
-  await writeProfile(profile);
+  await writeProfile(profile, userId);
   
   // Delete associated anniversary task
-  await deleteTasksByRecurringSource('marriage');
+  await deleteTasksByRecurringSource('marriage', userId);
   
   return profile;
 }
@@ -241,8 +255,8 @@ export async function updateProfileAddress(data: {
   address?: string;
   postalCode?: string;
   city?: string;
-}): Promise<Profile> {
-  const profile = await readProfile();
+}, userId?: string | null): Promise<Profile> {
+  const profile = await readProfile(userId);
   
   if (data.firstName !== undefined) profile.firstName = data.firstName;
   if (data.lastName !== undefined) profile.lastName = data.lastName;
@@ -250,6 +264,6 @@ export async function updateProfileAddress(data: {
   if (data.postalCode !== undefined) profile.postalCode = data.postalCode;
   if (data.city !== undefined) profile.city = data.city;
   
-  await writeProfile(profile);
+  await writeProfile(profile, userId);
   return profile;
 }

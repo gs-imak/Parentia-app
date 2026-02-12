@@ -101,7 +101,7 @@ Règles importantes :
    - Si tu vois "6 décembre" → deadline = 6 décembre 2025 (PAS le 3, PAS le 7)
    - Si tu vois "31 décembre" ou "31/12" → deadline = 31 décembre 2025 (PAS le 1er janvier)
    - La date du document EST la deadline. N'ajoute JAMAIS +1, +3, ou +7 jours à une date visible.
-   - Nous sommes en décembre 2025. Pour les années ambiguës ou passées (2023, 2024), utilise 2025.
+   - Nous sommes en ${new Date().getFullYear()}. Pour les années ambiguës ou passées, utilise l'année courante.
    - UNIQUEMENT si AUCUNE date n'est visible dans le document → aujourd'hui + 7 jours
    - NE JAMAIS inventer, arrondir, ou modifier une date visible. Utilise EXACTEMENT le jour écrit.
 
@@ -189,7 +189,16 @@ function getDefaultDeadline(): string {
  */
 function correctDeadline(aiDeadline: string): string {
   try {
-    const parsed = new Date(aiDeadline);
+    // Milestone 7: reject non-ISO deadlines to avoid day/month inversion bugs.
+    const isoFull = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
+    const isoDateOnly = /^\d{4}-\d{2}-\d{2}$/;
+    const candidate = isoDateOnly.test(aiDeadline) ? `${aiDeadline}T12:00:00.000Z` : aiDeadline;
+    if (!isoFull.test(candidate)) {
+      console.log(`[Image Date Correction] Non-ISO deadline rejected, using D+7: ${aiDeadline}`);
+      return getDefaultDeadline();
+    }
+
+    const parsed = new Date(candidate);
     if (isNaN(parsed.getTime())) {
       console.log(`[Image Date Correction] Invalid date format, using D+7: ${aiDeadline}`);
       return getDefaultDeadline();
@@ -202,9 +211,15 @@ function correctDeadline(aiDeadline: string): string {
     
     // CRITICAL: Allow dates up to 90 days in the past
     const MAX_PAST_DAYS = 90;
+    const MAX_FUTURE_DAYS = 365 * 2; // Prevent hallucinated far-future deadlines
     
     if (daysDiff > MAX_PAST_DAYS) {
       console.log(`[Image Date Correction] Date too old (${daysDiff} days ago), using D+7: ${aiDeadline}`);
+      return getDefaultDeadline();
+    }
+
+    if (daysDiff < -MAX_FUTURE_DAYS) {
+      console.log(`[Image Date Correction] Date too far in future (${Math.abs(daysDiff)} days ahead), using D+7: ${aiDeadline}`);
       return getDefaultDeadline();
     }
     
@@ -224,13 +239,13 @@ function correctDeadline(aiDeadline: string): string {
  */
 function validateDeadline(deadline: unknown): string | null {
   if (typeof deadline !== 'string') return null;
-  try {
-    const parsed = new Date(deadline);
-    if (isNaN(parsed.getTime())) return null;
-    return parsed.toISOString();
-  } catch {
-    return null;
-  }
+  const isoFull = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
+  const isoDateOnly = /^\d{4}-\d{2}-\d{2}$/;
+  const candidate = isoDateOnly.test(deadline) ? `${deadline}T12:00:00.000Z` : deadline;
+  if (!isoFull.test(candidate)) return null;
+  const parsed = new Date(candidate);
+  if (isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
 }
 
 /**

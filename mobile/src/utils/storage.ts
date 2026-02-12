@@ -14,9 +14,63 @@ const STORAGE_KEY_TOGGLE_J1 = 'parentia_toggle_j1';
 const STORAGE_KEY_TOGGLE_EVENING = 'parentia_toggle_evening';
 const STORAGE_KEY_TOGGLE_OVERDUE = 'parentia_toggle_overdue';
 const STORAGE_KEY_TOGGLE_SMART = 'parentia_toggle_smart';
+const STORAGE_KEY_USER_ID = 'parentia_user_id_v1';
+const STORAGE_KEY_ONBOARDING_COMPLETED = 'parentia_onboarding_completed_v1';
 
 const LOCATION_CACHE_DURATION = 6 * 60 * 60 * 1000; // 6 hours (refresh more frequently)
 const LOCATION_PROXIMITY_THRESHOLD = 0.01; // ~1km radius (much tighter for accuracy)
+
+function generateUserId(): string {
+  // uid_xxx format required by Milestone 7. Use lowercase, URL-safe characters.
+  // Example: uid_k3m9x8p2q1
+  const rand = Math.random().toString(36).slice(2, 12);
+  const time = Date.now().toString(36).slice(-4);
+  return `uid_${(rand + time).toLowerCase()}`;
+}
+
+export async function getUserId(): Promise<string | null> {
+  try {
+    const id = await AsyncStorage.getItem(STORAGE_KEY_USER_ID);
+    return id && id.startsWith('uid_') ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getOrCreateUserId(): Promise<string> {
+  const existing = await getUserId();
+  if (existing) return existing;
+
+  const created = generateUserId();
+  try {
+    await AsyncStorage.setItem(STORAGE_KEY_USER_ID, created);
+  } catch {
+    // If storage fails, still return a value for this session.
+  }
+  return created;
+}
+
+export function getUserEmailAddress(userId: string): string {
+  // Required format: uid_xxx@hcfamily.app
+  return `${userId}@hcfamily.app`;
+}
+
+export async function getOnboardingCompleted(): Promise<boolean> {
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEY_ONBOARDING_COMPLETED);
+    return raw === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export async function setOnboardingCompleted(done: boolean): Promise<void> {
+  try {
+    await AsyncStorage.setItem(STORAGE_KEY_ONBOARDING_COMPLETED, done ? 'true' : 'false');
+  } catch {
+    // ignore
+  }
+}
 
 export async function getStoredCity(): Promise<string | null> {
   try {

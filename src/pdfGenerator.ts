@@ -14,6 +14,7 @@ export interface GeneratePDFInput {
   templateId: string;
   taskId?: string;
   variables: Record<string, string>;
+  userId?: string | null;
 }
 
 export interface GeneratePDFOutput {
@@ -536,8 +537,8 @@ async function fetchAndExtractPdfText(url: string): Promise<string | null> {
 /**
  * Auto-fill variables from profile data
  */
-export async function getProfileVariables(): Promise<Record<string, string>> {
-  const profile = await getProfile();
+export async function getProfileVariables(userId?: string | null): Promise<Record<string, string>> {
+  const profile = await getProfile(userId);
   const variables: Record<string, string> = {};
   
   // Build full name from firstName + lastName
@@ -612,8 +613,8 @@ export async function getProfileVariables(): Promise<Record<string, string>> {
 /**
  * Get variables from a task
  */
-export async function getTaskVariables(taskId: string): Promise<Record<string, string>> {
-  const task = await getTaskById(taskId);
+export async function getTaskVariables(taskId: string, userId?: string | null): Promise<Record<string, string>> {
+  const task = await getTaskById(taskId, userId);
   if (!task) return {};
   
   const variables: Record<string, string> = {};
@@ -711,8 +712,8 @@ export async function generatePDF(input: GeneratePDFInput): Promise<GeneratePDFO
   }
   
   // Merge variables: profile defaults < task variables < user overrides
-  const profileVars = await getProfileVariables();
-  const taskVars = input.taskId ? await getTaskVariables(input.taskId) : {};
+  const profileVars = await getProfileVariables(input.userId);
+  const taskVars = input.taskId ? await getTaskVariables(input.taskId, input.userId) : {};
   const mergedVars: Record<string, string> = { ...profileVars, ...taskVars, ...input.variables };
 
   // FINAL spec: Attestation sur l'honneur
@@ -720,7 +721,7 @@ export async function generatePDF(input: GeneratePDFInput): Promise<GeneratePDFO
   // - Else -> generic declaration
   // - Always add a note that it can be refined by editing the task
   if (input.taskId && template.id === 'attestation_honneur') {
-    const task = await getTaskById(input.taskId);
+    const task = await getTaskById(input.taskId, input.userId);
     const taskText = task ? `${task.title || ''}\n${task.description || ''}` : '';
     const { content, hasFact } = buildAttestationDeclarationContent(taskText);
     const refinementNote = `\n\nNote : ce document peut être précisé en modifiant la tâche.`;
@@ -733,7 +734,7 @@ export async function generatePDF(input: GeneratePDFInput): Promise<GeneratePDFO
   // 2. If no explicit name in text but profile has children, use profile-based selection
   // 3. Otherwise leave blank (better blank than wrong child)
   if (input.taskId && (template.id === 'ecole_absence' || template.id === 'creche_absence')) {
-    const task = await getTaskById(input.taskId);
+    const task = await getTaskById(input.taskId, input.userId);
     if (task) {
       const taskText = `${task.title || ''}\n${task.description || ''}`;
 
@@ -768,7 +769,7 @@ export async function generatePDF(input: GeneratePDFInput): Promise<GeneratePDFO
         mergedVars.patientName = explicitName;
 
         // Try to get birthDate from profile if child exists there
-        const profile = await getProfile();
+        const profile = await getProfile(input.userId);
         const byName = profile.children.find((c) => (c.firstName || '').trim().toLowerCase() === explicitName.toLowerCase());
         if (byName) {
           mergedVars.childBirthDate = formatDateFrench(byName.birthDate);
@@ -777,7 +778,7 @@ export async function generatePDF(input: GeneratePDFInput): Promise<GeneratePDFO
         }
       } else {
         // No explicit name in task text - fall back to profile-based selection
-        const profile = await getProfile();
+        const profile = await getProfile(input.userId);
         if (profile.children.length > 0) {
           const selected = selectChildFromTaskText(profile.children, taskText);
           if (selected) {
@@ -900,7 +901,8 @@ async function createPDFFromText(content: string, template: PDFTemplate): Promis
 export async function previewFilledTemplate(
   templateId: string,
   taskId?: string,
-  userVariables?: Record<string, string>
+  userVariables?: Record<string, string>,
+  userId?: string | null
 ): Promise<{ content: string; missingVariables: string[] }> {
   const template = getTemplateById(templateId);
   
@@ -909,8 +911,8 @@ export async function previewFilledTemplate(
   }
   
   // Merge variables
-  const profileVars = await getProfileVariables();
-  const taskVars = taskId ? await getTaskVariables(taskId) : {};
+  const profileVars = await getProfileVariables(userId);
+  const taskVars = taskId ? await getTaskVariables(taskId, userId) : {};
   const mergedVars = { ...profileVars, ...taskVars, ...(userVariables || {}) };
   
   // Find missing variables

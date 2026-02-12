@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { createTask, getAllTasks, deleteTask, updateTask, createTaskFromImage, type TaskCategory, type Task } from '../api/client';
 import { formatDateFrench, formatTaskDeadlineFrench } from '../utils/dateFormat';
 import PDFViewerModal from '../components/PDFViewerModal';
@@ -376,12 +377,45 @@ export default function TasksScreen({ onOpenTaskDetail, refreshTrigger, initialF
     setFormError(null);
     
     try {
-      // Determine MIME type from URI
-      const uri = asset.uri.toLowerCase();
-      const mimeType = uri.includes('.png') ? 'image/png' : 'image/jpeg';
-      const filename = `photo_${Date.now()}.${mimeType === 'image/png' ? 'png' : 'jpg'}`;
-      
-      const response = await createTaskFromImage(asset.base64, mimeType, filename);
+      // Optimize on-device before upload (Milestone 7)
+      // - Resize large images for faster uploads
+      // - Compress to reduce payload size
+      const MAX_DIM = 1600;
+      const compress = 0.75;
+
+      let base64 = asset.base64;
+      let mimeType = 'image/jpeg';
+      let filename = `photo_${Date.now()}.jpg`;
+
+      if (Platform.OS !== 'web') {
+        const w = asset.width ?? 0;
+        const h = asset.height ?? 0;
+        const largest = Math.max(w, h);
+
+        const actions: ImageManipulator.Action[] = [];
+        if (largest > MAX_DIM && w > 0 && h > 0) {
+          const scale = MAX_DIM / largest;
+          const targetW = Math.max(1, Math.round(w * scale));
+          const targetH = Math.max(1, Math.round(h * scale));
+          actions.push({ resize: { width: targetW, height: targetH } });
+        }
+
+        const manipulated = await ImageManipulator.manipulateAsync(
+          asset.uri,
+          actions,
+          {
+            compress,
+            format: ImageManipulator.SaveFormat.JPEG,
+            base64: true,
+          }
+        );
+
+        if (manipulated.base64) {
+          base64 = manipulated.base64;
+        }
+      }
+
+      const response = await createTaskFromImage(base64, mimeType, filename);
       
       setSuccessMessage(`Tâche créée : ${response.task.title}`);
       setTimeout(() => setSuccessMessage(null), 4000);

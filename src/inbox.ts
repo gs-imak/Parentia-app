@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ensureUserJsonFile, readJsonFile, requireUserId, writeJsonFile } from './userData.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,30 +18,47 @@ export interface InboxEntry {
   taskTitle?: string;
   errorMessage?: string;
   attachmentUrl?: string;
+  dedupeKey?: string;
   processedAt: string;
 }
 
 async function readInbox(): Promise<InboxEntry[]> {
-  try {
-    const content = await fs.readFile(INBOX_FILE, 'utf-8');
-    return JSON.parse(content) as InboxEntry[];
-  } catch (error) {
-    // If file doesn't exist or is invalid, return empty array
-    return [];
-  }
+  // Legacy (no user scoping)
+  return readJsonFile<InboxEntry[]>(INBOX_FILE, []);
 }
 
 async function writeInbox(entries: InboxEntry[]): Promise<void> {
-  await fs.writeFile(INBOX_FILE, JSON.stringify(entries, null, 2), 'utf-8');
+  await writeJsonFile(INBOX_FILE, entries);
+}
+
+async function getInboxPath(userId?: string | null): Promise<string> {
+  const uid = requireUserId(userId);
+  return ensureUserJsonFile({
+    userId: uid,
+    perUserFilename: 'inbox.json',
+    legacyAbsolutePath: INBOX_FILE,
+    defaultJson: '[]',
+  });
+}
+
+async function readInboxForUser(userId?: string | null): Promise<InboxEntry[]> {
+  const p = await getInboxPath(userId);
+  return readJsonFile<InboxEntry[]>(p, []);
+}
+
+async function writeInboxForUser(entries: InboxEntry[], userId?: string | null): Promise<void> {
+  const p = await getInboxPath(userId);
+  await writeJsonFile(p, entries);
 }
 
 /**
  * Create a new inbox entry
  */
 export async function createInboxEntry(
-  data: Omit<InboxEntry, 'id' | 'processedAt'>
+  data: Omit<InboxEntry, 'id' | 'processedAt'>,
+  userId?: string | null
 ): Promise<InboxEntry> {
-  const entries = await readInbox();
+  const entries = await readInboxForUser(userId);
   
   const newEntry: InboxEntry = {
     ...data,
@@ -49,7 +67,7 @@ export async function createInboxEntry(
   };
   
   entries.unshift(newEntry); // Add to beginning (newest first)
-  await writeInbox(entries);
+  await writeInboxForUser(entries, userId);
   
   return newEntry;
 }
@@ -57,8 +75,8 @@ export async function createInboxEntry(
 /**
  * Get all inbox entries (newest first)
  */
-export async function getInboxEntries(): Promise<InboxEntry[]> {
-  const entries = await readInbox();
+export async function getInboxEntries(userId?: string | null): Promise<InboxEntry[]> {
+  const entries = await readInboxForUser(userId);
   // Ensure sorted by processedAt descending
   return entries.sort((a, b) => 
     new Date(b.processedAt).getTime() - new Date(a.processedAt).getTime()
@@ -68,8 +86,8 @@ export async function getInboxEntries(): Promise<InboxEntry[]> {
 /**
  * Get a single inbox entry by ID
  */
-export async function getInboxEntryById(id: string): Promise<InboxEntry | null> {
-  const entries = await readInbox();
+export async function getInboxEntryById(id: string, userId?: string | null): Promise<InboxEntry | null> {
+  const entries = await readInboxForUser(userId);
   return entries.find(e => e.id === id) || null;
 }
 
@@ -80,16 +98,28 @@ export async function getInboxEntryById(id: string): Promise<InboxEntry | null> 
 export async function isDuplicateEmail(
   from: string,
   subject: string,
-  receivedAt: string
+  receivedAt: string,
+  dedupeKey?: string | null,
+  userId?: string | null
 ): Promise<boolean> {
-  const entries = await readInbox();
-  const dateKey = receivedAt.slice(0, 10); // YYYY-MM-DD
-  
-  return entries.some(e => 
-    e.from === from &&
-    e.subject === subject &&
-    e.receivedAt.slice(0, 10) === dateKey
-  );
+  const entries = await readInboxForUser(userId);
+  const dk = typeof dedupeKey === 'string' && dedupeKey.trim() ? dedupeKey.trim() : null;
+  if (dk) {
+    return entries.some(e => e.dedupeKey === dk);
+  }
+
+  // Backward-compatible heuristic (tighter than day-only to avoid false positives):
+  // same sender + subject, received within ±5 minutes.
+  const targetMs = new Date(receivedAt).getTime();
+  if (isNaN(targetMs)) return false;
+  const WINDOW_MS = 5 * 60 * 1000;
+  return entries.some(e => {
+    if (e.from !== from) return false;
+    if (e.subject !== subject) return false;
+    const ms = new Date(e.receivedAt).getTime();
+    if (isNaN(ms)) return false;
+    return Math.abs(ms - targetMs) <= WINDOW_MS;
+  });
 }
 
 /**
@@ -112,6 +142,7 @@ export async function getInboxStats(): Promise<{
  * Delete inbox entries associated with a task ID
  */
 export async function deleteInboxEntriesByTaskId(taskId: string): Promise<number> {
+  // Legacy/global helper (kept for backward compatibility)
   const entries = await readInbox();
   const filtered = entries.filter(e => e.taskId !== taskId);
   const deleted = entries.length - filtered.length;
@@ -121,15 +152,25 @@ export async function deleteInboxEntriesByTaskId(taskId: string): Promise<number
   return deleted;
 }
 
+export async function deleteInboxEntriesByTaskIdForUser(taskId: string, userId?: string | null): Promise<number> {
+  const entries = await readInboxForUser(userId);
+  const filtered = entries.filter(e => e.taskId !== taskId);
+  const deleted = entries.length - filtered.length;
+  if (deleted > 0) {
+    await writeInboxForUser(filtered, userId);
+  }
+  return deleted;
+}
+
 /**
  * Delete a single inbox entry by ID
  */
-export async function deleteInboxEntry(id: string): Promise<boolean> {
-  const entries = await readInbox();
+export async function deleteInboxEntry(id: string, userId?: string | null): Promise<boolean> {
+  const entries = await readInboxForUser(userId);
   const filtered = entries.filter(e => e.id !== id);
   const wasDeleted = filtered.length < entries.length;
   if (wasDeleted) {
-    await writeInbox(filtered);
+    await writeInboxForUser(filtered, userId);
   }
   return wasDeleted;
 }

@@ -115,7 +115,7 @@ async function scheduleLocal(
   const content: Notifications.NotificationContentInput = {
     title,
     body,
-    data: meta,
+    data: meta as unknown as Record<string, unknown>,
     sound: true,
     ...(categoryId && Platform.OS !== 'web' ? { categoryIdentifier: categoryId } : {}),
   };
@@ -425,11 +425,12 @@ export async function handleNotificationResponse(
   console.log('[Notification] Response actionIdentifier:', response.actionIdentifier);
   console.log('[Notification] Response notification data:', JSON.stringify(response.notification.request.content.data));
   
-  const meta = response.notification.request.content.data as NotificationMeta | undefined;
-  if (!meta) {
+  const rawMeta = response.notification.request.content.data as unknown as Partial<NotificationMeta> | undefined;
+  if (!rawMeta || typeof rawMeta.type !== 'string') {
     console.log('[Notification] No meta found in notification data');
     return { actionTaken: false };
   }
+  const meta = rawMeta as NotificationMeta;
   
   const actionId = response.actionIdentifier;
   const taskId = meta.taskId;

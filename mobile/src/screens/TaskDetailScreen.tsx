@@ -13,6 +13,7 @@ import {
   Alert,
   TextInput,
   Image,
+  Switch,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { formatDateFrench, formatTaskDeadlineFrench } from '../utils/dateFormat';
@@ -26,6 +27,7 @@ import {
   generatePDF,
   downloadPDFBlob,
   getMessageDraft,
+  composeMessage,
 } from '../api/client';
 import PDFViewerModal from '../components/PDFViewerModal';
 
@@ -134,13 +136,22 @@ export default function TaskDetailScreen({
   const [showAllTemplates, setShowAllTemplates] = useState(false);
   const [allTemplates, setAllTemplates] = useState<PDFTemplate[]>([]);
   const [loadingAllTemplates, setLoadingAllTemplates] = useState(false);
+
+  // Milestone 7: Optional PDF overrides (date + message injection)
+  const [showPdfOptionsModal, setShowPdfOptionsModal] = useState(false);
+  const [pdfOptionsTemplateId, setPdfOptionsTemplateId] = useState<string | null>(null);
+  const [pdfOverrideDate, setPdfOverrideDate] = useState<string>('');
+  const [pdfInjectMessage, setPdfInjectMessage] = useState(false);
   
   // Message draft modal
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [messageChannel, setMessageChannel] = useState<'email' | 'sms' | 'whatsapp'>('email');
   const [messageDraft, setMessageDraft] = useState<{ subject?: string; body: string } | null>(null);
   const [loadingMessage, setLoadingMessage] = useState(false);
-  const [quickContactLoading, setQuickContactLoading] = useState<'email' | 'sms' | 'whatsapp' | null>(null);
+  const [recipientInput, setRecipientInput] = useState('');
+  const [pointsInput, setPointsInput] = useState('');
+  const [lessFormal, setLessFormal] = useState(false);
+  const [generatingAssisted, setGeneratingAssisted] = useState(false);
   
   // Delete confirmation
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -264,18 +275,69 @@ export default function TaskDetailScreen({
   };
 
   const handleGeneratePdf = async (templateId: string) => {
-    // Automatic extraction handles all templates now - no manual override needed
-    await doGeneratePdf(templateId);
+    // Milestone 7: allow manual date override + optional message injection (explicit opt-in)
+    setPdfOptionsTemplateId(templateId);
+    setPdfOverrideDate('');
+    setPdfInjectMessage(false);
+    setShowPdfOptionsModal(true);
+  };
+
+  const confirmGeneratePdfWithOverrides = async () => {
+    if (!pdfOptionsTemplateId) return;
+
+    const tmpl = [...allTemplates, ...templates].find(t => t.id === pdfOptionsTemplateId);
+    const templateVars = tmpl?.variables || [];
+
+    const vars: Record<string, string> = {};
+
+    const date = pdfOverrideDate.trim();
+    if (date) {
+      const DATE_KEYS = [
+        'date',
+        'absenceDate',
+        'invoiceDate',
+        'startDate',
+        'endDate',
+        'leaveDate',
+        'effectiveDate',
+        'resiliationDate',
+        'prestationDate',
+        'eventDate',
+      ];
+      for (const k of DATE_KEYS) {
+        if (templateVars.includes(k)) vars[k] = date;
+      }
+    }
+
+    if (pdfInjectMessage && messageDraft?.body) {
+      const candidates = ['reclamationDetails', 'details', 'message', 'customText'];
+      const target = candidates.find(k => templateVars.includes(k));
+      if (target) vars[target] = messageDraft.body;
+    }
+
+    setShowPdfOptionsModal(false);
+    await doGeneratePdf(pdfOptionsTemplateId, Object.keys(vars).length > 0 ? vars : undefined);
   };
 
   const handleContactAction = async (channel: 'email' | 'sms' | 'whatsapp') => {
     setMessageChannel(channel);
     setLoadingMessage(true);
     setShowMessageModal(true);
+    setPointsInput('');
+    setLessFormal(false);
+    setRecipientInput(channel === 'email' ? (task.contactEmail || '') : (task.contactPhone || ''));
     
     try {
-      const draft = await getMessageDraft(task.id, channel);
-      setMessageDraft({ subject: draft.subject, body: draft.body });
+      const recipient = channel === 'email' ? task.contactEmail : task.contactPhone;
+      if (recipient) {
+        const draft = await getMessageDraft(task.id, channel);
+        setMessageDraft({ subject: draft.subject, body: draft.body });
+      } else {
+        setMessageDraft({
+          subject: channel === 'email' ? `À propos de : ${task.title}` : undefined,
+          body: `Bonjour,\n\nJe vous contacte concernant : ${task.title}.\n\nCordialement`,
+        });
+      }
     } catch (error) {
       console.error('Failed to get message draft:', error);
       // Fallback to simple message
@@ -288,68 +350,10 @@ export default function TaskDetailScreen({
     }
   };
 
-  const openChannelWithDraft = async (channel: 'email' | 'sms' | 'whatsapp') => {
-    const recipient = channel === 'email' ? task.contactEmail : task.contactPhone;
-    if (!recipient) {
-      Alert.alert('Erreur', 'Aucun contact disponible.');
-      return;
-    }
-
-    setQuickContactLoading(channel);
-    try {
-      let draft: { subject?: string; body: string };
-      try {
-        const aiDraft = await getMessageDraft(task.id, channel);
-        draft = { subject: aiDraft.subject, body: aiDraft.body };
-      } catch {
-        draft = {
-          subject: channel === 'email' ? `À propos de : ${task.title}` : undefined,
-          body: `Bonjour,\n\nJe vous contacte concernant : ${task.title}.\n\nCordialement`,
-        };
-      }
-
-      let url = '';
-      if (channel === 'email') {
-        const subject = encodeURIComponent(draft.subject || '');
-        const body = encodeURIComponent(draft.body);
-        url = `mailto:${recipient}?subject=${subject}&body=${body}`;
-      } else if (channel === 'sms') {
-        const body = encodeURIComponent(draft.body);
-        url = Platform.OS === 'ios'
-          ? `sms:${recipient}&body=${body}`
-          : `sms:${recipient}?body=${body}`;
-      } else {
-        const cleanPhone = normalizePhoneForWhatsApp(recipient) || recipient.replace(/[^\d]/g, '');
-        const body = encodeURIComponent(draft.body);
-        url = `https://wa.me/${cleanPhone}?text=${body}`;
-      }
-
-      if (Platform.OS === 'web') {
-        if (channel === 'whatsapp') {
-          window.open(url, '_blank', 'noopener,noreferrer');
-        } else {
-          const link = document.createElement('a');
-          link.href = url;
-          link.rel = 'noopener noreferrer';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-        }
-      } else {
-        await Linking.openURL(url);
-      }
-    } catch (error) {
-      console.error('Failed to open contact channel:', error);
-      Alert.alert('Erreur', 'Impossible d\'ouvrir l\'application.');
-    } finally {
-      setQuickContactLoading(null);
-    }
-  };
-
   const handleSendMessage = async () => {
     if (!messageDraft) return;
     
-    const recipient = messageChannel === 'email' ? task.contactEmail : task.contactPhone;
+    const recipient = recipientInput.trim();
     if (!recipient) {
       Alert.alert('Erreur', 'Aucun contact disponible.');
       return;
@@ -511,7 +515,6 @@ export default function TaskDetailScreen({
 
   const formattedDeadline = formatTaskDeadlineFrench(task.deadline);
   const inferredContactName = task.contactName || inferContactNameFromTitle(task.title);
-  const hasContact = task.contactEmail || task.contactPhone || inferredContactName;
   const hasPhoneActions = !!task.contactPhone;
   const hasAttachment = task.imageUrl;
   const noTemplateMessage = 'Aucun modèle suggéré.';
@@ -774,101 +777,53 @@ export default function TaskDetailScreen({
           </View>
 
           {/* Actions Card */}
-          {(hasAttachment || hasContact) && (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Actions</Text>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Actions</Text>
               
-              {hasAttachment && (
-                <TouchableOpacity
-                  style={styles.actionButton}
-                  onPress={() => {
-                    // Prefer PDF viewer when link ends with .pdf or content is a PDF URL
-                    if (task.imageUrl && isProbablyPdfUrl(task.imageUrl)) {
-                      setPdfViewerUrl(task.imageUrl);
-                      setShowPdfViewer(true);
-                    } else {
-                      setShowImageViewer(true);
-                    }
-                  }}
-                >
-                  <Feather name="paperclip" size={20} color="#3A82F7" />
-                  <Text style={styles.actionButtonText}>Voir la pièce jointe</Text>
-                  <Feather name="external-link" size={16} color="#6E7A84" />
-                </TouchableOpacity>
-              )}
+            {hasAttachment && (
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => {
+                  // Prefer PDF viewer when link ends with .pdf or content is a PDF URL
+                  if (task.imageUrl && isProbablyPdfUrl(task.imageUrl)) {
+                    setPdfViewerUrl(task.imageUrl);
+                    setShowPdfViewer(true);
+                  } else {
+                    setShowImageViewer(true);
+                  }
+                }}
+              >
+                <Feather name="paperclip" size={20} color="#3A82F7" />
+                <Text style={styles.actionButtonText}>Voir la pièce jointe</Text>
+                <Feather name="external-link" size={16} color="#6E7A84" />
+              </TouchableOpacity>
+            )}
 
-              {hasContact && (
-                <View style={styles.contactSection}>
-                  <View style={styles.contactHeaderRow}>
-                    <Text style={styles.contactLabel}>
-                      Contacter {inferredContactName || 'le destinataire'}
-                    </Text>
-                    {(task.contactEmail || task.contactPhone) && (
-                      <TouchableOpacity
-                        style={styles.contactDraftButton}
-                        onPress={() => handleContactAction(task.contactEmail ? 'email' : 'sms')}
-                      >
-                        <Feather name="edit-2" size={14} color="#6E7A84" />
-                        <Text style={styles.contactDraftButtonText}>Brouillon</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                  <View style={styles.contactButtons}>
-                    {task.contactEmail && (
-                      <TouchableOpacity
-                        style={styles.contactButton}
-                        onPress={() => openChannelWithDraft('email')}
-                        disabled={quickContactLoading === 'email'}
-                      >
-                        {quickContactLoading === 'email' ? (
-                          <ActivityIndicator size="small" color="#FFFFFF" />
-                        ) : (
-                          <Feather name="mail" size={20} color="#FFFFFF" />
-                        )}
-                        <Text style={styles.contactButtonText}>Email</Text>
-                      </TouchableOpacity>
-                    )}
-                    {task.contactPhone ? (
-                      <>
-                        <TouchableOpacity
-                          style={[styles.contactButton, styles.contactButtonSms]}
-                          onPress={() => openChannelWithDraft('sms')}
-                          disabled={quickContactLoading === 'sms'}
-                        >
-                          {quickContactLoading === 'sms' ? (
-                            <ActivityIndicator size="small" color="#FFFFFF" />
-                          ) : (
-                            <Feather name="message-square" size={20} color="#FFFFFF" />
-                          )}
-                          <Text style={styles.contactButtonText}>SMS</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[styles.contactButton, styles.contactButtonWhatsapp]}
-                          onPress={() => openChannelWithDraft('whatsapp')}
-                          disabled={quickContactLoading === 'whatsapp'}
-                        >
-                          {quickContactLoading === 'whatsapp' ? (
-                            <ActivityIndicator size="small" color="#FFFFFF" />
-                          ) : (
-                            <Feather name="message-circle" size={20} color="#FFFFFF" />
-                          )}
-                          <Text style={styles.contactButtonText}>WhatsApp</Text>
-                        </TouchableOpacity>
-                      </>
-                    ) : inferredContactName ? (
-                      <TouchableOpacity
-                        style={[styles.contactButton, styles.contactButtonAdd]}
-                        onPress={() => setShowAddPhoneModal(true)}
-                      >
-                        <Feather name="plus" size={20} color="#FFFFFF" />
-                        <Text style={styles.contactButtonText}>Ajouter téléphone</Text>
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
-                </View>
-              )}
+            <View style={styles.contactSection}>
+              <View style={styles.contactHeaderRow}>
+                <Text style={styles.contactLabel}>Communication</Text>
+                {inferredContactName ? (
+                  <Text style={[styles.contactLabel, { marginBottom: 0 }]}>
+                    {inferredContactName}
+                  </Text>
+                ) : null}
+              </View>
+              <View style={styles.contactButtons}>
+                <TouchableOpacity style={styles.contactButton} onPress={() => handleContactAction('email')}>
+                  <Feather name="mail" size={20} color="#FFFFFF" />
+                  <Text style={styles.contactButtonText}>Email</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.contactButton, styles.contactButtonSms]} onPress={() => handleContactAction('sms')}>
+                  <Feather name="message-square" size={20} color="#FFFFFF" />
+                  <Text style={styles.contactButtonText}>Message</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.contactButton, styles.contactButtonWhatsapp]} onPress={() => handleContactAction('whatsapp')}>
+                  <Feather name="message-circle" size={20} color="#FFFFFF" />
+                  <Text style={styles.contactButtonText}>WhatsApp</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          )}
+          </View>
 
           {/* Documents Card */}
           <View style={styles.card}>
@@ -961,6 +916,78 @@ export default function TaskDetailScreen({
           </View>
         </Modal>
 
+        {/* Milestone 7 — PDF options (date override + optional message injection) */}
+        <Modal
+          visible={showPdfOptionsModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowPdfOptionsModal(false)}
+        >
+          <View style={styles.container}>
+            <View style={styles.header}>
+              <TouchableOpacity onPress={() => setShowPdfOptionsModal(false)} style={styles.closeButton}>
+                <Feather name="x" size={24} color="#2C3E50" />
+              </TouchableOpacity>
+              <Text style={styles.headerTitle}>Options PDF</Text>
+              <View style={{ width: 44 }} />
+            </View>
+
+            <ScrollView style={styles.scrollView}>
+              <View style={[styles.messageCard, { marginTop: 16 }]}>
+                <Text style={styles.cardTitle}>Avant de générer</Text>
+                <Text style={[styles.cardSubtitle, { marginTop: 6 }]}>
+                  Ces options sont facultatives. Si vous ne modifiez rien, le PDF reste identique à aujourd’hui.
+                </Text>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Date à utiliser dans le document (facultatif)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={pdfOverrideDate}
+                    onChangeText={setPdfOverrideDate}
+                    placeholder="JJ/MM/AAAA (laisser vide pour automatique)"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <Text style={[styles.cardSubtitle, { marginTop: 8 }]}>
+                    Astuce : la date automatique provient généralement de l’échéance de la tâche.
+                  </Text>
+                </View>
+
+                {(() => {
+                  const tmpl = pdfOptionsTemplateId
+                    ? [...allTemplates, ...templates].find(t => t.id === pdfOptionsTemplateId)
+                    : null;
+                  const vars = tmpl?.variables || [];
+                  const candidates = ['reclamationDetails', 'details', 'message', 'customText'];
+                  const canInject = Boolean(messageDraft?.body) && candidates.some(k => vars.includes(k));
+                  if (!canInject) return null;
+                  return (
+                    <View style={styles.inputGroup}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Text style={styles.inputLabel}>Insérer le message dans le PDF (si possible)</Text>
+                        <Switch value={pdfInjectMessage} onValueChange={setPdfInjectMessage} />
+                      </View>
+                      <Text style={[styles.cardSubtitle, { marginTop: 8 }]}>
+                        Le message sera inséré uniquement si le modèle PDF dispose d’un champ libre dédié.
+                      </Text>
+                    </View>
+                  );
+                })()}
+
+                <TouchableOpacity
+                  style={styles.sendButton}
+                  onPress={confirmGeneratePdfWithOverrides}
+                  disabled={!pdfOptionsTemplateId || !!generatingPdf}
+                >
+                  <Feather name="file-text" size={20} color="#FFFFFF" />
+                  <Text style={styles.sendButtonText}>Générer le PDF</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </Modal>
+
         {/* Message Draft Modal */}
         <Modal
           visible={showMessageModal}
@@ -987,6 +1014,67 @@ export default function TaskDetailScreen({
             ) : (
               <ScrollView style={styles.scrollView}>
                 <View style={styles.messageCard}>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>
+                      {messageChannel === 'email' ? 'Email du destinataire' : 'Numéro du destinataire'}
+                    </Text>
+                    <TextInput
+                      style={styles.input}
+                      value={recipientInput}
+                      onChangeText={setRecipientInput}
+                      placeholder={messageChannel === 'email' ? 'ex: ecole@exemple.fr' : 'ex: 06 12 34 56 78'}
+                      keyboardType={messageChannel === 'email' ? 'email-address' : 'phone-pad'}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Points clés (facultatif)</Text>
+                    <TextInput
+                      style={[styles.input, { height: 110, textAlignVertical: 'top' }]}
+                      value={pointsInput}
+                      onChangeText={setPointsInput}
+                      placeholder="Ajoutez les points que vous souhaitez faire passer…"
+                      multiline
+                      numberOfLines={5}
+                    />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
+                      <Text style={{ fontSize: 13, color: '#6E7A84', fontWeight: '600' }}>
+                        Ton moins formel (tutoiement)
+                      </Text>
+                      <Switch value={lessFormal} onValueChange={setLessFormal} />
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.sendButton, { marginTop: 12, backgroundColor: '#6E7A84' }, generatingAssisted && { opacity: 0.7 }]}
+                      onPress={async () => {
+                        if (generatingAssisted) return;
+                        setGeneratingAssisted(true);
+                        try {
+                          const result = await composeMessage(task.id, messageChannel, {
+                            points: pointsInput,
+                            lessFormal,
+                            recipient: recipientInput,
+                          });
+                          setMessageDraft({ subject: result.subject, body: result.body });
+                        } catch (e) {
+                          Alert.alert('Erreur', 'Impossible de générer le message.');
+                        } finally {
+                          setGeneratingAssisted(false);
+                        }
+                      }}
+                    >
+                      {generatingAssisted ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <>
+                          <Feather name="edit-3" size={20} color="#FFFFFF" />
+                          <Text style={styles.sendButtonText}>Générer</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+
                   {messageChannel === 'email' && (
                     <View style={styles.inputGroup}>
                       <Text style={styles.inputLabel}>Objet</Text>
@@ -1610,6 +1698,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#2C3E50',
     marginBottom: 12,
+  },
+  cardSubtitle: {
+    fontSize: 13,
+    color: '#6E7A84',
+    lineHeight: 18,
   },
   titleContainer: {
     flexDirection: 'row',

@@ -11,39 +11,17 @@
     "preview": {
       "distribution": "internal",
       "channel": "preview"
+    },
+    "production": {
+      "distribution": "store",
+      "channel": "production",
+      "ios": {
+        "autoIncrement": true
+      },
+      "android": {
+        "buildType": "app-bundle",
+        "autoIncrement": true
+      }
     }
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

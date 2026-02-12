@@ -57,6 +57,7 @@ function convertToIncomingEmail(parsed: ParsedMail): IncomingEmail {
     subject: parsed.subject || '',
     text: parsed.text || '',
     html: parsed.html || undefined,
+    messageId: parsed.messageId || undefined,
     receivedAt: (parsed.date || new Date()).toISOString(),
     attachments,
   };
@@ -85,12 +86,12 @@ export async function processSendGridInbound(rawEmail: string | Buffer): Promise
     const sanitizedFrom = email.from?.replace(/^[^@]+@/, '***@') || 'unknown';
     console.log(`[SendGrid Inbound] Email from: ${sanitizedFrom}, attachments: ${email.attachments.length}`);
     
-    // Extract user ID from the "to" address (user+{id}@hcfamily.app)
+    // Extract user ID from the "to" address (Milestone 7: uid_xxx@hcfamily.app)
     const userId = extractUserIdFromAddress(email.to);
     console.log(`[SendGrid Inbound] Extracted userId: ${userId || 'none (default user)'}`);
     
     // Process through existing pipeline
-    const result = await processIncomingEmail(email);
+    const result = await processIncomingEmail(email, userId);
     
     if (result.success) {
       console.log(`[SendGrid Inbound] ✓ Email processed successfully`);

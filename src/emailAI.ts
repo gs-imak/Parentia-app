@@ -368,7 +368,17 @@ function getDefaultDeadline(): string {
  */
 function correctDeadline(aiDeadline: string): string {
   try {
-    const parsed = new Date(aiDeadline);
+    // Milestone 7: reject non-ISO deadlines to avoid day/month inversion bugs.
+    // JS Date parsing of non-ISO strings is locale/engine dependent (e.g. "03/04/2026").
+    const isoFull = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
+    const isoDateOnly = /^\d{4}-\d{2}-\d{2}$/;
+    const candidate = isoDateOnly.test(aiDeadline) ? `${aiDeadline}T12:00:00.000Z` : aiDeadline;
+    if (!isoFull.test(candidate)) {
+      console.log(`[Date Correction] Non-ISO deadline rejected, using D+7: ${aiDeadline}`);
+      return getDefaultDeadline();
+    }
+
+    const parsed = new Date(candidate);
     if (isNaN(parsed.getTime())) {
       console.log(`[Date Correction] Invalid date format, using D+7: ${aiDeadline}`);
       return getDefaultDeadline();
@@ -385,10 +395,16 @@ function correctDeadline(aiDeadline: string): string {
     // - Invoice due dates that are slightly past
     // - End-of-year transitions
     const MAX_PAST_DAYS = 90;
+    const MAX_FUTURE_DAYS = 365 * 2; // Prevent hallucinated far-future deadlines
     
     if (daysDiff > MAX_PAST_DAYS) {
       // Date is more than 90 days in the past - likely an error
       console.log(`[Date Correction] Date too old (${daysDiff} days ago), using D+7: ${aiDeadline}`);
+      return getDefaultDeadline();
+    }
+
+    if (daysDiff < -MAX_FUTURE_DAYS) {
+      console.log(`[Date Correction] Date too far in future (${Math.abs(daysDiff)} days ahead), using D+7: ${aiDeadline}`);
       return getDefaultDeadline();
     }
     
@@ -428,13 +444,8 @@ export function normalizeAIOutput(raw: unknown): EmailAIOutput | null {
   let deadline: string;
   try {
     if (typeof obj.deadline === 'string') {
-      const parsed = new Date(obj.deadline);
-      if (isNaN(parsed.getTime())) {
-        deadline = getDefaultDeadline();
-      } else {
-        // Apply date correction for past years
-        deadline = correctDeadline(parsed.toISOString());
-      }
+      // Apply strict validation + correction (also prevents day/month inversion)
+      deadline = correctDeadline(obj.deadline);
     } else {
       deadline = getDefaultDeadline();
     }
@@ -567,10 +578,11 @@ export async function analyzeEmailWithRetry(
 export function createFallbackOutput(input: EmailAIInput): EmailAIOutput {
   const subject = input.subject || 'Email sans sujet';
   return {
-    title: `À vérifier: ${subject.slice(0, 45)}`,
+    // Milestone 7: standardized manual review task label
+    title: `À vérifier manuellement`,
     category: 'administratif',
     deadline: getDefaultDeadline(),
-    description: `Email reçu de ${input.sender}. Traitement automatique impossible - vérification manuelle requise.`,
+    description: `Email reçu de ${input.sender}.\n\nSujet: ${subject}\n\nTraitement automatique impossible — vérification manuelle requise.`,
     priority: 'medium',
     metadata: {
       emailType: 'unknown',

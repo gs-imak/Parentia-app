@@ -9,15 +9,16 @@ import TasksScreen from './src/screens/TasksScreen';
 import InboxScreen from './src/screens/InboxScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import TaskDetailScreen from './src/screens/TaskDetailScreen';
+import OnboardingScreen from './src/screens/OnboardingScreen';
 import { type Task } from './src/api/client';
 import NotificationsDebugScreen from './src/screens/NotificationsDebugScreen';
 import { getProfile, getAllTasks, getTaskById, fetchWeather, fetchQuote, registerPushToken } from './src/api/client';
 import { rescheduleAllNotifications, handleNotificationResponse, setupNotificationCategories } from './src/notifications/NotificationScheduler';
 import { AppEvents, EVENTS } from './src/utils/events';
-import { getStoredCity, getStoredCoordinates } from './src/utils/storage';
+import { getOrCreateUserId, getOnboardingCompleted, getStoredCity, getStoredCoordinates } from './src/utils/storage';
 
 // VERSION MARKER - Use this to verify correct build is running
-const BUILD_VERSION = '2026-01-10-v10-JSON-PARSING-FIX';
+const BUILD_VERSION = '2026-02-12-milestone7-launch';
 
 export default function App() {
   // Log version on mount to verify correct build
@@ -40,6 +41,20 @@ export default function App() {
   const [filterTaskIds, setFilterTaskIds] = useState<string[] | null>(null);
   const [showDebug, setShowDebug] = useState(false);
   const [profileKey, setProfileKey] = useState(0);
+
+  // Onboarding gate (Milestone 7)
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
+  const [onboardingDone, setOnboardingDone] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      // Ensure userId exists BEFORE any API calls (headers depend on it)
+      await getOrCreateUserId();
+      const done = await getOnboardingCompleted();
+      setOnboardingDone(done);
+      setOnboardingChecked(true);
+    })();
+  }, []);
   
   // Track last processed notification to prevent re-processing on every app open
   const lastProcessedNotificationRef = useRef<string | null>(null);
@@ -116,6 +131,48 @@ export default function App() {
       // best effort
     }
   }, []);
+
+  // Handle notification taps (navigation to task/tasks)
+  const handleNotificationNavigation = useCallback(async (response: Notifications.NotificationResponse) => {
+    console.log('[App] handleNotificationNavigation called');
+    console.log('[App] Notification actionIdentifier:', response.actionIdentifier);
+    console.log('[App] Notification data:', JSON.stringify(response.notification.request.content.data));
+    
+    try {
+      // handleNotificationResponse uses taskId directly from meta, fixing race conditions
+      const { actionTaken } = await handleNotificationResponse(response);
+      console.log('[App] actionTaken:', actionTaken);
+      
+      // Refresh app state after action (delete/delay)
+      console.log('[App] Refreshing app state...');
+      await refreshAndSchedule();
+      setRefreshTrigger(prev => prev + 1);
+      console.log('[App] App state refreshed');
+      
+      if (actionTaken) {
+        console.log('[App] Action was taken, not navigating');
+        return;
+      }
+    } catch (error) {
+      console.error('[App] ERROR in handleNotificationNavigation:', error);
+    }
+    
+    const meta = response.notification.request.content.data as any;
+    const deepLink = meta?.deepLink as { route?: string; params?: any } | undefined;
+    if (deepLink?.route === 'tasks') {
+      setTasksFilter(deepLink.params?.filter ?? null);
+      setFilterTaskIds(deepLink.params?.taskIds ?? null);
+      setActiveTab('Tasks');
+    }
+    if (deepLink?.route === 'taskDetail' && deepLink.params?.taskId) {
+      try {
+        const task = await getTaskById(deepLink.params.taskId);
+        setSelectedTask(task);
+      } catch {
+        setActiveTab('Tasks');
+      }
+    }
+  }, [refreshAndSchedule]);
 
   // Request notification permissions and register push token on app init
   useEffect(() => {
@@ -212,51 +269,6 @@ export default function App() {
     return () => subscription.remove();
   }, [refreshAndSchedule, handleNotificationNavigation]);
 
-  // Handle notification taps (navigation to task/tasks)
-  const handleNotificationNavigation = useCallback(async (response: Notifications.NotificationResponse) => {
-    console.log('[App] handleNotificationNavigation called');
-    console.log('[App] Notification actionIdentifier:', response.actionIdentifier);
-    console.log('[App] Notification data:', JSON.stringify(response.notification.request.content.data));
-    
-    try {
-      // CRITICAL FIX: handleNotificationResponse no longer needs tasks parameter
-      // It uses taskId directly from notification meta, fixing the race condition
-      // where actions failed on cold start because tasks weren't loaded yet
-      const { actionTaken } = await handleNotificationResponse(response);
-      console.log('[App] actionTaken:', actionTaken);
-      
-      // Refresh app state after action (delete/delay)
-      console.log('[App] Refreshing app state...');
-      await refreshAndSchedule();
-      setRefreshTrigger(prev => prev + 1);
-      console.log('[App] App state refreshed');
-      
-      // If an action was taken (delete/delay), don't navigate - task was handled
-      if (actionTaken) {
-        console.log('[App] Action was taken, not navigating');
-        return;
-      }
-    } catch (error) {
-      console.error('[App] ERROR in handleNotificationNavigation:', error);
-    }
-    
-    const meta = response.notification.request.content.data as any;
-    const deepLink = meta?.deepLink as { route?: string; params?: any } | undefined;
-    if (deepLink?.route === 'tasks') {
-      setTasksFilter(deepLink.params?.filter ?? null);
-      setFilterTaskIds(deepLink.params?.taskIds ?? null);
-      setActiveTab('Tasks');
-    }
-    if (deepLink?.route === 'taskDetail' && deepLink.params?.taskId) {
-      try {
-        const task = await getTaskById(deepLink.params.taskId);
-        setSelectedTask(task);
-      } catch {
-        setActiveTab('Tasks');
-      }
-    }
-  }, [refreshAndSchedule]);
-
   useEffect(() => {
     // CRITICAL: Set up notification categories FIRST, then schedule notifications
     // On iOS, notifications with unregistered categories won't have working action buttons!
@@ -279,6 +291,9 @@ export default function App() {
         shouldShowAlert: true,
         shouldPlaySound: true,
         shouldSetBadge: false,
+        // Expo Notifications SDK 0.32+ expects these fields too
+        shouldShowBanner: true,
+        shouldShowList: true,
       }),
     });
 
@@ -345,6 +360,18 @@ export default function App() {
   }, [refreshAndSchedule]);
 
   const renderScreen = () => {
+    if (!onboardingChecked) {
+      return (
+        <View style={{ flex: 1, backgroundColor: '#F5F7FA', alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ color: '#6E7A84', fontSize: 16, fontWeight: '500' }}>Chargement…</Text>
+        </View>
+      );
+    }
+
+    if (!onboardingDone) {
+      return <OnboardingScreen onDone={() => setOnboardingDone(true)} />;
+    }
+
     switch (activeTab) {
       case 'Home':
         return <HomeScreen onOpenTaskDetail={handleOpenTaskDetail} refreshTrigger={refreshTrigger} />;
@@ -369,77 +396,81 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <View style={styles.container}>
-        <View style={styles.header}>
-          <Text
-            style={styles.headerTitle}
-            onPress={handleSecretTap}
-          >
-            HC Family
-          </Text>
-        </View>
+        {onboardingChecked && onboardingDone && (
+          <View style={styles.header}>
+            <Text
+              style={styles.headerTitle}
+              onPress={handleSecretTap}
+            >
+              HC Family
+            </Text>
+          </View>
+        )}
         <View style={styles.content}>
           {showDebug ? <NotificationsDebugScreen onClose={() => setShowDebug(false)} /> : renderScreen()}
         </View>
-        <View style={styles.tabBar}>
-          <TouchableOpacity
-            style={styles.tab}
-            onPress={() => setActiveTab('Home')}
-          >
-            <Feather
-              name="home"
-              size={24}
-              color={activeTab === 'Home' ? '#2C3E50' : '#6E7A84'}
-            />
-            <Text style={[styles.tabLabel, activeTab === 'Home' && styles.tabLabelActive]}>
-              Home
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.tab}
-            onPress={() => setActiveTab('Tasks')}
-          >
-            <Feather
-              name="check-circle"
-              size={24}
-              color={activeTab === 'Tasks' ? '#2C3E50' : '#6E7A84'}
-            />
-            <Text style={[styles.tabLabel, activeTab === 'Tasks' && styles.tabLabelActive]}>
-              Tâches
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.tab}
-            onPress={() => setActiveTab('Inbox')}
-          >
-            <Feather
-              name="inbox"
-              size={24}
-              color={activeTab === 'Inbox' ? '#2C3E50' : '#6E7A84'}
-            />
-            <Text style={[styles.tabLabel, activeTab === 'Inbox' && styles.tabLabelActive]}>
-              Inbox
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.tab}
-            onPress={() => {
-              setProfileKey(prev => prev + 1);
-              setActiveTab('Profile');
-            }}
-          >
-            <Feather
-              name="user"
-              size={24}
-              color={activeTab === 'Profile' ? '#2C3E50' : '#6E7A84'}
-            />
-            <Text style={[styles.tabLabel, activeTab === 'Profile' && styles.tabLabelActive]}>
-              Profil
-            </Text>
-          </TouchableOpacity>
-        </View>
+        {onboardingChecked && onboardingDone && (
+          <View style={styles.tabBar}>
+            <TouchableOpacity
+              style={styles.tab}
+              onPress={() => setActiveTab('Home')}
+            >
+              <Feather
+                name="home"
+                size={24}
+                color={activeTab === 'Home' ? '#2C3E50' : '#6E7A84'}
+              />
+              <Text style={[styles.tabLabel, activeTab === 'Home' && styles.tabLabelActive]}>
+                Home
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.tab}
+              onPress={() => setActiveTab('Tasks')}
+            >
+              <Feather
+                name="check-circle"
+                size={24}
+                color={activeTab === 'Tasks' ? '#2C3E50' : '#6E7A84'}
+              />
+              <Text style={[styles.tabLabel, activeTab === 'Tasks' && styles.tabLabelActive]}>
+                Tâches
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.tab}
+              onPress={() => setActiveTab('Inbox')}
+            >
+              <Feather
+                name="inbox"
+                size={24}
+                color={activeTab === 'Inbox' ? '#2C3E50' : '#6E7A84'}
+              />
+              <Text style={[styles.tabLabel, activeTab === 'Inbox' && styles.tabLabelActive]}>
+                Inbox
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.tab}
+              onPress={() => {
+                setProfileKey(prev => prev + 1);
+                setActiveTab('Profile');
+              }}
+            >
+              <Feather
+                name="user"
+                size={24}
+                color={activeTab === 'Profile' ? '#2C3E50' : '#6E7A84'}
+              />
+              <Text style={[styles.tabLabel, activeTab === 'Profile' && styles.tabLabelActive]}>
+                Profil
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Task Detail Modal */}
-        {selectedTask && (
+        {onboardingChecked && onboardingDone && selectedTask && (
           <TaskDetailScreen
             task={selectedTask}
             onClose={handleCloseTaskDetail}

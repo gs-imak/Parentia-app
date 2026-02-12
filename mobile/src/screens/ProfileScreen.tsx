@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Alert, Platform, View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, ActivityIndicator, StyleSheet, Switch } from 'react-native';
+import { Alert, Platform, Linking, View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, ActivityIndicator, StyleSheet, Switch } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
+import Constants from 'expo-constants';
+import * as Application from 'expo-application';
+import * as Clipboard from 'expo-clipboard';
 import { Feather } from '@expo/vector-icons';
 import {
   getStoredCity,
@@ -24,6 +27,8 @@ import {
   setSmartNotificationsEnabled,
   setNotificationPermissionStatus,
   getNotificationPermissionStatus,
+  getOrCreateUserId,
+  getUserEmailAddress,
 } from '../utils/storage';
 import { reverseGeocode, geolocateByIP, getProfile, addChild, updateChild, deleteChild, updateSpouse, deleteSpouse, updateMarriageDate, deleteMarriageDate, updateProfileAddress, type Child, type Profile } from '../api/client';
 import { AppEvents, EVENTS } from '../utils/events';
@@ -63,6 +68,10 @@ export default function ProfileScreen() {
   const [assistantExpanded, setAssistantExpanded] = useState(false);
   const [notificationsExpanded, setNotificationsExpanded] = useState(false);
   const [donneesExpanded, setDonneesExpanded] = useState(false);
+  const [supportExpanded, setSupportExpanded] = useState(false);
+
+  // Milestone 7: per-user email
+  const [userId, setUserId] = useState<string | null>(null);
   
   // Legacy sub-section states (for forms within sections - ALL closed by default)
   const [childrenExpanded, setChildrenExpanded] = useState(false);
@@ -124,9 +133,58 @@ export default function ProfileScreen() {
     getStoredCity().then((storedCity) => {
       if (storedCity) setCity(storedCity);
     });
+    getOrCreateUserId().then(setUserId).catch(() => setUserId(null));
     loadProfile();
     loadNotificationPrefs();
   }, []);
+
+  const userEmail = userId ? getUserEmailAddress(userId) : null;
+  const appVersion = (() => {
+    if (Platform.OS === 'web') {
+      return (Constants.expoConfig as any)?.version || 'web';
+    }
+    const v = Application.nativeApplicationVersion || 'unknown';
+    const b = Application.nativeBuildVersion || '0';
+    return `${v} (${b})`;
+  })();
+
+  const handleCopyUserEmail = async () => {
+    if (!userEmail) return;
+    try {
+      await Clipboard.setStringAsync(userEmail);
+      Alert.alert('Copié', 'Adresse email copiée.');
+    } catch {
+      Alert.alert('Erreur', 'Impossible de copier.');
+    }
+  };
+
+  const handleSendTestEmail = async () => {
+    if (!userEmail) return;
+    const subject = encodeURIComponent('Test HC Family');
+    const body = encodeURIComponent(
+      `Bonjour,\n\nCeci est un email de test pour vérifier le pipeline email → tâche.\n\nUID: ${userId}\n\nMerci.`
+    );
+    const url = `mailto:${userEmail}?subject=${subject}&body=${body}`;
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Erreur', 'Impossible d’ouvrir l’application Mail.');
+    }
+  };
+
+  const handleReportBug = async () => {
+    const to = 'support@hcfamily.app';
+    const subject = encodeURIComponent(`Bug HC Family — ${appVersion} — ${userId || 'uid_unknown'}`);
+    const body = encodeURIComponent(
+      `Bonjour,\n\nDécrivez le problème ici :\n\nÉtapes pour reproduire :\n1.\n2.\n\nRésultat attendu :\n\nRésultat obtenu :\n\nInfos:\n- Version: ${appVersion}\n- UID: ${userId || 'uid_unknown'}\n- Plateforme: ${Platform.OS}\n`
+    );
+    const url = `mailto:${to}?subject=${subject}&body=${body}`;
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Erreur', 'Impossible d’ouvrir l’application Mail.');
+    }
+  };
 
   const loadNotificationPrefs = async () => {
     const [m, j1, ev, od, smart, perm] = await Promise.all([
@@ -695,6 +753,47 @@ export default function ProfileScreen() {
     >
       <ScrollView style={styles.scrollView}>
         <View style={styles.container}>
+
+          {/* Milestone 7 — Email unique utilisateur */}
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionCardHeader}>
+              <View style={styles.sectionCardHeaderLeft}>
+                <View style={[styles.sectionCardIcon, { backgroundColor: '#E3F2FD' }]}>
+                  <Feather name="mail" size={20} color="#3A82F7" />
+                </View>
+                <Text style={styles.sectionCardTitle}>Mon email personnel</Text>
+              </View>
+              <View style={{ width: 24 }} />
+            </View>
+
+            <Text style={styles.sectionCardSubtitle}>
+              Envoyez des emails à cette adresse pour créer des tâches automatiquement.
+            </Text>
+
+            <View style={styles.summaryBox}>
+              <Text style={styles.summaryText}>
+                <Text style={styles.summaryLabel}>Adresse : </Text>
+                <Text style={{ fontWeight: '700' }}>{userEmail || '...'}</Text>
+              </Text>
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity
+                style={[styles.button, { flex: 1, backgroundColor: '#3A82F7' }, !userEmail && styles.buttonDisabled]}
+                onPress={handleCopyUserEmail}
+                disabled={!userEmail}
+              >
+                <Text style={styles.buttonText}>Copier</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.button, { flex: 1, backgroundColor: '#6E7A84' }, !userEmail && styles.buttonDisabled]}
+                onPress={handleSendTestEmail}
+                disabled={!userEmail}
+              >
+                <Text style={styles.buttonText}>Email test</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
           
           {/* ═══════════════════════════════════════════════════════════════ */}
           {/* SECTION 1 — Ma famille                                          */}
@@ -1690,6 +1789,73 @@ onChange={(event: any, selectedDate?: Date) => {
                 <View style={styles.valueItem}>
                   <Text style={styles.valueItemIcon}>🇫🇷</Text>
                   <Text style={styles.valueItemText}>Conformité RGPD</Text>
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* SECTION 6 — Version & feedback                                 */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          <View style={styles.sectionCard}>
+            <TouchableOpacity
+              style={styles.sectionCardHeader}
+              onPress={() => setSupportExpanded(!supportExpanded)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.sectionCardHeaderLeft}>
+                <View style={[styles.sectionCardIcon, { backgroundColor: '#E3F2FD' }]}>
+                  <Feather name="info" size={20} color="#3A82F7" />
+                </View>
+                <Text style={styles.sectionCardTitle}>Version & feedback</Text>
+              </View>
+              <Feather name={supportExpanded ? 'chevron-up' : 'chevron-down'} size={24} color="#6E7A84" />
+            </TouchableOpacity>
+
+            <Text style={styles.sectionCardSubtitle}>
+              Pour tester et remonter des bugs facilement.
+            </Text>
+
+            {supportExpanded && (
+              <View style={styles.sectionContent}>
+                <View style={styles.summaryBox}>
+                  <Text style={styles.summaryText}>
+                    <Text style={styles.summaryLabel}>Version : </Text>{appVersion}
+                  </Text>
+                  <Text style={styles.summaryText}>
+                    <Text style={styles.summaryLabel}>UID : </Text>{userId || '...'}
+                  </Text>
+                </View>
+
+                <View style={styles.formBox}>
+                  <Text style={styles.formLabel}>Changements récents</Text>
+                  <View style={styles.valueItem}>
+                    <Text style={styles.valueItemIcon}>✅</Text>
+                    <Text style={styles.valueItemText}>Email unique par utilisateur</Text>
+                  </View>
+                  <View style={styles.valueItem}>
+                    <Text style={styles.valueItemIcon}>✅</Text>
+                    <Text style={styles.valueItemText}>App installable (TestFlight / APK)</Text>
+                  </View>
+                  <View style={styles.valueItem}>
+                    <Text style={styles.valueItemIcon}>✅</Text>
+                    <Text style={styles.valueItemText}>Aide à la rédaction (email, SMS, WhatsApp)</Text>
+                  </View>
+                  <View style={styles.valueItem}>
+                    <Text style={styles.valueItemIcon}>✅</Text>
+                    <Text style={styles.valueItemText}>Options PDF (date modifiable, injection message)</Text>
+                  </View>
+                  <View style={styles.valueItem}>
+                    <Text style={styles.valueItemIcon}>✅</Text>
+                    <Text style={styles.valueItemText}>Optimisation images et anti-doublons</Text>
+                  </View>
+                  <View style={styles.valueItem}>
+                    <Text style={styles.valueItemIcon}>✅</Text>
+                    <Text style={styles.valueItemText}>Onboarding premier lancement</Text>
+                  </View>
+                  <TouchableOpacity style={[styles.button, { marginTop: 12 }]} onPress={handleReportBug}>
+                    <Text style={styles.buttonText}>Signaler un bug</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             )}

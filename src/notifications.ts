@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ensureUserJsonFile, readJsonFile, requireUserId, writeJsonFile } from './userData.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,26 +23,42 @@ export interface Notification {
 }
 
 async function readNotifications(): Promise<Notification[]> {
-  try {
-    const content = await fs.readFile(NOTIFICATIONS_FILE, 'utf-8');
-    return JSON.parse(content) as Notification[];
-  } catch (error) {
-    // If file doesn't exist or is invalid, return empty array
-    return [];
-  }
+  // Legacy (no user scoping)
+  return readJsonFile<Notification[]>(NOTIFICATIONS_FILE, []);
 }
 
 async function writeNotifications(notifications: Notification[]): Promise<void> {
-  await fs.writeFile(NOTIFICATIONS_FILE, JSON.stringify(notifications, null, 2), 'utf-8');
+  await writeJsonFile(NOTIFICATIONS_FILE, notifications);
+}
+
+async function getNotificationsPath(userId?: string | null): Promise<string> {
+  const uid = requireUserId(userId);
+  return ensureUserJsonFile({
+    userId: uid,
+    perUserFilename: 'notifications.json',
+    legacyAbsolutePath: NOTIFICATIONS_FILE,
+    defaultJson: '[]',
+  });
+}
+
+async function readNotificationsForUser(userId?: string | null): Promise<Notification[]> {
+  const p = await getNotificationsPath(userId);
+  return readJsonFile<Notification[]>(p, []);
+}
+
+async function writeNotificationsForUser(notifications: Notification[], userId?: string | null): Promise<void> {
+  const p = await getNotificationsPath(userId);
+  await writeJsonFile(p, notifications);
 }
 
 /**
  * Create a new notification
  */
 export async function createNotification(
-  data: Omit<Notification, 'id' | 'createdAt' | 'read'>
+  data: Omit<Notification, 'id' | 'createdAt' | 'read'>,
+  userId?: string | null
 ): Promise<Notification> {
-  const notifications = await readNotifications();
+  const notifications = await readNotificationsForUser(userId);
   
   const newNotification: Notification = {
     ...data,
@@ -54,7 +71,7 @@ export async function createNotification(
   
   // Keep only last 100 notifications to prevent file from growing too large
   const trimmed = notifications.slice(0, 100);
-  await writeNotifications(trimmed);
+  await writeNotificationsForUser(trimmed, userId);
   
   return newNotification;
 }
@@ -62,8 +79,8 @@ export async function createNotification(
 /**
  * Get all notifications (newest first)
  */
-export async function getNotifications(): Promise<Notification[]> {
-  const notifications = await readNotifications();
+export async function getNotifications(userId?: string | null): Promise<Notification[]> {
+  const notifications = await readNotificationsForUser(userId);
   return notifications.sort((a, b) => 
     new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
@@ -72,14 +89,14 @@ export async function getNotifications(): Promise<Notification[]> {
 /**
  * Mark a notification as read
  */
-export async function markNotificationRead(id: string): Promise<Notification | null> {
-  const notifications = await readNotifications();
+export async function markNotificationRead(id: string, userId?: string | null): Promise<Notification | null> {
+  const notifications = await readNotificationsForUser(userId);
   const index = notifications.findIndex(n => n.id === id);
   
   if (index === -1) return null;
   
   notifications[index].read = true;
-  await writeNotifications(notifications);
+  await writeNotificationsForUser(notifications, userId);
   
   return notifications[index];
 }
@@ -87,8 +104,8 @@ export async function markNotificationRead(id: string): Promise<Notification | n
 /**
  * Mark all notifications as read
  */
-export async function markAllNotificationsRead(): Promise<number> {
-  const notifications = await readNotifications();
+export async function markAllNotificationsRead(userId?: string | null): Promise<number> {
+  const notifications = await readNotificationsForUser(userId);
   let count = 0;
   
   for (const notification of notifications) {
@@ -99,7 +116,7 @@ export async function markAllNotificationsRead(): Promise<number> {
   }
   
   if (count > 0) {
-    await writeNotifications(notifications);
+    await writeNotificationsForUser(notifications, userId);
   }
   
   return count;
@@ -108,7 +125,7 @@ export async function markAllNotificationsRead(): Promise<number> {
 /**
  * Get count of unread notifications
  */
-export async function getUnreadCount(): Promise<number> {
-  const notifications = await readNotifications();
+export async function getUnreadCount(userId?: string | null): Promise<number> {
+  const notifications = await readNotificationsForUser(userId);
   return notifications.filter(n => !n.read).length;
 }

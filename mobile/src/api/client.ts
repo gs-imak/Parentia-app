@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { AppEvents, EVENTS } from '../utils/events';
+import { getOrCreateUserId } from '../utils/storage';
 
 // For web, use relative URLs (same domain as Railway)
 // For mobile (Expo Go), use the configured backend URL
@@ -59,8 +60,26 @@ export interface NewsItem {
   summary: string | null;
 }
 
+async function getUserHeaders(): Promise<Record<string, string>> {
+  try {
+    const userId = await getOrCreateUserId();
+    return { 'X-User-Id': userId };
+  } catch {
+    return {};
+  }
+}
+
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${BACKEND_URL}${path}`, options);
+  const userHeaders = await getUserHeaders();
+  const mergedHeaders: Record<string, string> = {
+    ...(options?.headers ? (options.headers as Record<string, string>) : {}),
+    ...userHeaders,
+  };
+
+  const response = await fetch(`${BACKEND_URL}${path}`, {
+    ...options,
+    headers: mergedHeaders,
+  });
   if (!response.ok) {
     throw new Error(`API error: ${response.status}`);
   }
@@ -345,9 +364,11 @@ export async function createTaskFromImage(
     } as any);
   }
   
+  const userHeaders = await getUserHeaders();
   const response = await fetch(`${BACKEND_URL}/tasks/from-image`, {
     method: 'POST',
     body: formData,
+    headers: userHeaders,
     // Note: Don't set Content-Type header, let browser/RN set it with boundary
   });
   
@@ -518,6 +539,31 @@ export async function getMessageDraft(
   });
 }
 
+/**
+ * Milestone 7: Generate a message from user key points (optional) + tone toggle.
+ * This MUST NOT change existing defaults unless user explicitly requests it.
+ */
+export async function composeMessage(
+  taskId: string,
+  channel: 'email' | 'sms' | 'whatsapp',
+  options: {
+    points?: string;
+    lessFormal?: boolean;
+    recipient?: string;
+  }
+): Promise<MessageDraft> {
+  return fetchApi<MessageDraft>(`/tasks/${taskId}/compose`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      channel,
+      points: options.points || '',
+      lessFormal: Boolean(options.lessFormal),
+      recipient: options.recipient || '',
+    }),
+  });
+}
+
 // ============================================
 // Push Notification Token API
 // ============================================
@@ -528,9 +574,10 @@ export async function getMessageDraft(
  */
 export async function registerPushToken(token: string): Promise<boolean> {
   try {
+    const userHeaders = await getUserHeaders();
     const response = await fetch(`${BACKEND_URL}/push-tokens`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...userHeaders },
       body: JSON.stringify({ token }),
     });
     
@@ -550,9 +597,10 @@ export async function registerPushToken(token: string): Promise<boolean> {
  * Remove push notification token (on logout)
  */
 export async function removePushToken(token: string): Promise<void> {
+  const userHeaders = await getUserHeaders();
   await fetch(`${BACKEND_URL}/push-tokens`, {
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...userHeaders },
     body: JSON.stringify({ token }),
   });
 }

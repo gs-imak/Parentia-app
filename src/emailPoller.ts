@@ -1,6 +1,6 @@
 import Imap from 'imap';
 import { simpleParser, ParsedMail, Attachment } from 'mailparser';
-import { processIncomingEmail, type IncomingEmail } from './email.js';
+import { processIncomingEmail, extractUserIdFromAddress, type IncomingEmail } from './email.js';
 
 // IMAP Configuration from environment variables
 const IMAP_USER = process.env.IMAP_USER || '';
@@ -71,6 +71,7 @@ function convertToIncomingEmail(parsed: ParsedMail, uid: number): IncomingEmail 
     subject: parsed.subject || '',
     text: parsed.text || '',
     html: parsed.html || undefined,
+    messageId: parsed.messageId || undefined,
     receivedAt: (parsed.date || new Date()).toISOString(),
     attachments,
   };
@@ -150,7 +151,8 @@ async function fetchUnreadEmails(): Promise<void> {
                   console.log(`Processing email from ${sanitizedFrom}`);
                   
                   // Process through our pipeline
-                  const result = await processIncomingEmail(email);
+                  const userId = extractUserIdFromAddress(email.to);
+                  const result = await processIncomingEmail(email, userId);
                   
                   if (result.success) {
                     console.log(`✓ Email processed successfully: task=${result.task?.id}`);

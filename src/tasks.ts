@@ -2,7 +2,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
-import { deleteInboxEntriesByTaskId } from './inbox.js';
+import { deleteInboxEntriesByTaskIdForUser } from './inbox.js';
+import { ensureUserJsonFile, readJsonFile, requireUserId, writeJsonFile } from './userData.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -96,23 +97,39 @@ const TaskSchema = z.object({
   suggestedTemplates: z.array(z.string()).optional(),
 });
 
-async function readTasks(): Promise<Task[]> {
+async function readTasks(userId?: string | null): Promise<Task[]> {
+  const uid = requireUserId(userId);
+  const pathToRead = await ensureUserJsonFile({
+    userId: uid,
+    perUserFilename: 'tasks.json',
+    legacyAbsolutePath: TASKS_FILE,
+    defaultJson: '[]',
+  });
+
+  const data = await readJsonFile<unknown>(pathToRead, []);
   try {
-    const content = await fs.readFile(TASKS_FILE, 'utf-8');
-    const data = JSON.parse(content);
     return z.array(TaskSchema).parse(data);
-  } catch (error) {
-    // If file doesn't exist or is invalid, return empty array
+  } catch {
     return [];
   }
 }
 
-async function writeTasks(tasks: Task[]): Promise<void> {
-  await fs.writeFile(TASKS_FILE, JSON.stringify(tasks, null, 2), 'utf-8');
+async function writeTasks(tasks: Task[], userId?: string | null): Promise<void> {
+  const uid = requireUserId(userId);
+  const pathToWrite = await ensureUserJsonFile({
+    userId: uid,
+    perUserFilename: 'tasks.json',
+    legacyAbsolutePath: TASKS_FILE,
+    defaultJson: '[]',
+  });
+  await writeJsonFile(pathToWrite, tasks);
 }
 
-export async function createTask(taskData: Omit<Task, 'id' | 'createdAt' | 'status'>): Promise<Task> {
-  const tasks = await readTasks();
+export async function createTask(
+  taskData: Omit<Task, 'id' | 'createdAt' | 'status'>,
+  userId?: string | null
+): Promise<Task> {
+  const tasks = await readTasks(userId);
   
   // Milestone 5 FROZEN: deterministic suggestions from flat decision table
   const suggestedTemplates = inferSuggestedTemplatesDeterministic(taskData);
@@ -125,23 +142,27 @@ export async function createTask(taskData: Omit<Task, 'id' | 'createdAt' | 'stat
     createdAt: new Date().toISOString(),
   };
   tasks.push(newTask);
-  await writeTasks(tasks);
+  await writeTasks(tasks, userId);
   return newTask;
 }
 
-export async function getTasks(): Promise<Task[]> {
-  const tasks = await readTasks();
+export async function getTasks(userId?: string | null): Promise<Task[]> {
+  const tasks = await readTasks(userId);
   // Sort by deadline ascending
   return tasks.sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime());
 }
 
-export async function getTaskById(id: string): Promise<Task | null> {
-  const tasks = await readTasks();
+export async function getTaskById(id: string, userId?: string | null): Promise<Task | null> {
+  const tasks = await readTasks(userId);
   return tasks.find(t => t.id === id) || null;
 }
 
-export async function updateTask(id: string, updates: Partial<Omit<Task, 'id' | 'createdAt'>>): Promise<Task | null> {
-  const tasks = await readTasks();
+export async function updateTask(
+  id: string,
+  updates: Partial<Omit<Task, 'id' | 'createdAt'>>,
+  userId?: string | null
+): Promise<Task | null> {
+  const tasks = await readTasks(userId);
   const index = tasks.findIndex(t => t.id === id);
   if (index === -1) return null;
   
@@ -151,20 +172,20 @@ export async function updateTask(id: string, updates: Partial<Omit<Task, 'id' | 
   merged.suggestedTemplates = inferSuggestedTemplatesDeterministic(merged);
 
   tasks[index] = merged;
-  await writeTasks(tasks);
+  await writeTasks(tasks, userId);
   return merged;
 }
 
-export async function deleteTask(id: string): Promise<boolean> {
-  const tasks = await readTasks();
+export async function deleteTask(id: string, userId?: string | null): Promise<boolean> {
+  const tasks = await readTasks(userId);
   const filtered = tasks.filter(t => t.id !== id);
   if (filtered.length === tasks.length) return false; // Task not found
   
-  await writeTasks(filtered);
+  await writeTasks(filtered, userId);
   
   // Cascade: delete associated inbox entries
   try {
-    const deletedInbox = await deleteInboxEntriesByTaskId(id);
+    const deletedInbox = await deleteInboxEntriesByTaskIdForUser(id, userId);
     if (deletedInbox > 0) {
       console.log(`Deleted ${deletedInbox} inbox entry/entries for task ${id}`);
     }
@@ -176,8 +197,8 @@ export async function deleteTask(id: string): Promise<boolean> {
   return true;
 }
 
-export async function getTasksForToday(): Promise<Task[]> {
-  const tasks = await readTasks();
+export async function getTasksForToday(userId?: string | null): Promise<Task[]> {
+  const tasks = await readTasks(userId);
   const now = new Date();
   
   // Helper to get date string YYYY-MM-DD in local time
@@ -224,7 +245,15 @@ export async function getTasksForToday(): Promise<Task[]> {
 
 // Recompute all task suggestions using the frozen Milestone 5 decision table
 export async function sanitizeAllTasks(): Promise<void> {
-  const tasks = await readTasks();
+  // Legacy/global operation: sanitize the legacy shared file only.
+  // Multi-user files are created on-demand and should not be mass-mutated at startup.
+  const data = await readJsonFile<unknown>(TASKS_FILE, []);
+  let tasks: Task[] = [];
+  try {
+    tasks = z.array(TaskSchema).parse(data);
+  } catch {
+    tasks = [];
+  }
   let updated = false;
 
   const sanitized = tasks.map((task) => {
@@ -241,17 +270,17 @@ export async function sanitizeAllTasks(): Promise<void> {
   });
 
   if (updated) {
-    await writeTasks(sanitized);
+    await writeJsonFile(TASKS_FILE, sanitized);
   }
 }
 
 // Helper: Delete all tasks associated with a recurring source (for profile deletion)
-export async function deleteTasksByRecurringSource(source: string): Promise<number> {
-  const tasks = await readTasks();
+export async function deleteTasksByRecurringSource(source: string, userId?: string | null): Promise<number> {
+  const tasks = await readTasks(userId);
   const filtered = tasks.filter(t => t.recurringSource !== source);
   const deleted = tasks.length - filtered.length;
   if (deleted > 0) {
-    await writeTasks(filtered);
+    await writeTasks(filtered, userId);
   }
   return deleted;
 }
@@ -284,7 +313,7 @@ export async function createRecurringTask(data: {
   birthDate: string;
   recurringSource: string;
   description?: string;
-}): Promise<Task> {
+}, userId?: string | null): Promise<Task> {
   const nextOccurrence = getNextOccurrence(data.birthDate);
   
   return createTask({
@@ -294,5 +323,5 @@ export async function createRecurringTask(data: {
     description: data.description,
     isRecurring: true,
     recurringSource: data.recurringSource,
-  });
+  }, userId);
 }

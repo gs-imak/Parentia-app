@@ -1,9 +1,10 @@
 import { createTask, type Task } from './tasks.js';
 import { createInboxEntry, isDuplicateEmail, type InboxEntry } from './inbox.js';
 import { createNotification } from './notifications.js';
-import { sendTaskCreatedPushNotification } from './pushNotifications.js';
+import { sendTaskCreatedPushNotificationForUser } from './pushNotifications.js';
 import { extractPdfText, isPdf } from './pdfParser.js';
 import { uploadAttachment, isSupabaseConfigured } from './supabase.js';
+import crypto from 'node:crypto';
 import { 
   analyzeEmailWithRetry, 
   createFallbackOutput, 
@@ -19,6 +20,7 @@ export interface IncomingEmail {
   subject: string;
   text: string;
   html?: string;
+  messageId?: string;
   receivedAt: string;
   attachments: Array<{
     filename: string;
@@ -59,7 +61,8 @@ export function validateIncomingEmail(
  * Email → PDF extraction → AI analysis → Task creation → Notification
  */
 export async function processIncomingEmail(
-  email: IncomingEmail
+  email: IncomingEmail,
+  userId?: string | null
 ): Promise<ProcessResult> {
   // Sanitize email for logging (hide local part)
   const sanitizedFrom = email.from?.replace(/^[^@]+@/, '***@') || 'unknown';
@@ -69,21 +72,36 @@ export async function processIncomingEmail(
   const validation = validateIncomingEmail(email);
   if (!validation.valid) {
     console.error('Email validation failed:', validation.error);
+    const dedupeKey = (() => {
+      const mid = (email.messageId || '').trim();
+      if (mid) return `msgid:${mid.toLowerCase()}`;
+      const base = [email.from || '', email.to || '', email.subject || '', email.text || ''].join('|');
+      return `sha256:${crypto.createHash('sha256').update(base).digest('hex')}`;
+    })();
     const entry = await createInboxEntry({
       from: email.from || 'unknown',
       subject: email.subject || 'Sans sujet',
       receivedAt: email.receivedAt,
       status: 'error',
       errorMessage: validation.error,
-    });
+      dedupeKey,
+    }, userId);
     return { success: false, inboxEntry: entry, error: validation.error };
   }
   
   // Step 2: Check for duplicate
+  const dedupeKey = (() => {
+    const mid = (email.messageId || '').trim();
+    if (mid) return `msgid:${mid.toLowerCase()}`;
+    const base = [email.from || '', email.to || '', email.subject || '', email.text || ''].join('|');
+    return `sha256:${crypto.createHash('sha256').update(base).digest('hex')}`;
+  })();
   const isDuplicate = await isDuplicateEmail(
     email.from,
     email.subject,
-    email.receivedAt
+    email.receivedAt,
+    dedupeKey,
+    userId
   );
   if (isDuplicate) {
     console.log('Duplicate email detected, skipping');
@@ -203,7 +221,8 @@ export async function processIncomingEmail(
       status: 'success',
       taskTitle: '(Newsletter/Promo - ignoré)',
       attachmentUrl: attachmentUrl || undefined,
-    });
+      dedupeKey,
+    }, userId);
     return { success: true, inboxEntry: entry };
   }
   
@@ -225,7 +244,7 @@ export async function processIncomingEmail(
       contactPhone: aiOutput.contactPhone,
       contactName: aiOutput.contactName,
       suggestedTemplates: aiOutput.suggestedTemplates,
-    });
+    }, userId);
     console.log(`Task created: ${task.id}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -238,7 +257,8 @@ export async function processIncomingEmail(
       status: 'error',
       errorMessage: 'Échec de création de tâche',
       attachmentUrl: attachmentUrl || undefined,
-    });
+      dedupeKey,
+    }, userId);
     
     return { success: false, inboxEntry: entry, error: 'Task creation failed' };
   }
@@ -252,7 +272,8 @@ export async function processIncomingEmail(
     taskId: task.id,
     taskTitle: task.title,
     attachmentUrl: attachmentUrl || undefined,
-  });
+    dedupeKey,
+  }, userId);
   
   // Step 9: Create notification record (non-blocking)
   try {
@@ -260,7 +281,7 @@ export async function processIncomingEmail(
       type: 'email_task_created',
       message: `Nouvelle tâche ajoutée depuis un email : ${task.title}`,
       metadata: { taskId: task.id, inboxId: inboxEntry.id },
-    });
+    }, userId);
   } catch (error) {
     console.error('Notification creation failed:', error);
     // Non-blocking: task and inbox entry already created
@@ -268,7 +289,7 @@ export async function processIncomingEmail(
   
   // Step 10: Send push notification (works even when app is closed)
   try {
-    await sendTaskCreatedPushNotification(task.id, task.title, 'email');
+    await sendTaskCreatedPushNotificationForUser(userId, task.id, task.title, 'email');
     console.log(`Push notification sent for task: ${task.id}`);
   } catch (error) {
     console.error('Push notification failed:', error);
@@ -284,6 +305,14 @@ export async function processIncomingEmail(
  * Format: user+{userId}@domain.com
  */
 export function extractUserIdFromAddress(to: string): string | null {
-  const match = to.match(/user\+([^@]+)@/i);
-  return match ? match[1] : null;
+  const t = (to || '').trim();
+  if (!t) return null;
+
+  // Milestone 7: uid_xxx@hcfamily.app
+  const uidMatch = t.match(/\b(uid_[a-z0-9]+)@/i);
+  if (uidMatch?.[1]) return uidMatch[1].toLowerCase();
+
+  // Backward compatibility: user+{id}@domain
+  const legacy = t.match(/user\+([^@]+)@/i);
+  return legacy?.[1] ? legacy[1] : null;
 }
