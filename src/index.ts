@@ -191,10 +191,17 @@ app.post('/tasks', async (req, res) => {
   try {
     const userId = getUserIdFromReq(req);
     const { title, category, deadline, description } = req.body;
+    const validCategories = ['administratif', 'enfants-école', 'santé', 'finances', 'logement', 'personnel'];
     if (!title || !category || !deadline) {
       return res.status(400).json({
         success: false,
         error: 'Les champs title, category et deadline sont requis.',
+      });
+    }
+    if (!validCategories.includes(category)) {
+      return res.status(400).json({
+        success: false,
+        error: `Catégorie invalide. Valeurs acceptées: ${validCategories.join(', ')}`,
       });
     }
     const task = await createTask({ title, category, deadline, description }, userId);

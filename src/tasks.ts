@@ -107,11 +107,20 @@ async function readTasks(userId?: string | null): Promise<Task[]> {
   });
 
   const data = await readJsonFile<unknown>(pathToRead, []);
-  try {
-    return z.array(TaskSchema).parse(data);
-  } catch {
+  if (!Array.isArray(data)) {
+    console.error('[tasks] readTasks: data is not an array for user', uid);
     return [];
   }
+  const valid: Task[] = [];
+  for (const item of data) {
+    const result = TaskSchema.safeParse(item);
+    if (result.success) {
+      valid.push(result.data);
+    } else {
+      console.error('[tasks] readTasks: skipping invalid task for user', uid, result.error.issues);
+    }
+  }
+  return valid;
 }
 
 async function writeTasks(tasks: Task[], userId?: string | null): Promise<void> {

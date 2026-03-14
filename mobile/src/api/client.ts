@@ -503,9 +503,10 @@ export async function downloadPDFBlob(options: {
   taskId?: string;
   variables?: Record<string, string>;
 }): Promise<{ blob: Blob; filename: string }> {
+  const userHeaders = await getUserHeaders();
   const response = await fetch(`${BACKEND_URL}/pdf/download`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...userHeaders },
     body: JSON.stringify(options),
   });
   

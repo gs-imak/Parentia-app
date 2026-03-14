@@ -72,11 +72,12 @@ async function readProfile(userId?: string | null): Promise<Profile> {
   });
 
   const data = await readJsonFile<unknown>(pathToRead, { children: [] });
-  try {
-    return ProfileSchema.parse(data);
-  } catch {
-    return { children: [] };
+  const result = ProfileSchema.safeParse(data);
+  if (result.success) {
+    return result.data;
   }
+  console.error('[profile] readProfile: Zod parse failed for user', uid, result.error.issues);
+  return { children: [] };
 }
 
 async function writeProfile(profile: Profile, userId?: string | null): Promise<void> {

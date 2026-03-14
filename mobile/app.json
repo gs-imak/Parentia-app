@@ -27,7 +27,9 @@
           "cameraPermission": "HC Family utilise l'appareil photo pour scanner des documents et créer des tâches.",
           "photosPermission": "HC Family accède à vos photos pour importer des documents."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker",
+      "expo-font"
     ],
     "splash": {
       "image": "./assets/splash-icon.png",
