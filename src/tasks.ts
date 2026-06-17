@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { deleteInboxEntriesByTaskIdForUser } from './inbox.js';
-import { ensureUserJsonFile, readJsonFile, requireUserId, writeJsonFile } from './userData.js';
+import { ensureUserJsonFile, readJsonFile, requireUserId, ValidationError, writeJsonFile } from './userData.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -97,6 +97,11 @@ const TaskSchema = z.object({
   suggestedTemplates: z.array(z.string()).optional(),
 });
 
+// Allowed fields on a PATCH. id/createdAt are immutable; unknown keys are
+// stripped (zod is non-strict), and invalid enum/type values are rejected so a
+// malformed update can never corrupt a task into silently disappearing on read.
+const TaskUpdateSchema = TaskSchema.omit({ id: true, createdAt: true }).partial();
+
 async function readTasks(userId?: string | null): Promise<Task[]> {
   const uid = requireUserId(userId);
   const pathToRead = await ensureUserJsonFile({
@@ -174,8 +179,15 @@ export async function updateTask(
   const tasks = await readTasks(userId);
   const index = tasks.findIndex(t => t.id === id);
   if (index === -1) return null;
-  
-  const merged = { ...tasks[index], ...updates };
+
+  // Validate + whitelist incoming fields. Rejects bad enum/type values and
+  // strips unknown keys so the stored record stays schema-valid.
+  const parsed = TaskUpdateSchema.safeParse(updates);
+  if (!parsed.success) {
+    throw new ValidationError('Champs de tâche invalides.');
+  }
+
+  const merged = { ...tasks[index], ...parsed.data };
 
   // Milestone 5 FROZEN: recompute deterministic suggestions from flat decision table
   merged.suggestedTemplates = inferSuggestedTemplatesDeterministic(merged);

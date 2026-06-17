@@ -20,7 +20,7 @@ import { generatePDF, previewFilledTemplate } from './pdfGenerator.js';
 import { getAllTemplates, getTemplateById, getTemplatesForTaskCategory } from './pdfTemplates.js';
 import { getTaskById } from './tasks.js';
 import { registerPushTokenForUser, removePushTokenForUser, sendTaskCreatedPushNotificationForUser } from './pushNotifications.js';
-import { normalizeUserId } from './userData.js';
+import { normalizeUserId, ValidationError } from './userData.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -33,6 +33,38 @@ function getUserIdFromReq(req: express.Request): string | null {
   return normalizeUserId(header);
 }
 
+// Map errors to HTTP status: client-supplied bad input -> 400, everything else
+// -> 500 with a generic message (never leak internal error text to clients).
+function sendRouteError(res: express.Response, error: unknown, fallbackMessage: string) {
+  if (error instanceof ValidationError) {
+    return res.status(400).json({ success: false, error: error.message });
+  }
+  return res.status(500).json({ success: false, error: fallbackMessage });
+}
+
+// Reject requests to user-scoped routes that carry no valid X-User-Id, instead
+// of silently bucketing them into a shared 'uid_default' account.
+const requireUser: express.RequestHandler = (req, res, next) => {
+  if (!getUserIdFromReq(req)) {
+    res.status(401).json({ success: false, error: 'Authentification requise.' });
+    return;
+  }
+  next();
+};
+
+// Shared-secret guard for the public email webhook + admin trigger. When
+// EMAIL_WEBHOOK_SECRET is unset we allow through (and warn) so the deploy
+// doesn't break before the secret + SendGrid URL are configured.
+const EMAIL_WEBHOOK_SECRET = process.env.EMAIL_WEBHOOK_SECRET;
+function hasValidWebhookSecret(req: express.Request): boolean {
+  if (!EMAIL_WEBHOOK_SECRET) return true;
+  const provided = (req.query.secret as string | undefined) ?? req.header('x-webhook-secret');
+  return provided === EMAIL_WEBHOOK_SECRET;
+}
+if (!EMAIL_WEBHOOK_SECRET) {
+  console.warn('[Security] EMAIL_WEBHOOK_SECRET is not set — /email/inbound is unauthenticated. Set it in production.');
+}
+
 // In-memory de-duplication for image uploads (prevents double submits / retries)
 const IMAGE_DEDUP_TTL_MS = 2 * 60 * 1000;
 const imageDedup = new Map<string, { at: number; promise?: Promise<any>; result?: any }>();
@@ -41,6 +73,14 @@ const imageDedup = new Map<string, { at: number; promise?: Promise<any>; result?
 app.use(cors());
 
 app.use(express.json());
+
+// Require a valid X-User-Id on every user-scoped route. Public routes (parse,
+// quote, weather, news, geocode, email webhook, PDF templates, SPA/static) are
+// not listed here. Mounted before the route handlers so it runs first.
+app.use(
+  ['/tasks', '/profile', '/inbox', '/notifications', '/push-tokens', '/pdf/preview', '/pdf/generate', '/pdf/download'],
+  requireUser,
+);
 
 // Clean up legacy suggested templates (non-blocking)
 sanitizeAllTasks()
@@ -444,10 +484,7 @@ app.patch('/tasks/:id', async (req, res) => {
     }
     return res.json({ success: true, data: task });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      error: 'Impossible de mettre à jour la tâche.',
-    });
+    return sendRouteError(res, error, 'Impossible de mettre à jour la tâche.');
   }
 });
 
@@ -498,12 +535,14 @@ app.post('/profile/children', async (req, res) => {
     const child = await addChild({ firstName, birthDate, height, weight, notes }, userId);
     return res.status(201).json({ success: true, data: child });
   } catch (error) {
+    if (error instanceof ValidationError) {
+      return res.status(400).json({ success: false, error: error.message });
+    }
     const message = error instanceof Error ? error.message : 'Impossible d\'ajouter l\'enfant.';
-    const status = message.includes('Maximum 5') ? 400 : 500;
-    return res.status(status).json({
-      success: false,
-      error: message,
-    });
+    if (message.includes('Maximum 5')) {
+      return res.status(400).json({ success: false, error: message });
+    }
+    return res.status(500).json({ success: false, error: 'Impossible d\'ajouter l\'enfant.' });
   }
 });
 
@@ -521,10 +560,7 @@ app.patch('/profile/children/:id', async (req, res) => {
     }
     return res.json({ success: true, data: child });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      error: 'Impossible de mettre à jour l\'enfant.',
-    });
+    return sendRouteError(res, error, 'Impossible de mettre à jour l\'enfant.');
   }
 });
 
@@ -561,10 +597,7 @@ app.put('/profile/spouse', async (req, res) => {
     const profile = await updateSpouse({ firstName, birthDate }, userId);
     return res.json({ success: true, data: profile });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      error: 'Impossible de mettre à jour le conjoint.',
-    });
+    return sendRouteError(res, error, 'Impossible de mettre à jour le conjoint.');
   }
 });
 
@@ -594,10 +627,7 @@ app.put('/profile/marriage-date', async (req, res) => {
     const profile = await updateMarriageDate(date, userId);
     return res.json({ success: true, data: profile });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      error: 'Impossible de mettre à jour la date de mariage.',
-    });
+    return sendRouteError(res, error, 'Impossible de mettre à jour la date de mariage.');
   }
 });
 
@@ -700,7 +730,12 @@ app.post('/email/inbound', express.raw({ type: '*/*', limit: '25mb' }), async (r
   console.log('[Webhook] POST /email/inbound received');
   console.log('[Webhook] Content-Type:', req.headers['content-type']);
   console.log('[Webhook] Body length:', req.body?.length || 0);
-  
+
+  if (!hasValidWebhookSecret(req)) {
+    console.warn('[Webhook] Rejected /email/inbound: missing/invalid secret');
+    return res.status(403).json({ success: false, error: 'Forbidden' });
+  }
+
   try {
     const contentType = req.headers['content-type'] || '';
     let rawEmail: string | null = null;
@@ -749,13 +784,12 @@ app.get('/email/status', (req, res) => {
         domain: 'hcfamily.app',
         webhook: '/email/inbound',
       },
-      // Fallback: IMAP polling (disabled by default)
+      // Fallback: IMAP polling (disabled by default).
+      // user/host intentionally omitted — don't disclose mailbox config publicly.
       imap: {
         enabled: imapEnabled,
         running: imapEnabled && imapStatus.running,
         configured: imapStatus.configured,
-        user: imapStatus.user,
-        host: imapStatus.host,
       },
     }
   });
@@ -763,6 +797,10 @@ app.get('/email/status', (req, res) => {
 
 // Manually trigger email check (useful for testing)
 app.post('/email/check', async (req, res) => {
+  if (!hasValidWebhookSecret(req)) {
+    console.warn('[Webhook] Rejected /email/check: missing/invalid secret');
+    return res.status(403).json({ success: false, error: 'Forbidden' });
+  }
   console.log('Manual email check triggered');
   const result = await checkEmailsNow();
   return res.json({ success: result.success, error: result.error });
@@ -944,10 +982,7 @@ app.put('/profile/address', async (req, res) => {
     const profile = await updateProfileAddress({ firstName, lastName, address, postalCode, city }, userId);
     return res.json({ success: true, data: profile });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      error: 'Impossible de mettre à jour l\'adresse.',
-    });
+    return sendRouteError(res, error, 'Impossible de mettre à jour l\'adresse.');
   }
 });
 

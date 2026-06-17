@@ -8,6 +8,17 @@ const __dirname = path.dirname(__filename);
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const USERS_DIR = path.join(DATA_DIR, 'users');
 
+/**
+ * Thrown when client-supplied input fails validation. Routes map this to a
+ * 400 instead of a generic 500 so bad input is rejected, not persisted.
+ */
+export class ValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ValidationError';
+  }
+}
+
 export function normalizeUserId(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
   const trimmed = raw.trim();
@@ -79,17 +90,33 @@ export async function ensureUserJsonFile(opts: {
 }
 
 export async function readJsonFile<T>(absolutePath: string, fallback: T): Promise<T> {
+  let content: string;
   try {
-    const content = await fs.readFile(absolutePath, 'utf-8');
-    return JSON.parse(content) as T;
+    content = await fs.readFile(absolutePath, 'utf-8');
+  } catch (err) {
+    // A genuinely missing file is the only case where the fallback is safe.
+    if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') return fallback;
+    throw err; // permission / I/O error — do not mask
+  }
+  try {
+    // Strip a leading UTF-8 BOM (some editors/tools add one); it is not
+    // corruption but JSON.parse rejects it.
+    return JSON.parse(content.replace(/^﻿/, '')) as T;
   } catch {
-    return fallback;
+    // The file exists but is corrupt/truncated. Returning `fallback` here would
+    // let the caller overwrite recoverable data with empty content (silent,
+    // permanent data loss). Surface it instead so the request fails loudly.
+    throw new Error(`Corrupt JSON file: ${path.basename(absolutePath)}`);
   }
 }
 
 export async function writeJsonFile<T>(absolutePath: string, value: T): Promise<void> {
   const dir = path.dirname(absolutePath);
   await ensureDir(dir);
-  await fs.writeFile(absolutePath, JSON.stringify(value, null, 2), 'utf-8');
+  // Atomic write: serialize to a temp file then rename. A crash/interrupt
+  // mid-write leaves the original file intact rather than truncated.
+  const tmpPath = `${absolutePath}.tmp`;
+  await fs.writeFile(tmpPath, JSON.stringify(value, null, 2), 'utf-8');
+  await fs.rename(tmpPath, absolutePath);
 }
 

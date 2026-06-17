@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { createRecurringTask, deleteTasksByRecurringSource } from './tasks.js';
-import { ensureUserJsonFile, readJsonFile, requireUserId, writeJsonFile } from './userData.js';
+import { ensureUserJsonFile, readJsonFile, requireUserId, ValidationError, writeJsonFile } from './userData.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -62,6 +62,28 @@ const ProfileSchema = z.object({
   city: z.string().optional(),
 });
 
+// Allowed fields on a child PATCH. id is immutable; unknown keys are stripped
+// and invalid types rejected so a malformed update can't corrupt the whole
+// profile (a single bad child makes the entire profile fail to parse on read).
+const ChildUpdateSchema = ChildSchema.omit({ id: true }).partial();
+
+// Address fields must all be strings; a non-string value would make the whole
+// profile fail ProfileSchema on the next read and silently wipe it.
+const AddressUpdateSchema = z.object({
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  address: z.string().optional(),
+  postalCode: z.string().optional(),
+  city: z.string().optional(),
+});
+
+/** Reject date strings that don't parse, before they reach date math / storage. */
+function assertValidDateString(value: string, fieldLabel: string): void {
+  if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) {
+    throw new ValidationError(`${fieldLabel} invalide.`);
+  }
+}
+
 async function readProfile(userId?: string | null): Promise<Profile> {
   const uid = requireUserId(userId);
   const pathToRead = await ensureUserJsonFile({
@@ -104,13 +126,21 @@ export async function updateProfile(updates: Partial<Profile>, userId?: string |
 
 export async function addChild(childData: Omit<Child, 'id'>, userId?: string | null): Promise<Child> {
   const profile = await readProfile(userId);
-  
+
   if (profile.children.length >= 5) {
     throw new Error('Maximum 5 children allowed');
   }
-  
+
+  // Validate before writing: bad firstName/birthDate/height/weight types would
+  // otherwise corrupt the profile and wipe it on the next read.
+  const parsed = ChildSchema.omit({ id: true }).safeParse(childData);
+  if (!parsed.success) {
+    throw new ValidationError('Champs enfant invalides.');
+  }
+  assertValidDateString(parsed.data.birthDate, 'Date de naissance');
+
   const newChild: Child = {
-    ...childData,
+    ...parsed.data,
     id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
   };
   
@@ -140,21 +170,32 @@ export async function updateChild(id: string, updates: Partial<Omit<Child, 'id'>
   
   if (index === -1) return null;
   
+  // Validate + whitelist incoming fields so a malformed update can't corrupt
+  // the profile (a single invalid child fails the whole-profile parse on read).
+  const parsedUpdates = ChildUpdateSchema.safeParse(updates);
+  if (!parsedUpdates.success) {
+    throw new ValidationError('Champs enfant invalides.');
+  }
+  const safeUpdates = parsedUpdates.data;
+  if (safeUpdates.birthDate !== undefined) {
+    assertValidDateString(safeUpdates.birthDate, 'Date de naissance');
+  }
+
   const oldChild = profile.children[index];
-  profile.children[index] = { ...oldChild, ...updates };
+  profile.children[index] = { ...oldChild, ...safeUpdates };
   await writeProfile(profile, userId);
-  
+
   // If birthDate changed, update the birthday task
-  if (updates.birthDate && updates.birthDate !== oldChild.birthDate) {
+  if (safeUpdates.birthDate && safeUpdates.birthDate !== oldChild.birthDate) {
     // Delete old birthday task
     await deleteTasksByRecurringSource(`child:${id}`, userId);
     
     // Create new birthday task with updated date
-    const firstName = updates.firstName || oldChild.firstName;
+    const firstName = safeUpdates.firstName || oldChild.firstName;
     await createRecurringTask({
       title: `Anniversaire de ${firstName}`,
       category: 'enfants-école',
-      birthDate: updates.birthDate,
+      birthDate: safeUpdates.birthDate,
       recurringSource: `child:${id}`,
       description: 'Penser au gâteau / cadeau / organisation.',
     }, userId);
@@ -179,6 +220,15 @@ export async function deleteChild(id: string, userId?: string | null): Promise<b
 }
 
 export async function updateSpouse(spouse: Spouse, userId?: string | null): Promise<Profile> {
+  const parsed = SpouseSchema.safeParse(spouse);
+  if (!parsed.success) {
+    throw new ValidationError('Champs conjoint invalides.');
+  }
+  if (parsed.data.birthDate !== undefined) {
+    assertValidDateString(parsed.data.birthDate, 'Date de naissance du conjoint');
+  }
+  spouse = parsed.data;
+
   const profile = await readProfile(userId);
   const isNewSpouse = !profile.spouse;
   const hadBirthDate = profile.spouse?.birthDate;
@@ -216,6 +266,11 @@ export async function deleteSpouse(userId?: string | null): Promise<Profile> {
 }
 
 export async function updateMarriageDate(date: string, userId?: string | null): Promise<Profile> {
+  // Reject unparseable dates before any write — otherwise the profile is
+  // persisted and createRecurringTask then throws on toISOString(), leaving a
+  // half-applied change with no anniversary task.
+  assertValidDateString(date, 'Date de mariage');
+
   const profile = await readProfile(userId);
   const hadDate = profile.marriageDate;
   profile.marriageDate = date;
@@ -257,14 +312,22 @@ export async function updateProfileAddress(data: {
   postalCode?: string;
   city?: string;
 }, userId?: string | null): Promise<Profile> {
+  // All address fields must be strings; a non-string value would make the whole
+  // profile fail to parse on the next read and silently wipe it.
+  const parsed = AddressUpdateSchema.safeParse(data);
+  if (!parsed.success) {
+    throw new ValidationError('Champs adresse invalides.');
+  }
+  const safe = parsed.data;
+
   const profile = await readProfile(userId);
-  
-  if (data.firstName !== undefined) profile.firstName = data.firstName;
-  if (data.lastName !== undefined) profile.lastName = data.lastName;
-  if (data.address !== undefined) profile.address = data.address;
-  if (data.postalCode !== undefined) profile.postalCode = data.postalCode;
-  if (data.city !== undefined) profile.city = data.city;
-  
+
+  if (safe.firstName !== undefined) profile.firstName = safe.firstName;
+  if (safe.lastName !== undefined) profile.lastName = safe.lastName;
+  if (safe.address !== undefined) profile.address = safe.address;
+  if (safe.postalCode !== undefined) profile.postalCode = safe.postalCode;
+  if (safe.city !== undefined) profile.city = safe.city;
+
   await writeProfile(profile, userId);
   return profile;
 }
